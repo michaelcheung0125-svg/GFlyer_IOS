@@ -44,6 +44,8 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.geopilot.gflyer.ios.tests
         GENERATE_INFOPLIST_FILE: YES
+        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/GFlyer.app/GFlyer"
+        BUNDLE_LOADER: "$(TEST_HOST)"
 configs:
   Debug: debug
   Release: release

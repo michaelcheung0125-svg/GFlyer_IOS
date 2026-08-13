@@ -46,6 +46,12 @@ C:\Project\GFlyer
 - 實機硬性可行性測試記錄表
 - `idevice` MIT 授權 notice 與個人側載限制文件
 
+第一次 GitHub Actions 執行中，`Idevice unsigned archive` 已在 Xcode 16.4
+完整通過。Simulator unit test 曾因 App target 的 `PRODUCT_NAME` 是 `GFlyer`，
+而 XcodeGen 預設 test host 仍指向 `GFlyerIOS.app/GFlyerIOS` 而失敗；目前已在
+`project.yml` 明確設定 `TEST_HOST` 與 `BUNDLE_LOADER` 指向
+`GFlyer.app/GFlyer`，待下一次 workflow 驗證。
+
 ## 重要檔案
 
 ```text
