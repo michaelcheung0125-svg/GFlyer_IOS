@@ -50,7 +50,9 @@ C:\Project\GFlyer
 完整通過。Simulator unit test 曾因 App target 的 `PRODUCT_NAME` 是 `GFlyer`，
 而 XcodeGen 預設 test host 仍指向 `GFlyerIOS.app/GFlyerIOS` 而失敗；目前已在
 `project.yml` 明確設定 `TEST_HOST` 與 `BUNDLE_LOADER` 指向
-`GFlyer.app/GFlyer`，待下一次 workflow 驗證。
+`GFlyer.app/GFlyer`。該問題排除後，測試編譯進一步發現 `PRODUCT_NAME`
+同時把 Swift module 改名為 `GFlyer`，與測試的 `@testable import GFlyerIOS`
+不一致；目前已固定 `PRODUCT_MODULE_NAME: GFlyerIOS`，待下一次 workflow 驗證。
 
 ## 重要檔案
 
