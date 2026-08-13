@@ -1,0 +1,121 @@
+name: macOS Xcode validation
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: macos-xcode-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  simulator-tests:
+    name: Preview scheme tests
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project
+        run: xcodegen generate
+
+      - name: Select an available iPhone simulator
+        id: simulator
+        shell: bash
+        run: |
+          simulator_id="$({
+            xcrun simctl list devices available --json
+          } | python3 -c '
+          import json
+          import sys
+
+          devices = json.load(sys.stdin)["devices"]
+          iphones = [
+              device
+              for runtime_devices in devices.values()
+              for device in runtime_devices
+              if device.get("isAvailable") and device["name"].startswith("iPhone")
+          ]
+          if not iphones:
+              raise SystemExit("No available iPhone simulator was found")
+          print(iphones[0]["udid"])
+          ' )"
+          echo "id=$simulator_id" >> "$GITHUB_OUTPUT"
+
+      - name: Build and run unit tests
+        run: |
+          xcodebuild test \
+            -project GFlyerIOS.xcodeproj \
+            -scheme GFlyerIOS \
+            -destination "platform=iOS Simulator,id=${{ steps.simulator.outputs.id }}" \
+            -derivedDataPath "$RUNNER_TEMP/GFlyerIOS-DerivedData" \
+            CODE_SIGNING_ALLOWED=NO
+
+  idevice-archive:
+    name: Idevice unsigned archive
+    runs-on: macos-15
+    timeout-minutes: 60
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Install build tools
+        run: brew install xcodegen
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-ios
+
+      - name: Cache Rust dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: ${{ runner.os }}-idevice-${{ hashFiles('scripts/build_idevice.sh') }}
+
+      - name: Build pinned idevice library
+        run: |
+          chmod +x scripts/build_idevice.sh
+          ./scripts/build_idevice.sh
+
+      - name: Generate Xcode project
+        run: xcodegen generate
+
+      - name: Create unsigned device archive
+        run: |
+          xcodebuild archive \
+            -project GFlyerIOS.xcodeproj \
+            -scheme GFlyerIOS-Idevice \
+            -destination "generic/platform=iOS" \
+            -archivePath "$RUNNER_TEMP/GFlyerIOS-Idevice.xcarchive" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO
+
+      - name: Package unsigned IPA
+        run: |
+          app_path="$RUNNER_TEMP/GFlyerIOS-Idevice.xcarchive/Products/Applications/GFlyer.app"
+          test -d "$app_path"
+          mkdir -p "$RUNNER_TEMP/ipa/Payload"
+          ditto "$app_path" "$RUNNER_TEMP/ipa/Payload/GFlyer.app"
+          cd "$RUNNER_TEMP/ipa"
+          zip -qry "$RUNNER_TEMP/GFlyerIOS-Idevice-unsigned.ipa" Payload
+
+      - name: Upload unsigned IPA and archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: GFlyerIOS-Idevice-unsigned
+          path: |
+            ${{ runner.temp }}/GFlyerIOS-Idevice-unsigned.ipa
+            ${{ runner.temp }}/GFlyerIOS-Idevice.xcarchive
+          if-no-files-found: error
+          retention-days: 14

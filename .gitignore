@@ -1,0 +1,32 @@
+# Xcode and local build output
+.build/
+DerivedData/
+*.xcodeproj/
+*.xcworkspace/
+*.xcarchive/
+*.ipa
+*.dSYM/
+xcuserdata/
+*.xcuserstate
+
+# Locally built idevice bridge
+GFlyerIOS/Vendor/idevice/
+libidevice_ffi.a
+
+# Apple signing material and device credentials
+*.mobiledevicepairing
+*.mobileprovision
+*.p12
+*.pfx
+signing/
+secrets/
+
+# Downloaded developer images
+*.dmg
+PersonalizedImages/
+
+# Local environment files
+.DS_Store
+.env
+.env.*
+!.env.example
