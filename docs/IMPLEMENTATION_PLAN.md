@@ -50,8 +50,8 @@ The platform boundary must remain narrow. Route planning, GPX, favorites, histor
 
 ### M0: Device-location spike
 
-Status: implementation and macOS CI prepared; requires a successful workflow
-run, personal signing, and target iPhone verification.
+Status: implementation and macOS CI passed on Xcode 16.4; requires personal
+signing and target iPhone verification.
 
 - Run preview scheme unit tests on a GitHub Actions macOS runner.
 - Build and link the pinned `idevice` library in an unsigned device archive.
@@ -61,7 +61,7 @@ run, personal signing, and target iPhone verification.
 
 Exit criterion: the hard feasibility gate passes.
 
-The CI artifact is deliberately unsigned. A green workflow is a compilation
+The CI artifact is deliberately unsigned. The green workflow is a compilation
 gate only and does not satisfy the personal-signing or device-location exit
 criteria. Record target-device evidence in `docs/DEVICE_FEASIBILITY_CHECKLIST.md`.
 

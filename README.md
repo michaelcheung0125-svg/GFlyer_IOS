@@ -54,6 +54,11 @@ It cannot be installed on an iPhone until it is signed with the owner's Apple
 development identity and provisioning profile. No Apple signing secret is
 required or stored by this workflow.
 
+The macOS validation passed on Xcode 16.4 for commit `b777985`: simulator unit
+tests completed successfully and the native `GFlyerIOS-Idevice` archive produced
+the unsigned artifact. Personal signing and target-iPhone behavior remain
+separate verification gates.
+
 ## Generate and open the project
 
 ```bash
