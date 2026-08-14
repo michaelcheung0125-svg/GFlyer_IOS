@@ -15,6 +15,9 @@ struct MainView: View {
     @State private var showJoystick = false
     @State private var isPanelExpanded = true
     @State private var suppressNextRecenter = false
+    @State private var feedbackMessage: String?
+    @State private var feedbackTask: Task<Void, Never>?
+    @State private var cameraDistance: CLLocationDistance = 5_000
 
     var body: some View {
         NavigationStack {
@@ -73,7 +76,9 @@ struct MainView: View {
                             isPanelExpanded: $isPanelExpanded,
                             showFavorites: $showFavorites,
                             showRoutes: $showRoutes,
-                            position: $position
+                            position: $position,
+                            cameraDistance: $cameraDistance,
+                            onFeedback: announce
                         )
                         }
                         .padding(.top, 8)
@@ -131,6 +136,19 @@ struct MainView: View {
             .onChange(of: isPanelExpanded) { _, expanded in
                 if expanded { showJoystick = false }
             }
+            .overlay(alignment: .top) {
+                if let feedbackMessage {
+                    Text(feedbackMessage)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.primary)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 9)
+                        .background(.regularMaterial, in: Capsule())
+                        .shadow(radius: 4, y: 2)
+                        .padding(.top, 84)
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                }
+            }
             .alert(
                 "操作失敗",
                 isPresented: Binding(
@@ -148,6 +166,18 @@ struct MainView: View {
     private func region(around coordinate: GeoCoordinate, span: CLLocationDegrees) -> MKCoordinateRegion {
         MKCoordinateRegion(center: coordinate.clLocationCoordinate,
                            span: MKCoordinateSpan(latitudeDelta: span, longitudeDelta: span))
+    }
+
+    private func announce(_ message: String) {
+        feedbackTask?.cancel()
+        withAnimation(.easeOut(duration: 0.18)) { feedbackMessage = message }
+        feedbackTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 1_600_000_000)
+            guard !Task.isCancelled, let self else { return }
+            withAnimation(.easeIn(duration: 0.18)) {
+                if feedbackMessage == message { feedbackMessage = nil }
+            }
+        }
     }
 }
 
@@ -214,24 +244,41 @@ private struct MapToolBar: View {
     @Binding var showFavorites: Bool
     @Binding var showRoutes: Bool
     @Binding var position: MapCameraPosition
+    @Binding var cameraDistance: CLLocationDistance
+    let onFeedback: (String) -> Void
 
     var body: some View {
-        LazyVGrid(columns: [GridItem(.fixed(34)), GridItem(.fixed(34))], spacing: 6) {
-            mapButton("plus", label: "放大") { zoom(0.5) }
-            mapButton("minus", label: "縮小") { zoom(2) }
-            mapButton("location.fill", label: "回到選取位置") {
-                position = .region(MKCoordinateRegion(center: controller.selectedCoordinate.clLocationCoordinate,
-                                                       span: MKCoordinateSpan(latitudeDelta: 0.04, longitudeDelta: 0.04)))
+        VStack(spacing: 4) {
+            HStack(spacing: 4) {
+                mapButton("plus", label: "放大") { zoom(0.5) }
+                mapButton("minus", label: "縮小") { zoom(2) }
             }
-            mapButton(showJoystick ? "gamecontroller.fill" : "gamecontroller", label: "搖桿") {
-                showJoystick.toggle()
-                if showJoystick { isPanelExpanded = false }
+            HStack(spacing: 4) {
+                mapButton("location.fill", label: "回到選取位置") {
+                    cameraDistance = 5_000
+                    position = .region(MKCoordinateRegion(center: controller.selectedCoordinate.clLocationCoordinate,
+                                                           span: MKCoordinateSpan(latitudeDelta: 0.04, longitudeDelta: 0.04)))
+                }
+                mapButton(showJoystick ? "gamecontroller.fill" : "gamecontroller", label: "搖桿") {
+                    showJoystick.toggle()
+                    if showJoystick { isPanelExpanded = false }
+                }
             }
-            mapButton("star", label: "收藏目前位置") { controller.addFavorite() }
-            mapButton("star.circle", label: "收藏與歷史") { showFavorites = true }
-            mapButton("point.3.filled.connected.trianglepath.dotted", label: "已儲存路線") { showRoutes = true }
+            HStack(spacing: 4) {
+                let isFavorite = controller.favorites.contains { $0.coordinate == controller.selectedCoordinate }
+                mapButton(isFavorite ? "star.fill" : "star", label: "收藏目前位置") {
+                    controller.addFavorite()
+                    onFeedback(isFavorite ? "已更新收藏位置" : "已加入收藏")
+                }
+                mapButton("star.circle", label: "收藏與歷史") { showFavorites = true }
+            }
+            HStack(spacing: 4) {
+                mapButton("point.3.filled.connected.trianglepath.dotted", label: "已儲存路線") { showRoutes = true }
+                Color.clear.frame(width: 34, height: 34)
+            }
         }
-        .padding(8)
+        .padding(6)
+        .fixedSize()
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
     }
 
@@ -242,8 +289,9 @@ private struct MapToolBar: View {
     }
 
     private func zoom(_ factor: Double) {
+        cameraDistance = min(max(cameraDistance * factor, 250), 100_000)
         position = .camera(MapCamera(centerCoordinate: controller.selectedCoordinate.clLocationCoordinate,
-                                     distance: 1_500 * factor,
+                                     distance: cameraDistance,
                                      heading: 0,
                                      pitch: 0))
     }
