@@ -171,9 +171,9 @@ struct MainView: View {
     private func announce(_ message: String) {
         feedbackTask?.cancel()
         withAnimation(.easeOut(duration: 0.18)) { feedbackMessage = message }
-        feedbackTask = Task { [weak self] in
+        feedbackTask = Task { @MainActor in
             try? await Task.sleep(nanoseconds: 1_600_000_000)
-            guard !Task.isCancelled, let self else { return }
+            guard !Task.isCancelled else { return }
             withAnimation(.easeIn(duration: 0.18)) {
                 if feedbackMessage == message { feedbackMessage = nil }
             }
