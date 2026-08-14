@@ -9,7 +9,6 @@ struct LocalDataSnapshot: Codable {
     var draft: RouteDraft?
 }
 
-@MainActor
 final class LocalDataStore {
     private let defaults: UserDefaults
     private let key = "gflyer.local-data.v1"
