@@ -19,6 +19,9 @@ targets:
       - path: GFlyerIOS
         excludes:
           - Vendor
+          - Resources
+    resources:
+      - path: GFlyerIOS/Resources
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.geopilot.gflyer.ios

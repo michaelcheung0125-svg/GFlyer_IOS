@@ -67,25 +67,27 @@ criteria. Record target-device evidence in `docs/DEVICE_FEASIBILITY_CHECKLIST.md
 
 ### M1: Foreground MVP
 
-Status: initial prototype implemented.
+Status: feature implementation complete; macOS/Xcode and target-iPhone regression pending.
 
+- Branded map home, search, map tools, and collapsible controls
 - Map selection and static teleport
-- Multi-point straight-line route
-- Adjustable speed
+- Single-point and multi-point straight-line routes
+- Nonlinear 1.8-900 km/h speed scale and reusable presets
 - Pause, resume, stop
 - Loop route with walk-back or instant return
+- Foreground joystick and spiral exploration
 - Visible backend and connection state
 
 Exit criterion: a 30-minute foreground route completes without losing the tunnel or leaving simulated GPS active after Stop.
 
 ### M2: GFlyer feature parity
 
-- Place and coordinate search
-- Favorites and local history
-- Named routes
+- Place and coordinate search (implemented; validation pending)
+- Favorites, favorite folders, and local history (implemented; validation pending)
+- Named routes and route-draft recovery after relaunch (implemented; validation pending)
 - GPX import and export
-- Joystick movement
-- Spiral exploration
+- Joystick movement (implemented for foreground use; validation pending)
+- Spiral exploration (implemented; validation pending)
 - Cooldown timer and cross-date warning
 - Route polyline editing and waypoint reorder
 

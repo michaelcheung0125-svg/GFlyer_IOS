@@ -29,10 +29,12 @@ C:\Project\GFlyer
 ## 目前已完成
 
 - SwiftUI + MapKit 地圖介面
-- 地圖點擊選點
-- 靜態傳送
-- 多點直線路線播放
-- 速度調整
+- 飛豬品牌地圖標記、地圖點擊選點、地點/座標搜尋及右側地圖工具列
+- 傳送、單點、多點及螺旋探索四種模式
+- 非線性 1.8-900 km/h 速度控制、內建/自訂速度預設及 20 km/h 提示
+- App 前景搖桿控制
+- 收藏、歷史、收藏資料夾、命名路線及路線草稿重啟恢復
+- 可收合底部控制面板及原生 sheet/menu 操作
 - 暫停、繼續、停止
 - 循環路線，以及走回起點/直接返回
 - Pairing File 匯入、檔案保護與本機儲存
@@ -72,15 +74,20 @@ GFlyerIOS/Services/PairingFileStore.swift
 GFlyerIOS/UI/MainView.swift
 GFlyerIOS/UI/SetupView.swift
 GFlyerIOSTests/GeoMathTests.swift
+GFlyerIOSTests/FeatureModelTests.swift
+GFlyerIOS/Services/LocalDataStore.swift
+GFlyerIOS/Services/PlaceSearchService.swift
+GFlyerIOS/UI/LibraryViews.swift
 ```
 
 ## 下一個對話應先做什麼
 
 新對話開始時，先讀取本檔案、`AGENTS.md`、`README.md` 及 `docs/IMPLEMENTATION_PLAN.md`，然後依序處理：
 
-### 1. 執行 macOS/Xcode 雲端建置
+### 1. 驗證目前第 1 至第 3 階段
 
-已新增 `.github/workflows/macos-xcode.yml`。將專案推送到 GitHub 後，先以
+目前第 1 至第 3 階段的 UI、移動模式與本機資料功能已實作，但本次修改只在
+Windows 完成靜態檢查。將專案推送到 GitHub 後，以
 `workflow_dispatch` 或 push 執行 workflow，確認以下兩個 job 都通過：
 
 - `Preview scheme tests`：產生 Xcode 專案並在 iOS Simulator 執行測試。
@@ -169,4 +176,7 @@ DDI 會在 App 第一次需要時下載到 iOS Application Support，並以 pinn
 
 ## 完成標準
 
-第一階段不是「Xcode 專案看起來能開」，而是目標 iPhone 上完成上述硬性可行性測試，並證明初次設定後不需要持續連接電腦。實機證據收集完成後，才進入 GPX、收藏、搜尋、搖桿、螺旋探索與更完整的 GFlyer parity。
+目前的第 1 至第 3 階段只有在新 workflow 的 Preview tests 與 Idevice archive
+通過，並在目標 iPhone 回歸傳送、第二次更新、Stop 清除、單點、多點、探索與
+搖桿後，才算驗證完成。GPX、冷卻計時、跨日期提示、路線重排與背景播放不在
+這三階段內，仍屬後續工作。

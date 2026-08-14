@@ -4,15 +4,29 @@ This is a separate SwiftUI prototype for personal sideloading. It does not modif
 
 ## Current scope
 
-- MapKit map and tap-to-select location
-- Static location simulation command
-- Multi-point route playback with adjustable speed
+- Branded MapKit home screen with place/coordinate search and map tool controls
+- Static teleport plus single-point, multi-point, and spiral exploration modes
+- Multi-point route playback with a nonlinear 1.8-900 km/h speed scale
 - Pause, resume, stop, looping, and return behavior
+- In-app foreground joystick control and reusable speed presets
+- Local favorites, history, favorite folders, named routes, and route-draft recovery
 - Pairing-file import and protected local storage
 - Preview backend that builds without native dependencies
 - Optional `idevice` backend for device-wide GPS simulation
 
 The prototype deliberately excludes anti-detection, modified third-party clients, and App Store distribution.
+
+The current feature UI is implemented but has not yet passed the repository's
+macOS/Xcode CI run or target-iPhone regression pass. Windows checks do not
+replace those gates.
+
+## End-user guide
+
+The complete Traditional Chinese installation and usage guide is available in
+[Markdown](docs/USER_GUIDE_ZH_HK.md) and as a self-contained
+[HTML document](docs/USER_GUIDE_ZH_HK.html). It covers Windows/Sideloadly
+installation, device-specific remote pairing, LocalDevVPN, first-use DDI setup,
+daily operation, seven-day signing refreshes, and multi-user distribution.
 
 ## Why the backend is separate
 

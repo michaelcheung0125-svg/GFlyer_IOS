@@ -1,3 +1,4 @@
+import Foundation
 import SwiftUI
 
 struct SetupView: View {
@@ -6,6 +7,9 @@ struct SetupView: View {
     @ObservedObject private var pairingStore: PairingFileStore
     @State private var showImporter = false
     @State private var importError: String?
+    @State private var showPresetPrompt = false
+    @State private var presetName = ""
+    @State private var presetSpeed = "50"
 
     init(controller: SimulationController) {
         self.controller = controller
@@ -57,6 +61,43 @@ struct SetupView: View {
                     Text("第一次使用裝置模式時，GFlyer 會下載約 16 MB、固定版本並經 SHA-256 驗證的 Personalized DDI，之後保留在本機使用。")
                         .font(.caption)
                         .foregroundStyle(.secondary)
+                }
+
+                Section("速度預設") {
+                    ForEach(controller.quickSpeedPresets) { preset in
+                        HStack {
+                            Text(preset.name)
+                            Spacer()
+                            Text(String(format: "%.1f km/h", preset.kilometresPerHour))
+                                .font(.caption.monospacedDigit()).foregroundStyle(.secondary)
+                            if !SpeedScale.defaultPresets.contains(where: { $0.name == preset.name && $0.kilometresPerHour == preset.kilometresPerHour }) {
+                                Button(role: .destructive) { controller.removeQuickSpeedPreset(preset.id) } label: {
+                                    Image(systemName: "trash")
+                                }
+                                .buttonStyle(.borderless)
+                                .accessibilityLabel("刪除速度預設")
+                            }
+                        }
+                    }
+                    Button { showPresetPrompt = true } label: {
+                        Label("新增速度預設", systemImage: "plus")
+                    }
+                    .disabled(controller.quickSpeedPresets.count >= 12)
+                    .alert("新增速度預設", isPresented: $showPresetPrompt) {
+                        TextField("名稱", text: $presetName)
+                        TextField("速度 km/h", text: $presetSpeed)
+                            .keyboardType(.decimalPad)
+                        Button("新增") {
+                            if let speed = Double(presetSpeed), !presetName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                                controller.saveQuickSpeedPreset(name: presetName, speed: speed)
+                            }
+                            presetName = ""
+                            presetSpeed = "50"
+                        }
+                        Button("取消", role: .cancel) { }
+                    } message: {
+                        Text("速度會限制在 1.8 至 900 km/h")
+                    }
                 }
 
                 Section("操作順序") {

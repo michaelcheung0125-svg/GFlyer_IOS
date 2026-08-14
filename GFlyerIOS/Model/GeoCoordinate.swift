@@ -11,6 +11,17 @@ struct GeoCoordinate: Codable, Equatable, Hashable, Identifiable, Sendable {
     }
     var display: String { String(format: "%.6f, %.6f", latitude, longitude) }
 
+    static func parse(_ text: String) -> GeoCoordinate? {
+        let parts = text
+            .split(whereSeparator: { $0 == "," || $0 == " " || $0 == "\n" || $0 == "\t" })
+            .compactMap { Double($0.trimmingCharacters(in: .whitespacesAndNewlines)) }
+        guard parts.count >= 2 else { return nil }
+        guard (-90.0...90.0).contains(parts[0]), (-180.0...180.0).contains(parts[1]) else {
+            return nil
+        }
+        return GeoCoordinate(latitude: parts[0], longitude: parts[1])
+    }
+
     init(latitude: Double, longitude: Double) {
         precondition((-90.0...90.0).contains(latitude), "Latitude must be between -90 and 90")
         precondition((-180.0...180.0).contains(longitude), "Longitude must be between -180 and 180")
