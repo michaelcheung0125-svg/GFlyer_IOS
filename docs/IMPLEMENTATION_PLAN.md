@@ -37,7 +37,7 @@ SwiftUI / MapKit
         -> PreviewLocationSimulationBackend
         -> IdeviceLocationSimulationBackend
            -> pairing file
-           -> LocalDevVPN 10.7.0.1:49152
+           -> LocalDevVPN 10.7.0.1:49152 (raw RPPairing)
            -> CoreDevice/RPPairing
            -> Personalized DDI mount when required
            -> RemoteXPC
@@ -98,6 +98,7 @@ Exit criterion: behavior matches the existing Android model tests where the plat
 - Sideload/refresh workflow using SideStore or another personal method
 - Pairing-file health check with a clear replacement flow
 - LocalDevVPN connection checklist
+- In-app tunnel test that distinguishes a loaded native backend from a verified CoreDevice connection and preserves the native `idevice` error code/message
 - Recovery after app termination, device reboot, and VPN reconnect
 - iOS-version compatibility record
 

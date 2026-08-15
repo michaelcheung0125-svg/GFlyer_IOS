@@ -19,6 +19,8 @@ final class SimulationController: ObservableObject {
     @Published private(set) var savedRoutes: [SavedRoute] = []
     @Published private(set) var quickSpeedPresets: [QuickSpeedPreset] = SpeedScale.defaultPresets
     @Published private(set) var status = SimulationStatus()
+    @Published private(set) var tunnelTestMessage = "尚未測試"
+    @Published private(set) var isTestingTunnel = false
     @Published var lastError: String?
 
     let pairingStore = PairingFileStore()
@@ -52,7 +54,7 @@ final class SimulationController: ObservableObject {
             mode = draft.points.count > 2 ? .multiRoute : .singleRoute
         }
         status.message = self.backend.canControlDeviceLocation
-            ? "裝置定位後端已就緒"
+            ? "裝置後端已載入；通道尚未測試"
             : "目前為預覽模式；尚未連結 idevice"
     }
 
@@ -187,6 +189,24 @@ final class SimulationController: ObservableObject {
                 try await backend.clearLocation(pairingFileURL: pairingStore.url, deviceIP: deviceIP)
                 status = SimulationStatus(message: "已清除模擬位置")
             } catch {
+                lastError = error.localizedDescription
+            }
+        }
+    }
+
+    func testTunnelConnection() {
+        lastError = nil
+        guard pairingIsReady, !isTestingTunnel else { return }
+        isTestingTunnel = true
+        tunnelTestMessage = "測試中..."
+        Task {
+            defer { isTestingTunnel = false }
+            do {
+                try await backend.testConnection(pairingFileURL: pairingStore.url, deviceIP: deviceIP)
+                tunnelTestMessage = "連線成功"
+                status.message = "LocalDevVPN/CoreDevice 通道已驗證"
+            } catch {
+                tunnelTestMessage = "連線失敗"
                 lastError = error.localizedDescription
             }
         }

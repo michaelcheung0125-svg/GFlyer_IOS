@@ -7,11 +7,23 @@ import idevice
 actor IdeviceLocationSimulationBackend: LocationSimulationBackend {
     nonisolated let name = "idevice 裝置定位"
     nonisolated let canControlDeviceLocation = true
+    private let remotePairingPort: UInt16 = 49_152
 
     private var adapter: OpaquePointer?
     private var handshake: OpaquePointer?
     private var remoteServer: OpaquePointer?
     private var locationSimulation: OpaquePointer?
+
+    func testConnection(pairingFileURL: URL, deviceIP: String) async throws {
+        if locationSimulation != nil { return }
+        do {
+            try await ensureSession(pairingFileURL: pairingFileURL, deviceIP: deviceIP)
+            cleanup()
+        } catch {
+            cleanup()
+            throw error
+        }
+    }
 
     func setLocation(_ coordinate: GeoCoordinate, pairingFileURL: URL, deviceIP: String) async throws {
         try await ensureSession(pairingFileURL: pairingFileURL, deviceIP: deviceIP)
@@ -43,7 +55,7 @@ actor IdeviceLocationSimulationBackend: LocationSimulationBackend {
     private func ensureSession(pairingFileURL: URL, deviceIP: String) async throws {
         if locationSimulation != nil { return }
 
-        guard var address = IPv4SocketAddress(ip: deviceIP, port: 49_152) else {
+        guard var address = IPv4SocketAddress(ip: deviceIP, port: remotePairingPort) else {
             throw SimulationError.invalidAddress
         }
 
@@ -184,7 +196,35 @@ actor IdeviceLocationSimulationBackend: LocationSimulationBackend {
     private func check(_ error: UnsafeMutablePointer<IdeviceFfiError>?, fallback: String) throws {
         guard let error else { return }
         defer { idevice_error_free(error) }
-        throw SimulationError.connectionFailed(fallback)
+
+        let code = error.pointee.code
+        let subCode = error.pointee.sub_code
+        let nativeMessage = error.pointee.message.map { String(cString: $0) } ?? "未提供詳細資料"
+        let hint = diagnosticHint(for: nativeMessage)
+        throw SimulationError.connectionFailed(
+            "\(fallback)\n\(hint)\nidevice 錯誤 \(code)/\(subCode)：\(nativeMessage)"
+        )
+    }
+
+    private func diagnosticHint(for nativeMessage: String) -> String {
+        let message = nativeMessage.lowercased()
+        if message.contains("pair") || message.contains("verify") || message.contains("identity") {
+            return "Pairing 驗證失敗：請重新產生這部 iPhone 的 Pairing File，再匯入 GFlyer。"
+        }
+        if message.contains("tls") || message.contains("ssl") || message.contains("psk") {
+            return "TLS 通道失敗：Pairing File 可能已失效，請重新配對後再試。"
+        }
+        if message.contains("rsd") || message.contains("remotexpc") || message.contains("handshake") {
+            return "CoreDevice/RSD 交握失敗：請重新連接 LocalDevVPN；若仍失敗，請保留完整錯誤文字。"
+        }
+        if message.contains("connect")
+            || message.contains("refused")
+            || message.contains("unreachable")
+            || message.contains("timed out")
+        {
+            return "TCP 連線失敗：請確認 LocalDevVPN 已連接，目標 IP 為 10.7.0.1，並關閉其他 VPN。"
+        }
+        return "請保留以下完整錯誤文字，以便判斷失敗階段。"
     }
 }
 

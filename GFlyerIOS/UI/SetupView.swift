@@ -22,8 +22,8 @@ struct SetupView: View {
                 Section("定位後端") {
                     LabeledContent("目前後端", value: controller.backendName)
                     LabeledContent(
-                        "全機 GPS",
-                        value: controller.canControlDeviceLocation ? "可用" : "尚未啟用"
+                        "原生程式庫",
+                        value: controller.canControlDeviceLocation ? "已載入" : "尚未啟用"
                     )
                 }
 
@@ -52,7 +52,26 @@ struct SetupView: View {
                     TextField("目標 IP", text: $controller.deviceIP)
                         .textInputAutocapitalization(.never)
                         .keyboardType(.numbersAndPunctuation)
-                    Text("預設為 10.7.0.1。開始全機定位模擬前，請先在 LocalDevVPN 開啟 VPN。")
+                    LabeledContent("CoreDevice 通道", value: controller.tunnelTestMessage)
+                    Button {
+                        controller.testTunnelConnection()
+                    } label: {
+                        if controller.isTestingTunnel {
+                            HStack {
+                                ProgressView()
+                                Text("正在測試通道")
+                            }
+                        } else {
+                            Label("測試 LocalDevVPN 通道", systemImage: "network.badge.shield.half.filled")
+                        }
+                    }
+                    .disabled(
+                        !controller.canControlDeviceLocation
+                            || !pairingStore.isImported
+                            || controller.isTestingTunnel
+                            || controller.isMotionActive
+                    )
+                    Text("預設為 10.7.0.1，Remote Pairing port 為 49152。開始全機定位模擬前，請先在 LocalDevVPN 開啟 VPN。")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -144,6 +163,17 @@ struct SetupView: View {
                 Button("確定", role: .cancel) { importError = nil }
             } message: {
                 Text(importError ?? "未知錯誤")
+            }
+            .alert(
+                "通道操作失敗",
+                isPresented: Binding(
+                    get: { controller.lastError != nil },
+                    set: { if !$0 { controller.lastError = nil } }
+                )
+            ) {
+                Button("確定", role: .cancel) { controller.lastError = nil }
+            } message: {
+                Text(controller.lastError ?? "未知錯誤")
             }
         }
     }

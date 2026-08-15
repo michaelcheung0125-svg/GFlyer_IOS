@@ -34,7 +34,7 @@ iOS has no public equivalent to Android's mock-location provider. Device-wide si
 
 ```text
 pairing file
-  -> LocalDevVPN at 10.7.0.1:49152
+  -> LocalDevVPN at 10.7.0.1:49152 (raw RPPairing)
   -> CoreDevice/RPPairing tunnel
   -> verified Personalized Developer Disk Image mount (when needed)
   -> RemoteXPC remote server
@@ -110,7 +110,7 @@ These generated files are ignored by Git.
 2. Generate a pairing file for this iPhone using a trusted computer workflow such as iLoader/StikDebug's pairing guide.
 3. Send the file directly to the iPhone Files app. Avoid workflows that remove the extension.
 4. In GFlyer, open Settings and import the pairing file.
-5. Install and connect LocalDevVPN. Keep its default device address `10.7.0.1` unless your setup uses another address.
+5. Install and connect LocalDevVPN. Keep its default device address `10.7.0.1` unless your setup uses another address. In GFlyer's device settings, use **Test LocalDevVPN tunnel** before starting simulation; the current raw RPPairing path connects on port `49152`.
 6. Return to GFlyer, choose a point or route, and start simulation. On first device-mode use, allow the app to download and verify the pinned Personalized DDI (about 16 MB).
 7. Press Stop before disabling LocalDevVPN so the app can call `location_simulation_clear()`.
 

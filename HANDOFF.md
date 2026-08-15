@@ -115,7 +115,7 @@ open GFlyerIOS.xcodeproj
 
 1. `GFlyerIOS-Idevice` 可以個人簽署並安裝。
 2. Pairing File 能被匯入。
-3. LocalDevVPN 能提供 `10.7.0.1` 連線。
+3. LocalDevVPN 能提供 `10.7.0.1:49152` raw RPPairing 連線；設定頁的通道測試顯示「連線成功」。
 4. Personalized DDI 能下載、驗證與掛載。
 5. Apple Maps 會顯示第一個模擬位置。
 6. 第二次座標更新可重用連線。
@@ -133,6 +133,7 @@ open GFlyerIOS.xcodeproj
 - Xcode 版本
 - `idevice` revision
 - LocalDevVPN 版本與目標 IP
+- 設定頁通道測試顯示的完整 `idevice` 錯誤碼與訊息（不可附上 Pairing File 內容）
 - pairing file 產生方式
 - 失敗階段：pairing、tunnel、DDI、RemoteXPC、location set 或 clear
 - Apple Maps 顯示結果
