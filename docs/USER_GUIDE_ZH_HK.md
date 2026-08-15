@@ -76,7 +76,7 @@ GFlyer 使用 iPhone 的開發者服務作全機定位模擬，只適合個人�
 6. 在頁面下方 **Artifacts** 區域，點選 `GFlyerIOS-Idevice-unsigned`。
 7. 解壓縮下載的 ZIP。
 8. 找出 `GFlyerIOS-Idevice-unsigned.ipa`。一般使用者不需要 `.xcarchive`。
-9. 另外下載公開的 [THIRD_PARTY_NOTICES.md](https://michaelcheung0125-svg.github.io/GFlyer-updates/THIRD_PARTY_NOTICES.md)。
+9. 另外閱讀公開的 [THIRD_PARTY_NOTICES.md](https://michaelcheung0125-svg.github.io/GFlyer-updates/THIRD_PARTY_NOTICES.html)。
 
 此 repository 的 workflow artifact 保留期目前是 14 天。若 Artifacts 區域沒有檔案，請由專案維護者重新執行 workflow，或向維護者取得同一版本的 unsigned IPA。
 
@@ -566,4 +566,4 @@ iOS 更新可能令 Pairing File、Personalized DDI 或 Apple 私有開發協定
 - [LocalSend](https://localsend.org/)
 - [GitHub：下載 workflow artifacts](https://docs.github.com/en/actions/managing-workflow-runs-and-deployments/managing-workflow-runs/downloading-workflow-artifacts)
 - [Apple：Developer Mode 文件](https://developer.apple.com/documentation/xcode/enabling-developer-mode-on-a-device)
-- [第三方授權聲明](https://michaelcheung0125-svg.github.io/GFlyer-updates/THIRD_PARTY_NOTICES.md)
+- [第三方授權聲明](https://michaelcheung0125-svg.github.io/GFlyer-updates/THIRD_PARTY_NOTICES.html)
