@@ -25,6 +25,7 @@ final class SimulationController: ObservableObject {
 
     let pairingStore = PairingFileStore()
     let backend: any LocationSimulationBackend
+    let deviceLocation = DeviceLocationService()
 
     private let dataStore: LocalDataStore
     private var playbackTask: Task<Void, Never>?
@@ -148,6 +149,7 @@ final class SimulationController: ObservableObject {
         playbackTask?.cancel()
         joystickTask?.cancel()
         joystickTask = nil
+        deviceLocation.stopBackgroundRouteActivity()
 
         guard pairingIsReady else { return }
 
@@ -164,10 +166,18 @@ final class SimulationController: ObservableObject {
                 lastError = SimulationError.routeNeedsTwoPoints.localizedDescription
                 return
             }
+            guard deviceLocation.startBackgroundRouteActivity() else {
+                lastError = deviceLocation.backgroundPermissionMessage
+                return
+            }
             dataStore.addHistory(coordinate: routePoints.last ?? selectedCoordinate)
             refreshStoredData()
             startRoute()
         case .explore:
+            guard deviceLocation.startBackgroundRouteActivity() else {
+                lastError = deviceLocation.backgroundPermissionMessage
+                return
+            }
             startExplore()
         }
     }
@@ -183,6 +193,7 @@ final class SimulationController: ObservableObject {
         playbackTask = nil
         joystickTask?.cancel()
         joystickTask = nil
+        deviceLocation.stopBackgroundRouteActivity()
         guard pairingIsReady else { return }
         Task {
             do {
@@ -208,6 +219,18 @@ final class SimulationController: ObservableObject {
             } catch {
                 tunnelTestMessage = "連線失敗"
                 lastError = error.localizedDescription
+            }
+        }
+    }
+
+    func requestCurrentLocation(onSuccess: @escaping (GeoCoordinate) -> Void) {
+        lastError = nil
+        deviceLocation.requestCurrentLocation { [weak self] result in
+            switch result {
+            case let .success(coordinate):
+                onSuccess(coordinate)
+            case let .failure(error):
+                self?.lastError = error.localizedDescription
             }
         }
     }
@@ -344,6 +367,7 @@ final class SimulationController: ObservableObject {
         let points = RoutePlan.traversalPoints(routePoints, loop: loopRoute, transitionMode: loopTransitionMode)
         playbackTask = Task { [weak self] in
             guard let self else { return }
+            defer { deviceLocation.stopBackgroundRouteActivity() }
             while !Task.isCancelled {
                 for index in 0..<max(points.count - 1, 0) {
                     guard await move(from: points[index], to: points[index + 1]) else { return }
@@ -366,6 +390,7 @@ final class SimulationController: ObservableObject {
         spiralState = SpiralState()
         playbackTask = Task { [weak self] in
             guard let self, let center = spiralCenter else { return }
+            defer { deviceLocation.stopBackgroundRouteActivity() }
             var current = selectedCoordinate
             while !Task.isCancelled {
                 while status.isPaused, !Task.isCancelled {
@@ -411,6 +436,7 @@ final class SimulationController: ObservableObject {
             playbackTask?.cancel()
             joystickTask?.cancel()
             joystickTask = nil
+            deviceLocation.stopBackgroundRouteActivity()
         }
     }
 

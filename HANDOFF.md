@@ -30,6 +30,7 @@ C:\Project\GFlyer
 
 - SwiftUI + MapKit 地圖介面
 - 飛豬品牌地圖標記、地圖點擊選點、地點/座標搜尋及右側地圖工具列
+- 地圖目前位置按鈕、真實 Core Location 權限流程及使用者位置標示
 - 傳送、單點、多點及螺旋探索四種模式
 - 非線性 1.8-900 km/h 速度控制、內建/自訂速度預設及 20 km/h 提示
 - App 前景搖桿控制
@@ -37,9 +38,11 @@ C:\Project\GFlyer
 - 可收合底部控制面板及原生 sheet/menu 操作
 - 暫停、繼續、停止
 - 循環路線，以及走回起點/直接返回
+- iOS 17 `CLBackgroundActivitySession`、`location` background mode 及可見背景定位指示；路線/探索停止、完成或失敗時會釋放
 - Pairing File 匯入、檔案保護與本機儲存
 - Preview backend，讓沒有 `idevice` 靜態函式庫時仍可開發 UI
 - `idevice` backend 的 CoreDevice/RPPairing、RemoteXPC、`location_simulation_set()` 與 `location_simulation_clear()` 接點
+- `BrokenPipe`、`Channel closed`、connection reset/not connected 後清理舊資源並自動重建一次 CoreDevice session
 - Personalized Developer Disk Image 下載、固定 revision、SHA-256 驗證及需要時掛載
 - 修正固定 DDI commit 的 BuildManifest SHA-256 與 iPhoneOS Rust sysroot 建置參數
 - App 重啟/強制關閉後的「強制清除模擬定位」恢復路徑
@@ -68,6 +71,7 @@ scripts/build_idevice.sh
 GFlyerIOS/Model/GeoCoordinate.swift
 GFlyerIOS/Model/SimulationModels.swift
 GFlyerIOS/Services/SimulationController.swift
+GFlyerIOS/Services/DeviceLocationService.swift
 GFlyerIOS/Services/IdeviceLocationSimulationBackend.swift
 GFlyerIOS/Services/DeveloperDiskImageStore.swift
 GFlyerIOS/Services/PairingFileStore.swift
@@ -121,6 +125,8 @@ open GFlyerIOS.xcodeproj
 6. 第二次座標更新可重用連線。
 7. Stop/強制清除後恢復真實 GPS。
 8. 拔掉/不連接電腦後仍能重複執行上述操作。
+9. 未啟用模擬定位時，目前位置按鈕會要求定位權限並把地圖移到 iPhone 的位置。
+10. 多點路線開始後切到其他 App 1 至 30 分鐘，確認背景定位指示仍存在、路線仍前進，回到 GFlyer 不再出現 `BrokenPipe`/`Channel closed`。
 
 使用 `docs/DEVICE_FEASIBILITY_CHECKLIST.md` 記錄環境、每一步結果與失敗階段。
 
@@ -161,7 +167,8 @@ DDI 會在 App 第一次需要時下載到 iOS Application Support，並以 pinn
 
 - Windows 目前只能做檔案、語法、YAML、plist 與文件檢查；不能取代 Xcode 實機編譯。
 - App Store 不支援這種全機 GPS 模擬方式；本專案只做個人側載。
-- iOS 可能暫停背景 App，因此目前先以 foreground route playback 為準。
+- 背景路線使用正式 Core Location background activity，不使用靜音音訊等保活方式；仍不能保證強制關閉、系統資源終止、VPN 中斷或未來 iOS 版本下無限執行。
+- 背景定位會顯示 iOS 系統指示並增加耗電，停止路線後應確認指示消失。
 - iOS 更新可能讓 pairing file、DDI 或 Apple 私有協定失效。
 - 個人簽署 profile 會過期，過期時可能需要重新簽署或使用電腦刷新。
 - 地圖及搜尋需要網路；定位控制本身透過 LocalDevVPN/裝置開發服務。
@@ -179,5 +186,5 @@ DDI 會在 App 第一次需要時下載到 iOS Application Support，並以 pinn
 
 目前的第 1 至第 3 階段只有在新 workflow 的 Preview tests 與 Idevice archive
 通過，並在目標 iPhone 回歸傳送、第二次更新、Stop 清除、單點、多點、探索與
-搖桿後，才算驗證完成。GPX、冷卻計時、跨日期提示、路線重排與背景播放不在
-這三階段內，仍屬後續工作。
+搖桿後，才算驗證完成。這次新增的目前位置及背景播放需另外通過上述實機測試；
+GPX、冷卻計時、跨日期提示與路線重排仍屬後續工作。

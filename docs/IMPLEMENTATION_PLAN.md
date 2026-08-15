@@ -11,7 +11,7 @@ The accepted operating model is:
 3. LocalDevVPN exposes the same iPhone through a local loopback path.
 4. GFlyer verifies and mounts a pinned Personalized Developer Disk Image when required.
 5. GFlyer connects to Apple developer services through `idevice` and sends location updates.
-6. Normal teleport and foreground route playback do not require a connected computer.
+6. Normal teleport and route playback do not require a connected computer. Route and exploration playback use a visible iOS background-location activity while active.
 
 ## Hard feasibility gate
 
@@ -33,6 +33,9 @@ If this gate fails, capture the iOS version, device model, pairing method, Local
 SwiftUI / MapKit
   -> SimulationController
      -> GeoMath and route playback
+     -> DeviceLocationService
+        -> current-device location
+        -> CLBackgroundActivitySession while a route is active
      -> LocationSimulationBackend
         -> PreviewLocationSimulationBackend
         -> IdeviceLocationSimulationBackend
@@ -106,13 +109,16 @@ Exit criterion: the owner can reboot the iPhone, reconnect LocalDevVPN, reopen G
 
 ### M4: Background evaluation
 
-Background route playback is explicitly deferred. iOS may suspend the app, and background modes must not be misrepresented merely to keep a timer alive.
+Status: legitimate background-location implementation complete; macOS/Xcode compilation and target-iPhone endurance testing pending.
 
-- Measure foreground-to-background survival on the target version.
-- Confirm whether location simulation remains active when GFlyer is suspended.
-- Prefer a documented foreground-only limit if reliable background operation cannot be achieved legitimately.
+- Request **While Using the App** location permission before route or exploration playback.
+- Use `UIBackgroundModes=location`, continuous Core Location updates, and iOS 17 `CLBackgroundActivitySession` only while movement is active.
+- Keep the system background-location indicator visible and release the session on Stop, completion, or failure.
+- Rebuild the CoreDevice session once after a transient `BrokenPipe`, `Channel closed`, connection-reset, or not-connected failure.
+- Measure foreground-to-background survival, battery use, and recovery on the target iOS version.
+- Document that force quit, resource termination, LocalDevVPN loss, and future iOS changes can still end playback.
 
-Exit criterion: either a repeatable background design exists or the UI clearly enforces foreground-only playback.
+Exit criterion: a 30-minute route continues while another App is in the foreground, returns without a transport error, and Stop restores real GPS and ends the background indicator.
 
 ## Test matrix
 
@@ -123,6 +129,9 @@ Exit criterion: either a repeatable background design exists or the UI clearly e
 | LocalDevVPN off | Tunnel-stage error; no false active state |
 | Static teleport | Apple Maps reports the selected coordinate |
 | Route update every 250 ms | Active connection is reused |
+| Current-location button, simulation inactive | Permission is requested if needed and the map moves to the iPhone's reported location without adding a route point |
+| Route moved to background | The system location indicator remains visible and route updates continue |
+| Stale channel after foreground return | `BrokenPipe`/`Channel closed` causes one clean reconnect before an error is shown |
 | Pause | Coordinate stops changing without clearing simulation |
 | Stop | Route task ends and real location is restored |
 | App killed during simulation | Recovery path can clear stale simulation after relaunch |

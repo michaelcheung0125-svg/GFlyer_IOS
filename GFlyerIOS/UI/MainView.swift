@@ -24,6 +24,8 @@ struct MainView: View {
             ZStack(alignment: .bottom) {
                 MapReader { proxy in
                     Map(position: $position, interactionModes: .all) {
+                        UserAnnotation()
+
                         Annotation("選取位置", coordinate: controller.selectedCoordinate.clLocationCoordinate) {
                             Image("GFlyerMarker")
                                 .resizable()
@@ -78,6 +80,7 @@ struct MainView: View {
                             showRoutes: $showRoutes,
                             position: $position,
                             cameraDistance: $cameraDistance,
+                            onLocate: locateCurrentPosition,
                             onFeedback: announce
                         )
                         }
@@ -168,6 +171,14 @@ struct MainView: View {
                            span: MKCoordinateSpan(latitudeDelta: span, longitudeDelta: span))
     }
 
+    private func locateCurrentPosition() {
+        controller.requestCurrentLocation { coordinate in
+            cameraDistance = 5_000
+            position = .region(region(around: coordinate, span: 0.04))
+            announce("已定位到目前位置")
+        }
+    }
+
     private func announce(_ message: String) {
         feedbackTask?.cancel()
         withAnimation(.easeOut(duration: 0.18)) { feedbackMessage = message }
@@ -245,6 +256,7 @@ private struct MapToolBar: View {
     @Binding var showRoutes: Bool
     @Binding var position: MapCameraPosition
     @Binding var cameraDistance: CLLocationDistance
+    let onLocate: () -> Void
     let onFeedback: (String) -> Void
 
     var body: some View {
@@ -254,11 +266,7 @@ private struct MapToolBar: View {
                 mapButton("minus", label: "縮小") { zoom(2) }
             }
             HStack(spacing: 4) {
-                mapButton("location.fill", label: "回到選取位置") {
-                    cameraDistance = 5_000
-                    position = .region(MKCoordinateRegion(center: controller.selectedCoordinate.clLocationCoordinate,
-                                                           span: MKCoordinateSpan(latitudeDelta: 0.04, longitudeDelta: 0.04)))
-                }
+                mapButton("location.fill", label: "前往目前位置", action: onLocate)
                 mapButton(showJoystick ? "gamecontroller.fill" : "gamecontroller", label: "搖桿") {
                     showJoystick.toggle()
                     if showJoystick { isPanelExpanded = false }

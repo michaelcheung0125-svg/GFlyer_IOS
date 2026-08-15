@@ -5,8 +5,10 @@ This is a separate SwiftUI prototype for personal sideloading. It does not modif
 ## Current scope
 
 - Branded MapKit home screen with place/coordinate search and map tool controls
+- Current-device-location button with explicit Core Location permission handling
 - Static teleport plus single-point, multi-point, and spiral exploration modes
 - Multi-point route playback with a nonlinear 1.8-900 km/h speed scale
+- Visible iOS 17 background location activity for route and exploration playback
 - Pause, resume, stop, looping, and return behavior
 - In-app foreground joystick control and reusable speed presets
 - Local favorites, history, favorite folders, named routes, and route-draft recovery
@@ -114,7 +116,8 @@ These generated files are ignored by Git.
 4. In GFlyer, open Settings and import the pairing file.
 5. Install and connect LocalDevVPN. Keep its default device address `10.7.0.1` unless your setup uses another address. In GFlyer's device settings, use **Test LocalDevVPN tunnel** before starting simulation; the current raw RPPairing path connects on port `49152`.
 6. Return to GFlyer, choose a point or route, and start simulation. On first device-mode use, allow the app to download and verify the pinned Personalized DDI (about 16 MB).
-7. Press Stop before disabling LocalDevVPN so the app can call `location_simulation_clear()`.
+7. The first time you use the current-location button or start a route, grant GFlyer **While Using the App** location access. Route playback uses a visible iOS background-location activity and ends it when the route stops.
+8. Press Stop before disabling LocalDevVPN so the app can call `location_simulation_clear()`.
 
 After this initial setup, normal use should not require the computer. A computer may be needed again when:
 
@@ -129,7 +132,8 @@ Record the hard-gate result in
 ## Important limitations
 
 - This is a research/personal-use path, not an App Store-compatible capability.
-- Start with foreground-only route playback. iOS may suspend the app in the background; do not rely on indefinite screen-off playback until it is verified on the target iOS version.
+- Background route playback uses the documented iOS 17 `CLBackgroundActivitySession` and `location` background mode. iOS displays its background-location indicator; this consumes additional battery and is not a guarantee against force quit, resource termination, VPN loss, or every future iOS behavior change.
+- A stale CoreDevice channel is discarded and rebuilt once after transient transport errors such as `BrokenPipe` or `Channel closed`.
 - MapKit search and map tiles require network access. The pinned DDI is downloaded once; GPS simulation then uses the local VPN path.
 - Keep the pairing file private. It contains credentials that identify a trusted host for this iPhone.
 - Third-party apps may reject simulated location or enforce their own terms.

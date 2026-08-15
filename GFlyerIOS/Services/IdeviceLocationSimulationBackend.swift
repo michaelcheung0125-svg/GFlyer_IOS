@@ -26,30 +26,42 @@ actor IdeviceLocationSimulationBackend: LocationSimulationBackend {
     }
 
     func setLocation(_ coordinate: GeoCoordinate, pairingFileURL: URL, deviceIP: String) async throws {
-        try await ensureSession(pairingFileURL: pairingFileURL, deviceIP: deviceIP)
-        guard let locationSimulation else {
-            throw SimulationError.connectionFailed("定位模擬服務未建立有效連線。")
-        }
-
-        do {
-            try check(
-                location_simulation_set(locationSimulation, coordinate.latitude, coordinate.longitude),
-                fallback: "無法更新模擬位置。"
-            )
-        } catch {
-            cleanup()
-            throw error
+        for attempt in 0..<2 {
+            do {
+                try await ensureSession(pairingFileURL: pairingFileURL, deviceIP: deviceIP)
+                guard let locationSimulation else {
+                    throw SimulationError.connectionFailed("定位模擬服務未建立有效連線。")
+                }
+                try check(
+                    location_simulation_set(locationSimulation, coordinate.latitude, coordinate.longitude),
+                    fallback: "無法更新模擬位置。"
+                )
+                return
+            } catch {
+                cleanup()
+                guard attempt == 0, isRetryableTransportError(error) else { throw error }
+                try? await Task.sleep(nanoseconds: 350_000_000)
+            }
         }
     }
 
     func clearLocation(pairingFileURL: URL, deviceIP: String) async throws {
-        try await ensureSession(pairingFileURL: pairingFileURL, deviceIP: deviceIP)
-        guard let locationSimulation else {
-            throw SimulationError.connectionFailed("定位模擬服務未建立有效連線。")
+        for attempt in 0..<2 {
+            do {
+                try await ensureSession(pairingFileURL: pairingFileURL, deviceIP: deviceIP)
+                guard let locationSimulation else {
+                    throw SimulationError.connectionFailed("定位模擬服務未建立有效連線。")
+                }
+                let error = location_simulation_clear(locationSimulation)
+                cleanup()
+                try check(error, fallback: "無法清除模擬位置。")
+                return
+            } catch {
+                cleanup()
+                guard attempt == 0, isRetryableTransportError(error) else { throw error }
+                try? await Task.sleep(nanoseconds: 350_000_000)
+            }
         }
-        let error = location_simulation_clear(locationSimulation)
-        cleanup()
-        try check(error, fallback: "無法清除模擬位置。")
     }
 
     private func ensureSession(pairingFileURL: URL, deviceIP: String) async throws {
@@ -225,6 +237,15 @@ actor IdeviceLocationSimulationBackend: LocationSimulationBackend {
             return "TCP 連線失敗：請確認 LocalDevVPN 已連接，目標 IP 為 10.7.0.1，並關閉其他 VPN。"
         }
         return "請保留以下完整錯誤文字，以便判斷失敗階段。"
+    }
+
+    private func isRetryableTransportError(_ error: Error) -> Bool {
+        let message = error.localizedDescription.lowercased()
+        return message.contains("brokenpipe")
+            || message.contains("broken pipe")
+            || message.contains("channel closed")
+            || message.contains("connection reset")
+            || message.contains("not connected")
     }
 }
 

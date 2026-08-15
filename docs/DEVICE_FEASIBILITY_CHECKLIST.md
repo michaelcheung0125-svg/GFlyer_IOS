@@ -32,6 +32,7 @@ downloaded DDI files to this document or the repository.
 | Second coordinate reuses the active connection | Pass / Fail | |
 | Stop clears simulation and restores real GPS | Pass / Fail | |
 | Full sequence works without a connected computer | Pass / Fail | |
+| Current-location button returns the real location while simulation is off | Pass / Fail | |
 
 ## Failure classification
 
@@ -48,13 +49,17 @@ error. Do not paste sensitive log contents.
 - `location set`
 - `location clear`
 
-## Extended foreground run
+## Extended route run
 
 Complete this only after every hard gate item passes.
 
 | Scenario | Result | Notes |
 |---|---|---|
 | 30-minute foreground route | Pass / Fail | |
+| Route continues for 1 minute with another App in foreground | Pass / Fail | |
+| Route continues for 30 minutes with another App in foreground | Pass / Fail | |
+| Returning to GFlyer does not show `BrokenPipe` / `Channel closed` | Pass / Fail | |
+| Stop ends the background-location indicator | Pass / Fail | |
 | Pause and resume | Pass / Fail | |
 | Loop with walk-back | Pass / Fail | |
 | Loop with instant return | Pass / Fail | |

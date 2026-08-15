@@ -316,12 +316,22 @@ LocalDevVPN 開 -> GFlyer 開始 -> GFlyer 停止/清除 -> LocalDevVPN 關
 1. 在模式選擇「路線」。
 2. 依行走次序點選至少兩個地圖位置。
 3. 用倒轉箭嘴移除最後一個點，或用垃圾桶清除整條路線。
-4. 設定速度，範圍為 1 至 50 km/h。
+4. 設定速度，範圍為 1.8 至 900 km/h。
 5. 如要重複，開啟「循環路線」。
 6. 選擇「走回起點」或「直接返回」。
-7. 按「開始」。可使用暫停及繼續按鈕。
+7. 按「開始」。首次使用時，iOS 會詢問 GFlyer 的定位權限；選擇「允許使用 App 期間」，然後再按一次「開始」。
+8. 路線執行時可切到遊戲或其他 App。iOS 會顯示背景定位指示，表示 GFlyer 正在維持正式的背景位置活動。
+9. 返回 GFlyer 後可使用暫停及繼續按鈕。完成後必須按停止，等候「已清除模擬位置」才關閉 LocalDevVPN。
 
-目前應以 GFlyer 保持在前景的路線播放為準。iOS 可能暫停背景 App，因此不要假設鎖屏或長時間切到其他 App 後路線仍會持續。
+背景路線會增加耗電。iOS 仍可在強制關閉 GFlyer、記憶體不足、LocalDevVPN 中斷或系統政策改變時終止活動，因此不要把它視為永久、無條件的背景服務。若只是把 GFlyer 正常切到背景，新版會在通道失效時自動清理並重連一次。
+
+### 前往 iPhone 目前位置
+
+1. 確認目前沒有啟用虛擬定位；否則 iOS 回報的可能仍是模擬位置。
+2. 點地圖右側的定位箭嘴。
+3. 首次使用時，在 iOS 提示選擇「允許使用 App 期間」。
+4. 地圖會移到 iPhone 回報的目前位置，並顯示「已定位到目前位置」。這個操作只移動地圖，不會自動傳送位置或新增路線點。
+5. 若之前拒絕權限，到「設定 > 私隱與保安 > 定位服務 > GFlyer」改為「使用 App 期間」，再回到 GFlyer 重試。
 
 ## 13. 免費 Apple ID 每 7 天重新簽署
 
@@ -481,6 +491,22 @@ iOS 更新可能令 Pairing File、Personalized DDI 或 Apple 私有開發協定
 - 關閉 LocalDevVPN，重新連接後再開 GFlyer。
 - 若剛更新 iOS，重新建立 Remote Pairing File。
 
+### 切到其他 App 後顯示 BrokenPipe／Channel closed
+
+- 這代表原有 CoreDevice socket 在 GFlyer 暫停或網絡狀態改變期間被關閉，不代表 Pairing File 一定損壞。
+- 新版 GFlyer 會清理失效通道並自動重連一次；請確認已覆蓋安裝最新 IPA。
+- 路線開始時必須允許 GFlyer「使用 App 期間」定位權限，並確認 iOS 顯示背景定位指示。
+- 保持 LocalDevVPN 已連接，不要同時啟用其他 VPN。
+- 若自動重連仍失敗，返回 GFlyer、按停止，重新連接 LocalDevVPN，再重新開始路線。
+- 若每次都失敗，記錄 iPhone 型號、iOS 版本、切到背景多久及完整錯誤文字；不要分享 Pairing File。
+
+### 定位箭嘴沒有反應
+
+- 首次點按後查看是否出現 iOS 定位權限提示。
+- 到「設定 > 私隱與保安 > 定位服務」確認總開關已開啟，並把 GFlyer 設為「使用 App 期間」。
+- 關閉「精確位置」時，地圖只能移到較粗略的位置；需要準確定位可開啟「精確位置」。
+- 若全機虛擬定位仍未清除，定位箭嘴收到的也可能是模擬位置。先保持 LocalDevVPN 開啟並在 GFlyer 按停止／強制清除，再重試。
+
 ### DDI 下載失敗
 
 - 確認 iPhone 可上網。
@@ -533,7 +559,7 @@ iOS 更新可能令 Pairing File、Personalized DDI 或 Apple 私有開發協定
 - 這種全機定位模擬依賴 Apple 開發者服務，不適合 App Store 發布。
 - iOS 更新可能令 pairing、DDI 或私人協定暫時失效。
 - 免費 Apple ID 通常約 7 天要重新簽署。
-- iOS 可能暫停背景中的 GFlyer，路線模式目前以 App 保持前景為準。
+- 背景路線使用 iOS 正式定位背景活動，會顯示系統指示並增加耗電；強制關閉、系統資源終止、VPN 中斷或未來 iOS 改動仍可令路線停止。
 - LocalDevVPN 可能與其他 VPN 衝突。
 - 地圖圖磚及首次 DDI 下載需要網絡。
 - 第三方 App 可拒絕模擬位置，並可按其服務條款限制帳戶。
@@ -554,6 +580,8 @@ iOS 更新可能令 Pairing File、Personalized DDI 或 Apple 私有開發協定
 - [ ] 第二個位置可正常更新。
 - [ ] GFlyer 停止後 Apple Maps 恢復真實 GPS。
 - [ ] 拔掉電腦後仍可重複開始及停止。
+- [ ] 定位箭嘴可在未啟用模擬時回到 iPhone 目前位置。
+- [ ] 短路線切到其他 App 後仍會前進，返回 GFlyer 沒有 `BrokenPipe`／`Channel closed`。
 - [ ] 已記下免費簽署的下一次刷新日期。
 - [ ] Pairing File 及 Apple 認證資料沒有分享給其他人。
 

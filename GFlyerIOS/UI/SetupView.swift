@@ -5,6 +5,7 @@ struct SetupView: View {
     @Environment(\.dismiss) private var dismiss
     @ObservedObject var controller: SimulationController
     @ObservedObject private var pairingStore: PairingFileStore
+    @ObservedObject private var deviceLocation: DeviceLocationService
     @State private var showImporter = false
     @State private var importError: String?
     @State private var showPresetPrompt = false
@@ -14,6 +15,7 @@ struct SetupView: View {
     init(controller: SimulationController) {
         self.controller = controller
         _pairingStore = ObservedObject(wrappedValue: controller.pairingStore)
+        _deviceLocation = ObservedObject(wrappedValue: controller.deviceLocation)
     }
 
     var body: some View {
@@ -72,6 +74,17 @@ struct SetupView: View {
                             || controller.isMotionActive
                     )
                     Text("預設為 10.7.0.1，Remote Pairing port 為 49152。開始全機定位模擬前，請先在 LocalDevVPN 開啟 VPN。")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                Section("目前位置與背景路線") {
+                    LabeledContent("定位權限", value: deviceLocation.authorizationLabel)
+                    LabeledContent(
+                        "背景活動",
+                        value: deviceLocation.isBackgroundActivityActive ? "執行中" : "待機"
+                    )
+                    Text("目前位置按鈕和背景路線需要「使用 App 期間」定位權限。路線執行時 iOS 會顯示背景定位指示；停止路線後 GFlyer 會立即結束背景活動。")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
