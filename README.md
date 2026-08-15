@@ -28,6 +28,8 @@ The complete Traditional Chinese installation and usage guide is available in
 installation, device-specific remote pairing, LocalDevVPN, first-use DDI setup,
 daily operation, seven-day signing refreshes, and multi-user distribution.
 
+Public guide: https://michaelcheung0125-svg.github.io/GFlyer-updates/USER_GUIDE_ZH_HK.html
+
 ## Why the backend is separate
 
 iOS has no public equivalent to Android's mock-location provider. Device-wide simulation uses Apple developer services through the MIT-licensed [`idevice`](https://github.com/jkcoxson/idevice) library:
