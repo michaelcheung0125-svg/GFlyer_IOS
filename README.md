@@ -18,9 +18,10 @@ This is a separate SwiftUI prototype for personal sideloading. It does not modif
 
 The prototype deliberately excludes anti-detection, modified third-party clients, and App Store distribution.
 
-The current feature UI is implemented but has not yet passed the repository's
-macOS/Xcode CI run or target-iPhone regression pass. Windows checks do not
-replace those gates.
+The current feature UI, current-location flow, background activity, and native
+archive pass the repository's macOS/Xcode CI. Target-iPhone regression and
+background endurance testing remain separate gates; Windows checks do not
+replace them.
 
 ## End-user guide
 
@@ -72,10 +73,11 @@ It cannot be installed on an iPhone until it is signed with the owner's Apple
 development identity and provisioning profile. No Apple signing secret is
 required or stored by this workflow.
 
-The macOS validation passed on Xcode 16.4 for commit `b777985`: simulator unit
+The macOS validation passed on Xcode 16.4 for commit `b0c9618`: simulator unit
 tests completed successfully and the native `GFlyerIOS-Idevice` archive produced
-the unsigned artifact. Personal signing and target-iPhone behavior remain
-separate verification gates.
+the unsigned `0.1.1 (2)` artifact, including the current-location and background
+route changes. Personal signing and target-iPhone behavior remain separate
+verification gates.
 
 ## Generate and open the project
 

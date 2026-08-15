@@ -109,7 +109,7 @@ Exit criterion: the owner can reboot the iPhone, reconnect LocalDevVPN, reopen G
 
 ### M4: Background evaluation
 
-Status: legitimate background-location implementation complete; macOS/Xcode compilation and target-iPhone endurance testing pending.
+Status: legitimate background-location implementation and macOS/Xcode compilation complete; target-iPhone endurance testing pending.
 
 - Request **While Using the App** location permission before route or exploration playback.
 - Use `UIBackgroundModes=location`, continuous Core Location updates, and iOS 17 `CLBackgroundActivitySession` only while movement is active.

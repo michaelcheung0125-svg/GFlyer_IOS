@@ -58,7 +58,14 @@ App target 的 `PRODUCT_NAME` 是 `GFlyer`，
 `GFlyer.app/GFlyer`。該問題排除後，測試編譯進一步發現 `PRODUCT_NAME`
 同時把 Swift module 改名為 `GFlyer`，與測試的 `@testable import GFlyerIOS`
 不一致；固定 `PRODUCT_MODULE_NAME: GFlyerIOS` 後，Simulator tests 與
-`Idevice unsigned archive` 均已通過。通過的程式 commit 是 `b777985`。
+`Idevice unsigned archive` 均已通過。最初通過的程式 commit 是 `b777985`；新增目前位置、
+正式背景定位活動及 CoreDevice transport 自動重連後，Xcode 16.4 workflow 亦於
+commit `b0c9618` 再次全部通過。產出的 `0.1.1 (2)` unsigned IPA 位於：
+
+```text
+C:\Project\GFlyer_IOS\artifacts\b0c9618\GFlyerIOS-Idevice-unsigned.ipa
+SHA-256 D0C8FFEC8177FEC306A2A1B056CC4A00A0839E3EE62C42F26A2A6CF30BCDC4EA
+```
 
 ## 重要檔案
 
@@ -90,9 +97,8 @@ GFlyerIOS/UI/LibraryViews.swift
 
 ### 1. 驗證目前第 1 至第 3 階段
 
-目前第 1 至第 3 階段的 UI、移動模式與本機資料功能已實作，但本次修改只在
-Windows 完成靜態檢查。將專案推送到 GitHub 後，以
-`workflow_dispatch` 或 push 執行 workflow，確認以下兩個 job 都通過：
+目前第 1 至第 3 階段，以及目前位置／背景活動的程式已在 commit `b0c9618`
+通過以下兩個 Xcode 16.4 job；下一步是以新 IPA 做目標 iPhone 回歸：
 
 - `Preview scheme tests`：產生 Xcode 專案並在 iOS Simulator 執行測試。
 - `Idevice unsigned archive`：建置固定 revision 的 `idevice`，無簽署 archive
