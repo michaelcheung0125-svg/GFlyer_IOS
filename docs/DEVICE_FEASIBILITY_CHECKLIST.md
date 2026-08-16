@@ -31,6 +31,8 @@ downloaded DDI files to this document or the repository.
 | First coordinate appears in Apple Maps | Pass / Fail | |
 | Second coordinate reuses the active connection | Pass / Fail | |
 | Stop clears simulation and restores real GPS | Pass / Fail | |
+| After switching to cellular, Clear then Start reuses the retained channel | Pass / Fail | |
+| After switching to cellular, route Stop then Start reuses the retained channel | Pass / Fail | |
 | Full sequence works without a connected computer | Pass / Fail | |
 | Current-location button returns the real location while simulation is off | Pass / Fail | |
 
@@ -64,3 +66,5 @@ Complete this only after every hard gate item passes.
 | Loop with walk-back | Pass / Fail | |
 | Loop with instant return | Pass / Fail | |
 | Force-quit recovery clear | Pass / Fail | |
+| Cellular reconnect message requires airplane mode | Pass / Fail | |
+| Wi-Fi/hotspot reconnect message says airplane mode is unnecessary | Pass / Fail | |

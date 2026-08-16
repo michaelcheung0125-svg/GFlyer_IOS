@@ -15,6 +15,8 @@ This is a separate SwiftUI prototype for personal sideloading. It does not modif
 - Pairing-file import and protected local storage
 - Preview backend that builds without native dependencies
 - Optional `idevice` backend for device-wide GPS simulation
+- Retained CoreDevice sessions across Stop/Clear so a cellular interface switch
+  does not require a replacement socket for every new simulation
 
 The prototype deliberately excludes anti-detection, modified third-party clients, and App Store distribution.
 
@@ -119,7 +121,15 @@ These generated files are ignored by Git.
 5. Install and connect LocalDevVPN. Keep its default device address `10.7.0.1` unless your setup uses another address. In GFlyer's device settings, use **Test LocalDevVPN tunnel** before starting simulation; the current raw RPPairing path connects on port `49152`.
 6. Return to GFlyer, choose a point or route, and start simulation. On first device-mode use, allow the app to download and verify the pinned Personalized DDI (about 16 MB).
 7. The first time you use the current-location button or start a route, grant GFlyer **While Using the App** location access. Route playback uses a visible iOS background-location activity and ends it when the route stops.
-8. Press Stop before disabling LocalDevVPN so the app can call `location_simulation_clear()`.
+8. Press Stop before disabling LocalDevVPN so the app can call `location_simulation_clear()`. A successful Stop restores real GPS but keeps the CoreDevice transport ready for the next simulation. Changing the target IP or importing a different pairing file rebuilds that transport.
+
+On the tested cellular path, an already-established CoreDevice socket survives
+the switch from airplane mode to cellular data, while a new socket cannot be
+opened over cellular. Establish the first channel in airplane mode, then enable
+cellular data. Stop/Clear and a subsequent Start should reuse that channel. If
+the App process, LocalDevVPN, or socket is terminated, establish it again. This
+workflow is pending target-iPhone validation in the next IPA. Wi-Fi and personal
+hotspot users do not need airplane mode; reconnect LocalDevVPN instead.
 
 After this initial setup, normal use should not require the computer. A computer may be needed again when:
 
@@ -136,6 +146,10 @@ Record the hard-gate result in
 - This is a research/personal-use path, not an App Store-compatible capability.
 - Background route playback uses the documented iOS 17 `CLBackgroundActivitySession` and `location` background mode. iOS displays its background-location indicator; this consumes additional battery and is not a guarantee against force quit, resource termination, VPN loss, or every future iOS behavior change.
 - A stale CoreDevice channel is discarded and rebuilt once after transient transport errors such as `BrokenPipe` or `Channel closed`.
+- Stop/Clear retains a healthy CoreDevice session, but iOS process termination,
+  LocalDevVPN reconnection, a transport failure, target-IP changes, and
+  pairing-file replacement still require a new session. Cellular users may
+  need airplane mode for that reconnection; Wi-Fi/hotspot users do not.
 - MapKit search and map tiles require network access. The pinned DDI is downloaded once; GPS simulation then uses the local VPN path.
 - Keep the pairing file private. It contains credentials that identify a trusted host for this iPhone.
 - Third-party apps may reject simulated location or enforce their own terms.

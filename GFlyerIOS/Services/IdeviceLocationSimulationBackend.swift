@@ -13,22 +13,34 @@ actor IdeviceLocationSimulationBackend: LocationSimulationBackend {
     private var handshake: OpaquePointer?
     private var remoteServer: OpaquePointer?
     private var locationSimulation: OpaquePointer?
+    private var sessionIdentity: SessionIdentity?
 
-    func testConnection(pairingFileURL: URL, deviceIP: String) async throws {
-        if locationSimulation != nil { return }
+    func testConnection(pairingFileURL: URL, pairingFileRevision: UUID, deviceIP: String) async throws {
         do {
-            try await ensureSession(pairingFileURL: pairingFileURL, deviceIP: deviceIP)
-            cleanup()
+            try await ensureSession(
+                pairingFileURL: pairingFileURL,
+                pairingFileRevision: pairingFileRevision,
+                deviceIP: deviceIP
+            )
         } catch {
             cleanup()
             throw error
         }
     }
 
-    func setLocation(_ coordinate: GeoCoordinate, pairingFileURL: URL, deviceIP: String) async throws {
+    func setLocation(
+        _ coordinate: GeoCoordinate,
+        pairingFileURL: URL,
+        pairingFileRevision: UUID,
+        deviceIP: String
+    ) async throws {
         for attempt in 0..<2 {
             do {
-                try await ensureSession(pairingFileURL: pairingFileURL, deviceIP: deviceIP)
+                try await ensureSession(
+                    pairingFileURL: pairingFileURL,
+                    pairingFileRevision: pairingFileRevision,
+                    deviceIP: deviceIP
+                )
                 guard let locationSimulation else {
                     throw SimulationError.connectionFailed("定位模擬服務未建立有效連線。")
                 }
@@ -45,16 +57,20 @@ actor IdeviceLocationSimulationBackend: LocationSimulationBackend {
         }
     }
 
-    func clearLocation(pairingFileURL: URL, deviceIP: String) async throws {
+    func clearLocation(pairingFileURL: URL, pairingFileRevision: UUID, deviceIP: String) async throws {
         for attempt in 0..<2 {
             do {
-                try await ensureSession(pairingFileURL: pairingFileURL, deviceIP: deviceIP)
+                try await ensureSession(
+                    pairingFileURL: pairingFileURL,
+                    pairingFileRevision: pairingFileRevision,
+                    deviceIP: deviceIP
+                )
                 guard let locationSimulation else {
                     throw SimulationError.connectionFailed("定位模擬服務未建立有效連線。")
                 }
                 let error = location_simulation_clear(locationSimulation)
-                cleanup()
                 try check(error, fallback: "無法清除模擬位置。")
+                // Keep the transport alive so cellular interface changes do not force a new socket.
                 return
             } catch {
                 cleanup()
@@ -64,8 +80,18 @@ actor IdeviceLocationSimulationBackend: LocationSimulationBackend {
         }
     }
 
-    private func ensureSession(pairingFileURL: URL, deviceIP: String) async throws {
-        if locationSimulation != nil { return }
+    private func ensureSession(
+        pairingFileURL: URL,
+        pairingFileRevision: UUID,
+        deviceIP: String
+    ) async throws {
+        let requestedIdentity = SessionIdentity(
+            deviceIP: deviceIP,
+            pairingFileURL: pairingFileURL.standardizedFileURL,
+            pairingFileRevision: pairingFileRevision
+        )
+        if locationSimulation != nil, sessionIdentity == requestedIdentity { return }
+        if locationSimulation != nil { cleanup() }
 
         guard var address = IPv4SocketAddress(ip: deviceIP, port: remotePairingPort) else {
             throw SimulationError.invalidAddress
@@ -102,6 +128,7 @@ actor IdeviceLocationSimulationBackend: LocationSimulationBackend {
             )
 
             remoteServer = nil
+            sessionIdentity = requestedIdentity
         } catch {
             cleanup()
             throw error
@@ -203,6 +230,7 @@ actor IdeviceLocationSimulationBackend: LocationSimulationBackend {
             adapter_free(adapter)
             self.adapter = nil
         }
+        sessionIdentity = nil
     }
 
     private func check(_ error: UnsafeMutablePointer<IdeviceFfiError>?, fallback: String) throws {
@@ -229,14 +257,26 @@ actor IdeviceLocationSimulationBackend: LocationSimulationBackend {
         if message.contains("rsd") || message.contains("remotexpc") || message.contains("handshake") {
             return "CoreDevice/RSD 交握失敗：請重新連接 LocalDevVPN；若仍失敗，請保留完整錯誤文字。"
         }
+        if message.contains("brokenpipe")
+            || message.contains("broken pipe")
+            || message.contains("channel closed")
+            || message.contains("connection reset")
+            || message.contains("not connected")
+        {
+            return reconnectionHint
+        }
         if message.contains("connect")
             || message.contains("refused")
             || message.contains("unreachable")
             || message.contains("timed out")
         {
-            return "TCP 連線失敗：請確認 LocalDevVPN 已連接，目標 IP 為 10.7.0.1，並關閉其他 VPN。"
+            return "TCP 連線失敗。\(reconnectionHint)"
         }
         return "請保留以下完整錯誤文字，以便判斷失敗階段。"
+    }
+
+    private var reconnectionHint: String {
+        "通道已中斷或無法建立：使用行動網絡時，請先開啟飛行模式並重新建立通道，成功後再開回行動網絡；已連接 Wi-Fi 或個人熱點時無需開啟飛行模式，請重新連接 LocalDevVPN。同時確認 GFlyer 目標 IP 與 LocalDevVPN Device IP 相同。"
     }
 
     private func isRetryableTransportError(_ error: Error) -> Bool {
@@ -247,6 +287,12 @@ actor IdeviceLocationSimulationBackend: LocationSimulationBackend {
             || message.contains("connection reset")
             || message.contains("not connected")
     }
+}
+
+private struct SessionIdentity: Equatable {
+    let deviceIP: String
+    let pairingFileURL: URL
+    let pairingFileRevision: UUID
 }
 
 private func developerDiskImageProgress(

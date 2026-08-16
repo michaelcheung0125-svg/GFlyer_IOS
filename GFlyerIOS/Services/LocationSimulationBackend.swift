@@ -4,9 +4,14 @@ protocol LocationSimulationBackend: Actor {
     nonisolated var name: String { get }
     nonisolated var canControlDeviceLocation: Bool { get }
 
-    func testConnection(pairingFileURL: URL, deviceIP: String) async throws
-    func setLocation(_ coordinate: GeoCoordinate, pairingFileURL: URL, deviceIP: String) async throws
-    func clearLocation(pairingFileURL: URL, deviceIP: String) async throws
+    func testConnection(pairingFileURL: URL, pairingFileRevision: UUID, deviceIP: String) async throws
+    func setLocation(
+        _ coordinate: GeoCoordinate,
+        pairingFileURL: URL,
+        pairingFileRevision: UUID,
+        deviceIP: String
+    ) async throws
+    func clearLocation(pairingFileURL: URL, pairingFileRevision: UUID, deviceIP: String) async throws
 }
 
 actor PreviewLocationSimulationBackend: LocationSimulationBackend {
@@ -15,13 +20,18 @@ actor PreviewLocationSimulationBackend: LocationSimulationBackend {
 
     private var coordinate: GeoCoordinate?
 
-    func testConnection(pairingFileURL _: URL, deviceIP _: String) async throws { }
+    func testConnection(pairingFileURL _: URL, pairingFileRevision _: UUID, deviceIP _: String) async throws { }
 
-    func setLocation(_ coordinate: GeoCoordinate, pairingFileURL _: URL, deviceIP _: String) async throws {
+    func setLocation(
+        _ coordinate: GeoCoordinate,
+        pairingFileURL _: URL,
+        pairingFileRevision _: UUID,
+        deviceIP _: String
+    ) async throws {
         self.coordinate = coordinate
     }
 
-    func clearLocation(pairingFileURL _: URL, deviceIP _: String) async throws {
+    func clearLocation(pairingFileURL _: URL, pairingFileRevision _: UUID, deviceIP _: String) async throws {
         coordinate = nil
     }
 }

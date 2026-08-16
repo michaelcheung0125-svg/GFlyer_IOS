@@ -43,6 +43,8 @@ C:\Project\GFlyer
 - Preview backend，讓沒有 `idevice` 靜態函式庫時仍可開發 UI
 - `idevice` backend 的 CoreDevice/RPPairing、RemoteXPC、`location_simulation_set()` 與 `location_simulation_clear()` 接點
 - `BrokenPipe`、`Channel closed`、connection reset/not connected 後清理舊資源並自動重建一次 CoreDevice session
+- 通道測試與成功 Stop/Clear 後保留健康的 CoreDevice session，避免行動網絡介面切換後每次開始都要建立新 socket
+- 目標 IP 改變、Pairing File 被替換或 transport 真正斷線時會清理與重建 session；斷線訊息分別說明行動網絡與 Wi-Fi/熱點的恢復方式
 - Personalized Developer Disk Image 下載、固定 revision、SHA-256 驗證及需要時掛載
 - 修正固定 DDI commit 的 BuildManifest SHA-256 與 iPhoneOS Rust sysroot 建置參數
 - App 重啟/強制關閉後的「強制清除模擬定位」恢復路徑
@@ -133,6 +135,8 @@ open GFlyerIOS.xcodeproj
 8. 拔掉/不連接電腦後仍能重複執行上述操作。
 9. 未啟用模擬定位時，目前位置按鈕會要求定位權限並把地圖移到 iPhone 的位置。
 10. 多點路線開始後切到其他 App 1 至 30 分鐘，確認背景定位指示仍存在、路線仍前進，回到 GFlyer 不再出現 `BrokenPipe`/`Channel closed`。
+11. 在飛行模式建立第一條通道後開啟行動網絡，驗證 Clear → Start 與路線 Stop → Start 都能重用同一 session，無需再開飛行模式。
+12. 強制關閉 App 或斷開 LocalDevVPN 後，驗證行動網絡的提示要求以飛行模式重建，而 Wi-Fi/個人熱點提示明確說明無需飛行模式。
 
 使用 `docs/DEVICE_FEASIBILITY_CHECKLIST.md` 記錄環境、每一步結果與失敗階段。
 
@@ -175,6 +179,7 @@ DDI 會在 App 第一次需要時下載到 iOS Application Support，並以 pinn
 - App Store 不支援這種全機 GPS 模擬方式；本專案只做個人側載。
 - 背景路線使用正式 Core Location background activity，不使用靜音音訊等保活方式；仍不能保證強制關閉、系統資源終止、VPN 中斷或未來 iOS 版本下無限執行。
 - 背景定位會顯示 iOS 系統指示並增加耗電，停止路線後應確認指示消失。
+- 已建立的 CoreDevice socket 在實測中可從飛行模式延續到行動網絡；新版會在 Stop/Clear 後保留它，但此行為仍需新 IPA 實機驗證。App 被系統終止、VPN 斷線或 socket 失效後，行動網絡使用者仍需飛行模式重建；Wi-Fi/熱點使用者無需。
 - iOS 更新可能讓 pairing file、DDI 或 Apple 私有協定失效。
 - 個人簽署 profile 會過期，過期時可能需要重新簽署或使用電腦刷新。
 - 地圖及搜尋需要網路；定位控制本身透過 LocalDevVPN/裝置開發服務。

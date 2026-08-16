@@ -22,7 +22,8 @@ Do not expand the full feature set until all of these pass on the owner's target
 - The pinned DDI downloads, passes SHA-256 verification, and mounts when developer services are unavailable.
 - Sending one coordinate changes the location shown by Apple Maps.
 - Sending a second coordinate reuses the active connection.
-- Stop calls `location_simulation_clear()` and Apple Maps returns to real location.
+- Stop calls `location_simulation_clear()`, Apple Maps returns to real location,
+  and the healthy CoreDevice session remains available for a subsequent Start.
 - Disconnecting the computer does not affect the above workflow.
 
 If this gate fails, capture the iOS version, device model, pairing method, LocalDevVPN version, and backend error stage before changing UI code.
@@ -61,6 +62,8 @@ signing and target iPhone verification.
 - Import a pairing file.
 - Set and clear one coordinate.
 - Translate backend failures into distinct stages: pairing, tunnel, RemoteXPC, service, set, and clear.
+- Retain a healthy CoreDevice session after tunnel tests and Stop/Clear; rebuild
+  it after transport failure, target-IP change, or pairing-file replacement.
 
 Exit criterion: the hard feasibility gate passes.
 
@@ -115,6 +118,8 @@ Status: legitimate background-location implementation and macOS/Xcode compilatio
 - Use `UIBackgroundModes=location`, continuous Core Location updates, and iOS 17 `CLBackgroundActivitySession` only while movement is active.
 - Keep the system background-location indicator visible and release the session on Stop, completion, or failure.
 - Rebuild the CoreDevice session once after a transient `BrokenPipe`, `Channel closed`, connection-reset, or not-connected failure.
+- Keep a healthy CoreDevice session after Stop/Clear so a cellular interface
+  switch does not force a replacement socket for the next simulation.
 - Measure foreground-to-background survival, battery use, and recovery on the target iOS version.
 - Document that force quit, resource termination, LocalDevVPN loss, and future iOS changes can still end playback.
 
@@ -133,7 +138,11 @@ Exit criterion: a 30-minute route continues while another App is in the foregrou
 | Route moved to background | The system location indicator remains visible and route updates continue |
 | Stale channel after foreground return | `BrokenPipe`/`Channel closed` causes one clean reconnect before an error is shown |
 | Pause | Coordinate stops changing without clearing simulation |
-| Stop | Route task ends and real location is restored |
+| Stop | Route task ends, real location is restored, and the healthy CoreDevice session remains ready |
+| Airplane mode to cellular, then Clear and Start | The retained session accepts a new coordinate without another airplane-mode cycle |
+| Airplane mode to cellular, then route Stop and Start | The retained session starts the next route without opening a replacement socket |
+| Transport failure on cellular | Error tells cellular users to rebuild in airplane mode |
+| Transport failure on Wi-Fi/hotspot | Error says airplane mode is unnecessary and asks the user to reconnect LocalDevVPN |
 | App killed during simulation | Recovery path can clear stale simulation after relaunch |
 | Device reboot | Pairing file remains, VPN can reconnect, simulation restarts |
 | iOS update | Pairing/tunnel failure is identified without deleting user data |

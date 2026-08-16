@@ -197,8 +197,12 @@ final class SimulationController: ObservableObject {
         guard pairingIsReady else { return }
         Task {
             do {
-                try await backend.clearLocation(pairingFileURL: pairingStore.url, deviceIP: deviceIP)
-                status = SimulationStatus(message: "已清除模擬位置")
+                try await backend.clearLocation(
+                    pairingFileURL: pairingStore.url,
+                    pairingFileRevision: pairingStore.revision,
+                    deviceIP: deviceIP
+                )
+                status = SimulationStatus(message: "已清除模擬位置；CoreDevice 通道保持待命")
             } catch {
                 lastError = error.localizedDescription
             }
@@ -213,7 +217,11 @@ final class SimulationController: ObservableObject {
         Task {
             defer { isTestingTunnel = false }
             do {
-                try await backend.testConnection(pairingFileURL: pairingStore.url, deviceIP: deviceIP)
+                try await backend.testConnection(
+                    pairingFileURL: pairingStore.url,
+                    pairingFileRevision: pairingStore.revision,
+                    deviceIP: deviceIP
+                )
                 tunnelTestMessage = "連線成功"
                 status.message = "LocalDevVPN/CoreDevice 通道已驗證"
             } catch {
@@ -429,7 +437,12 @@ final class SimulationController: ObservableObject {
 
     private func send(_ coordinate: GeoCoordinate, message: String) async {
         do {
-            try await backend.setLocation(coordinate, pairingFileURL: pairingStore.url, deviceIP: deviceIP)
+            try await backend.setLocation(
+                coordinate,
+                pairingFileURL: pairingStore.url,
+                pairingFileRevision: pairingStore.revision,
+                deviceIP: deviceIP
+            )
             status = SimulationStatus(isActive: true, isPaused: status.isPaused, coordinate: coordinate, mode: mode, message: message)
         } catch {
             lastError = error.localizedDescription

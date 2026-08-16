@@ -12,6 +12,7 @@ final class PairingFileStore: ObservableObject {
     ]
 
     @Published private(set) var isImported = false
+    @Published private(set) var revision = UUID()
 
     init() {
         refresh()
@@ -25,6 +26,7 @@ final class PairingFileStore: ObservableObject {
 
     func refresh() {
         isImported = FileManager.default.fileExists(atPath: url.path)
+        revision = UUID()
     }
 
     func importFile(from sourceURL: URL) throws {
