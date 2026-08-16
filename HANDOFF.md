@@ -62,11 +62,14 @@ App target 的 `PRODUCT_NAME` 是 `GFlyer`，
 不一致；固定 `PRODUCT_MODULE_NAME: GFlyerIOS` 後，Simulator tests 與
 `Idevice unsigned archive` 均已通過。最初通過的程式 commit 是 `b777985`；新增目前位置、
 正式背景定位活動及 CoreDevice transport 自動重連後，Xcode 16.4 workflow 亦於
-commit `b0c9618` 再次全部通過。產出的 `0.1.1 (2)` unsigned IPA 位於：
+commit `b0c9618` 再次全部通過。Stop/Clear 後保留 CoreDevice session 的
+`0.1.2 (3)` 修正在 commit `9728992` 通過 workflow
+[`31932297918`](https://github.com/michaelcheung0125-svg/GFlyer_IOS/actions/runs/31932297918)。
+產出的 unsigned IPA 位於：
 
 ```text
-C:\Project\GFlyer_IOS\artifacts\b0c9618\GFlyerIOS-Idevice-unsigned.ipa
-SHA-256 D0C8FFEC8177FEC306A2A1B056CC4A00A0839E3EE62C42F26A2A6CF30BCDC4EA
+C:\Project\GFlyer_IOS\artifacts\9728992\GFlyerIOS-Idevice-unsigned.ipa
+SHA-256 352CAB80A729C2ACFFA199B18C47D6219B2AFB483C459E5DC5CBF1DC740B8EA3
 ```
 
 ## 重要檔案

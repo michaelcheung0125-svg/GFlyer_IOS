@@ -75,11 +75,11 @@ It cannot be installed on an iPhone until it is signed with the owner's Apple
 development identity and provisioning profile. No Apple signing secret is
 required or stored by this workflow.
 
-The macOS validation passed on Xcode 16.4 for commit `b0c9618`: simulator unit
+The macOS validation passed on Xcode 16.4 for commit `9728992`: simulator unit
 tests completed successfully and the native `GFlyerIOS-Idevice` archive produced
-the unsigned `0.1.1 (2)` artifact, including the current-location and background
-route changes. Personal signing and target-iPhone behavior remain separate
-verification gates.
+the unsigned `0.1.2 (3)` artifact, including retained CoreDevice sessions after
+Stop/Clear. See [workflow run 31932297918](https://github.com/michaelcheung0125-svg/GFlyer_IOS/actions/runs/31932297918).
+Personal signing and target-iPhone behavior remain separate verification gates.
 
 ## Generate and open the project
 
