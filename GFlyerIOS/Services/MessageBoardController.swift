@@ -74,7 +74,7 @@ final class MessageBoardController: ObservableObject {
                     : api.authenticateInvite(code: normalizedCode, username: normalizedName))
                 try sessionStore.save(token: authentication.token, username: authentication.member.username)
                 member = authentication.member
-                username = authentication.member.username
+                self.username = authentication.member.username
                 isSubmitting = false
                 refresh()
             } catch {
