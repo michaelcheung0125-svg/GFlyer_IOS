@@ -350,6 +350,61 @@ final class SimulationController: ObservableObject {
     func removeSavedRoute(_ id: UUID) { dataStore.removeRoute(id); refreshStoredData() }
     func moveSavedRoute(_ id: UUID, folderID: UUID?) { dataStore.moveRoute(id, folderID: folderID); refreshStoredData() }
 
+    @discardableResult
+    func previewBoardCoordinate(_ coordinate: GeoCoordinate, startImmediately: Bool) -> Bool {
+        guard !status.isActive else {
+            lastError = "請先停止目前的定位模擬，再使用留言板座標。"
+            return false
+        }
+        mode = .teleport
+        routePoints = []
+        dataStore.clearDraft()
+        selectedCoordinate = coordinate
+        searchQuery = coordinate.display
+        searchResults = []
+        lastError = nil
+        if startImmediately { start() }
+        return true
+    }
+
+    @discardableResult
+    func previewBoardRoute(_ route: SharedBoardRoute, startImmediately: Bool) -> Bool {
+        guard !status.isActive else {
+            lastError = "請先停止目前的定位模擬，再使用留言板路線。"
+            return false
+        }
+        mode = .multiRoute
+        routePoints = route.points
+        loopRoute = route.loop
+        selectedCoordinate = route.points.last ?? selectedCoordinate
+        dataStore.saveDraft(points: route.points, loop: route.loop)
+        lastError = nil
+        if startImmediately { start() }
+        return true
+    }
+
+    func saveBoardCoordinate(_ coordinate: GeoCoordinate, name: String?) {
+        let normalized = name?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let preferredName = normalized.flatMap { $0.isEmpty ? nil : $0 }
+        let title = String((preferredName ?? "留言板位置 \(coordinate.display)").prefix(80))
+        dataStore.addFavorite(name: title, coordinate: coordinate)
+        refreshStoredData()
+    }
+
+    func saveBoardRoute(_ route: SharedBoardRoute, authorName: String) {
+        let baseName = String("\(route.name) (\(authorName))".prefix(80))
+        let existingNames = Set(savedRoutes.map { $0.name.lowercased() })
+        var name = baseName
+        var suffix = 2
+        while existingNames.contains(name.lowercased()) {
+            let suffixText = " \(suffix)"
+            name = String(baseName.prefix(max(80 - suffixText.count, 1))) + suffixText
+            suffix += 1
+        }
+        dataStore.saveRoute(name: name, points: route.points, loop: route.loop)
+        refreshStoredData()
+    }
+
     func saveQuickSpeedPreset(name: String, speed: Double) {
         var presets = quickSpeedPresets
         presets.append(QuickSpeedPreset(name: name, kilometresPerHour: speed))

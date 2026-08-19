@@ -46,9 +46,16 @@ SwiftUI / MapKit
            -> Personalized DDI mount when required
            -> RemoteXPC
            -> location_simulation
+  -> MessageBoardController
+     -> Keychain session token
+     -> HTTPS Cloudflare Worker / D1
+        <-> GFlyer Android message board
 ```
 
 The platform boundary must remain narrow. Route planning, GPX, favorites, history, speed, cooldown, and joystick behavior must not call `idevice` directly.
+The message-board client is a separate Internet boundary: it receives only its
+own authentication and post payloads and must never receive Pairing File, DDI,
+signing, CoreDevice, or location-transport secrets.
 
 ## Milestones
 
@@ -88,6 +95,13 @@ Exit criterion: a 30-minute foreground route completes without losing the tunnel
 
 ### M2: GFlyer feature parity
 
+- Android-compatible private message board for coordinates, routes,
+  announcements, replies, tags, expiry and pinning (implemented in `0.2.0 (4)`;
+  macOS CI and cross-device validation pending)
+- Invite/admin authentication, Keychain session storage, unread badge and
+  member/invitation administration (implemented; validation pending)
+- Preview, start and save Android-shared coordinates/routes in the iOS local
+  library (implemented; target-iPhone validation pending)
 - Place and coordinate search (implemented; validation pending)
 - Favorites, favorite folders, and local history (implemented; validation pending)
 - Named routes and route-draft recovery after relaunch (implemented; validation pending)
@@ -149,12 +163,22 @@ Exit criterion: a 30-minute route continues while another App is in the foregrou
 | Device reboot | Pairing file remains, VPN can reconnect, simulation restarts |
 | iOS update | Pairing/tunnel failure is identified without deleting user data |
 | No Internet | Existing coordinates work through the local VPN path; map/search availability is reported separately |
+| Android creates coordinate, route, announcement and reply | iOS decodes every payload, preserves fractional ISO-8601 dates, and displays matching content |
+| iOS shares a coordinate or route | Android can refresh and use the new item through the same Worker/D1 backend |
+| Message board visible during refresh | Visible foreign posts/replies remain read; after leaving, later foreign activity increments the badge |
+| Session revoked by administrator | The next API request clears the local Keychain session and returns to the join screen |
+| Save shared route with a duplicate name | iOS adds the author and a numeric suffix without replacing an existing local route |
 
 ## Data and security rules
 
 - Store the pairing file only in Application Support with complete file protection and owner-only permissions.
 - Never log pairing-file contents, host identifiers, private keys, or certificates.
 - Never upload or synchronize the pairing file to a backend.
+- Store the message-board bearer token in iOS Keychain, never logs or
+  `UserDefaults`.
+- Keep the public HTTPS message-board API independent from LocalDevVPN and the
+  CoreDevice transport; never attach Pairing File or signing material to board
+  requests.
 - Do not include anti-detection or third-party client modification features.
 - Always expose an explicit Stop action that clears device simulation.
 

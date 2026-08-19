@@ -12,6 +12,8 @@ This is a separate SwiftUI prototype for personal sideloading. It does not modif
 - Pause, resume, stop, looping, and return behavior
 - In-app foreground joystick control and reusable speed presets
 - Local favorites, history, favorite folders, named routes, and route-draft recovery
+- Private message board shared with GFlyer Android for coordinates, routes,
+  announcements, replies, tags, pinning, expiry, and member administration
 - Pairing-file import and protected local storage
 - Preview backend that builds without native dependencies
 - Optional `idevice` backend for device-wide GPS simulation
@@ -20,10 +22,10 @@ This is a separate SwiftUI prototype for personal sideloading. It does not modif
 
 The prototype deliberately excludes anti-detection, modified third-party clients, and App Store distribution.
 
-The current feature UI, current-location flow, background activity, and native
-archive pass the repository's macOS/Xcode CI. Target-iPhone regression and
-background endurance testing remain separate gates; Windows checks do not
-replace them.
+The previously released feature UI, current-location flow, background activity,
+and native archive pass the repository's macOS/Xcode CI. Message-board version
+`0.2.0 (4)` requires a new macOS validation run and target-iPhone regression;
+Windows checks do not replace either gate.
 
 ## End-user guide
 
@@ -49,6 +51,26 @@ pairing file
 ```
 
 The normal `GFlyerIOS` scheme uses a preview backend. The `GFlyerIOS-Idevice` scheme enables the native backend after the static library is installed.
+
+## Android/iOS message board
+
+The iOS message board uses the same Cloudflare Worker/D1 REST API as GFlyer
+Android. A device joins with the administrator bootstrap code or the active
+shared invitation code. Its bearer session token is stored in iOS Keychain;
+only the display name and last-read time use `UserDefaults`.
+
+Members can share a current or saved coordinate, a saved route, tags and
+replies. Shared coordinates and routes can be previewed, started, or saved into
+the local iOS library. Administrators can publish announcements, pin posts,
+replace/revoke the shared invite, promote members, and revoke individual
+devices. The board refreshes when the App becomes active and shows an unread
+badge without treating the user's own posts or replies as unread.
+
+This HTTPS service is independent from the device-location transport. The
+message-board client never reads or uploads the Pairing File, DDI, Apple signing
+material, CoreDevice socket data, or simulated-location state. The configured
+endpoint is `GFlyerMessageBoardAPIURL` in `GFlyerIOS/Info.plist` and must remain
+a public HTTPS URL.
 
 ## macOS prerequisites
 
@@ -151,6 +173,9 @@ Record the hard-gate result in
   pairing-file replacement still require a new session. Cellular users may
   need airplane mode for that reconnection; Wi-Fi/hotspot users do not.
 - MapKit search and map tiles require network access. The pinned DDI is downloaded once; GPS simulation then uses the local VPN path.
+- The shared message board requires Internet access and a valid, non-revoked
+  invite/session. It is unavailable offline, but this does not block the local
+  CoreDevice positioning path.
 - Keep the pairing file private. It contains credentials that identify a trusted host for this iPhone.
 - Third-party apps may reject simulated location or enforce their own terms.
 

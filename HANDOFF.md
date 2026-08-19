@@ -48,6 +48,14 @@ C:\Project\GFlyer
 - Personalized Developer Disk Image 下載、固定 revision、SHA-256 驗證及需要時掛載
 - 修正固定 DDI commit 的 BuildManifest SHA-256 與 iPhoneOS Rust sysroot 建置參數
 - App 重啟/強制關閉後的「強制清除模擬定位」恢復路徑
+- 與 Android 共用 Cloudflare Worker/D1 的私人留言板：座標、路線、公告、
+  回覆、標籤、期限、置頂及搜尋
+- 邀請碼／管理員登入、Keychain session token、未讀徽章、前景靜默刷新、
+  邀請碼與成員管理
+- Android 分享內容可在 iOS 預覽、直接傳送／開始路線，或另存到本機收藏；
+  執行中的定位不會被留言板內容意外覆蓋
+- 留言板與 CoreDevice 完全分離，不讀取或上傳 Pairing File、DDI、Apple
+  簽署資料或裝置通道內容
 - `GFlyerIOS-Idevice` XcodeGen scheme
 - GitHub Actions macOS simulator test 與 unsigned device archive workflow
 - 實機硬性可行性測試記錄表
@@ -82,15 +90,21 @@ docs/IMPLEMENTATION_PLAN.md
 scripts/build_idevice.sh
 GFlyerIOS/Model/GeoCoordinate.swift
 GFlyerIOS/Model/SimulationModels.swift
+GFlyerIOS/Model/MessageBoardModels.swift
 GFlyerIOS/Services/SimulationController.swift
 GFlyerIOS/Services/DeviceLocationService.swift
 GFlyerIOS/Services/IdeviceLocationSimulationBackend.swift
 GFlyerIOS/Services/DeveloperDiskImageStore.swift
 GFlyerIOS/Services/PairingFileStore.swift
+GFlyerIOS/Services/MessageBoardAPIClient.swift
+GFlyerIOS/Services/MessageBoardController.swift
+GFlyerIOS/Services/MessageBoardSessionStore.swift
 GFlyerIOS/UI/MainView.swift
+GFlyerIOS/UI/MessageBoardViews.swift
 GFlyerIOS/UI/SetupView.swift
 GFlyerIOSTests/GeoMathTests.swift
 GFlyerIOSTests/FeatureModelTests.swift
+GFlyerIOSTests/MessageBoardTests.swift
 GFlyerIOS/Services/LocalDataStore.swift
 GFlyerIOS/Services/PlaceSearchService.swift
 GFlyerIOS/UI/LibraryViews.swift
@@ -99,6 +113,15 @@ GFlyerIOS/UI/LibraryViews.swift
 ## 下一個對話應先做什麼
 
 新對話開始時，先讀取本檔案、`AGENTS.md`、`README.md` 及 `docs/IMPLEMENTATION_PLAN.md`，然後依序處理：
+
+### 0. 驗證留言板 `0.2.0 (4)`
+
+先確認 `Preview scheme tests` 可編譯新的 SwiftUI／Concurrency 程式，並通過
+Android/Worker JSON fixtures、未讀計算及輸入正規化測試；再確認
+`Idevice unsigned archive` 產生新 IPA。完成後用一部 Android 及一部 iPhone
+交叉測試：各自發布座標、路線與回覆；iOS 預覽／傳送／收藏 Android 內容；
+管理員發布公告、置頂、設定邀請碼及撤銷測試裝置。不得把沒有 token 的 HTTP
+`401` 健康檢查誤當成完整互通驗證。
 
 ### 1. 驗證目前第 1 至第 3 階段
 
@@ -186,6 +209,10 @@ DDI 會在 App 第一次需要時下載到 iOS Application Support，並以 pinn
 - iOS 更新可能讓 pairing file、DDI 或 Apple 私有協定失效。
 - 個人簽署 profile 會過期，過期時可能需要重新簽署或使用電腦刷新。
 - 地圖及搜尋需要網路；定位控制本身透過 LocalDevVPN/裝置開發服務。
+- 留言板需要 Internet 及有效邀請／session；離線時留言板不可用，但不應影響
+  已建立的 LocalDevVPN/CoreDevice 定位通道。
+- 留言板後端、Android/iOS 實際雙向發布及管理流程仍需在 `0.2.0 (4)` IPA
+  做跨裝置驗證；Windows 靜態檢查不能證明 Swift 編譯或互通成功。
 - 第三方 App 可以拒絕模擬位置，且其服務條款仍然適用。
 
 ## 不要做的事
@@ -201,4 +228,5 @@ DDI 會在 App 第一次需要時下載到 iOS Application Support，並以 pinn
 目前的第 1 至第 3 階段只有在新 workflow 的 Preview tests 與 Idevice archive
 通過，並在目標 iPhone 回歸傳送、第二次更新、Stop 清除、單點、多點、探索與
 搖桿後，才算驗證完成。這次新增的目前位置及背景播放需另外通過上述實機測試；
+留言板還需通過 Android/iOS 雙向發布、回覆、管理與撤銷 session 測試。
 GPX、冷卻計時、跨日期提示與路線重排仍屬後續工作。

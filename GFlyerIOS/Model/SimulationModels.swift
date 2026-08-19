@@ -66,7 +66,7 @@ struct FavoriteFolder: Codable, Equatable, Identifiable {
     }
 }
 
-struct SavedRoute: Codable, Equatable, Identifiable {
+struct SavedRoute: Codable, Equatable, Identifiable, Sendable {
     let id: UUID
     var name: String
     let points: [GeoCoordinate]

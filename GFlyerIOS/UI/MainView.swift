@@ -2,7 +2,9 @@ import MapKit
 import SwiftUI
 
 struct MainView: View {
+    @Environment(\.scenePhase) private var scenePhase
     @ObservedObject var controller: SimulationController
+    @ObservedObject var messageBoard: MessageBoardController
     @State private var position: MapCameraPosition = .region(
         MKCoordinateRegion(
             center: CLLocationCoordinate2D(latitude: 22.3193, longitude: 114.1694),
@@ -13,6 +15,8 @@ struct MainView: View {
     @State private var showFavorites = false
     @State private var showRoutes = false
     @State private var showJoystick = false
+    @State private var showMessageBoard = false
+    @State private var showBoardShare = false
     @State private var isPanelExpanded = true
     @State private var suppressNextRecenter = false
     @State private var feedbackMessage: String?
@@ -78,6 +82,7 @@ struct MainView: View {
                             isPanelExpanded: $isPanelExpanded,
                             showFavorites: $showFavorites,
                             showRoutes: $showRoutes,
+                            showBoardShare: $showBoardShare,
                             position: $position,
                             cameraDistance: $cameraDistance,
                             onLocate: locateCurrentPosition,
@@ -121,7 +126,22 @@ struct MainView: View {
                         Text("GFlyer").font(.headline)
                     }
                 }
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItemGroup(placement: .topBarTrailing) {
+                    Button { showMessageBoard = true } label: {
+                        Image(systemName: "bubble.left.and.bubble.right")
+                            .overlay(alignment: .topTrailing) {
+                                if messageBoard.unreadCount > 0 {
+                                    Text(messageBoard.unreadCount > 99 ? "99+" : "\(messageBoard.unreadCount)")
+                                        .font(.system(size: 8, weight: .bold))
+                                        .foregroundStyle(.white)
+                                        .padding(.horizontal, 3)
+                                        .frame(minWidth: 14, minHeight: 14)
+                                        .background(.red, in: Capsule())
+                                        .offset(x: 8, y: -8)
+                                }
+                            }
+                    }
+                    .accessibilityLabel("留言板，\(messageBoard.unreadCount) 個未讀項目")
                     Button { showSetup = true } label: { Image(systemName: "gearshape") }
                         .accessibilityLabel("設定")
                 }
@@ -129,6 +149,15 @@ struct MainView: View {
             .sheet(isPresented: $showSetup) { SetupView(controller: controller) }
             .sheet(isPresented: $showFavorites) { SavedPlacesView(controller: controller) }
             .sheet(isPresented: $showRoutes) { SavedRoutesView(controller: controller) }
+            .sheet(isPresented: $showMessageBoard) {
+                MessageBoardView(board: messageBoard, simulation: controller)
+            }
+            .sheet(isPresented: $showBoardShare) {
+                ShareToMessageBoardView(board: messageBoard, simulation: controller)
+            }
+            .onChange(of: scenePhase) { _, phase in
+                if phase == .active { messageBoard.refreshInBackground() }
+            }
             .onChange(of: controller.selectedCoordinate) { _, coordinate in
                 if suppressNextRecenter {
                     suppressNextRecenter = false
@@ -254,6 +283,7 @@ private struct MapToolBar: View {
     @Binding var isPanelExpanded: Bool
     @Binding var showFavorites: Bool
     @Binding var showRoutes: Bool
+    @Binding var showBoardShare: Bool
     @Binding var position: MapCameraPosition
     @Binding var cameraDistance: CLLocationDistance
     let onLocate: () -> Void
@@ -282,7 +312,7 @@ private struct MapToolBar: View {
             }
             HStack(spacing: 4) {
                 mapButton("point.3.filled.connected.trianglepath.dotted", label: "已儲存路線") { showRoutes = true }
-                Color.clear.frame(width: 34, height: 34)
+                mapButton("square.and.arrow.up", label: "分享到留言板") { showBoardShare = true }
             }
         }
         .padding(6)
