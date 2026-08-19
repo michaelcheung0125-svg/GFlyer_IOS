@@ -97,9 +97,10 @@ Exit criterion: a 30-minute foreground route completes without losing the tunnel
 
 - Android-compatible private message board for coordinates, routes,
   announcements, replies, tags, expiry and pinning (implemented in `0.2.0 (4)`;
-  macOS CI and cross-device validation pending)
+  macOS CI passed at `1eabf69`; cross-device validation pending)
 - Invite/admin authentication, Keychain session storage, unread badge and
-  member/invitation administration (implemented; validation pending)
+  member/invitation administration (implemented; macOS CI passed, live backend
+  administration validation pending)
 - Preview, start and save Android-shared coordinates/routes in the iOS local
   library (implemented; target-iPhone validation pending)
 - Place and coordinate search (implemented; validation pending)

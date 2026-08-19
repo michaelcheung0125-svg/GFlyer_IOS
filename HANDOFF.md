@@ -80,6 +80,18 @@ C:\Project\GFlyer_IOS\artifacts\9728992\GFlyerIOS-Idevice-unsigned.ipa
 SHA-256 352CAB80A729C2ACFFA199B18C47D6219B2AFB483C459E5DC5CBF1DC740B8EA3
 ```
 
+Android/iOS 留言板版本 `0.2.0 (4)` 在 commit `1eabf69` 通過 Xcode 16.4
+workflow [`32275792347`](https://github.com/michaelcheung0125-svg/GFlyer_IOS/actions/runs/32275792347)：
+15 個 Simulator tests 全部通過，`Idevice unsigned archive` 亦成功。新 artifact：
+
+```text
+C:\Project\GFlyer_IOS\artifacts\1eabf69\GFlyerIOS-Idevice-unsigned.ipa
+SHA-256 1771316CC5026DBF3B837352DEB73DE79EF528F224C630E90D0BA07EAAB08D32
+```
+
+這只證明 Swift/XCTest、arm64 device archive 與 `idevice` link 成功；尚未證明
+個人簽署、iPhone UI、真實 Android/iOS 雙向留言板或目標 iPhone 定位回歸。
+
 ## 重要檔案
 
 ```text
@@ -116,10 +128,8 @@ GFlyerIOS/UI/LibraryViews.swift
 
 ### 0. 驗證留言板 `0.2.0 (4)`
 
-先確認 `Preview scheme tests` 可編譯新的 SwiftUI／Concurrency 程式，並通過
-Android/Worker JSON fixtures、未讀計算及輸入正規化測試；再確認
-`Idevice unsigned archive` 產生新 IPA。完成後用一部 Android 及一部 iPhone
-交叉測試：各自發布座標、路線與回覆；iOS 預覽／傳送／收藏 Android 內容；
+macOS CI 已完成。下一步用一部 Android 及一部 iPhone 交叉測試：各自發布
+座標、路線與回覆；iOS 預覽／傳送／收藏 Android 內容；
 管理員發布公告、置頂、設定邀請碼及撤銷測試裝置。不得把沒有 token 的 HTTP
 `401` 健康檢查誤當成完整互通驗證。
 

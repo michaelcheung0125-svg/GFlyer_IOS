@@ -22,10 +22,10 @@ This is a separate SwiftUI prototype for personal sideloading. It does not modif
 
 The prototype deliberately excludes anti-detection, modified third-party clients, and App Store distribution.
 
-The previously released feature UI, current-location flow, background activity,
-and native archive pass the repository's macOS/Xcode CI. Message-board version
-`0.2.0 (4)` requires a new macOS validation run and target-iPhone regression;
-Windows checks do not replace either gate.
+The feature UI, current-location flow, background activity, message-board unit
+tests, and native archive pass the repository's macOS/Xcode CI. Message-board
+version `0.2.0 (4)` still requires target-iPhone and Android/iOS interoperability
+testing; Windows checks do not replace those device gates.
 
 ## End-user guide
 
@@ -102,6 +102,13 @@ tests completed successfully and the native `GFlyerIOS-Idevice` archive produced
 the unsigned `0.1.2 (3)` artifact, including retained CoreDevice sessions after
 Stop/Clear. See [workflow run 31932297918](https://github.com/michaelcheung0125-svg/GFlyer_IOS/actions/runs/31932297918).
 Personal signing and target-iPhone behavior remain separate verification gates.
+
+Message-board version `0.2.0 (4)` passed both jobs for commit `1eabf69` in
+[workflow run 32275792347](https://github.com/michaelcheung0125-svg/GFlyer_IOS/actions/runs/32275792347).
+The run executed 15 simulator tests, including Android/Worker JSON fixtures,
+unread counting, input normalization, and shared-content persistence, then
+produced an unsigned arm64 device archive and IPA. Live Android/iPhone exchange
+and personal signing remain separate validation gates.
 
 ## Generate and open the project
 
