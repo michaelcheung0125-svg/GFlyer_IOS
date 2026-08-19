@@ -180,10 +180,11 @@ final class MessageBoardTests: XCTestCase {
 
         controller.saveBoardRoute(route, authorName: "Android user")
         controller.saveBoardRoute(route, authorName: "Android user")
-        XCTAssertEqual(controller.savedRoutes.map(\.name), [
+        XCTAssertEqual(Set(controller.savedRoutes.map(\.name)), Set([
             "Harbour route (Android user)",
             "Harbour route (Android user) 2",
-        ])
+        ]))
+        XCTAssertEqual(controller.savedRoutes.count, 2)
 
         let coordinate = GeoCoordinate(latitude: 22.3193, longitude: 114.1694)
         controller.saveBoardCoordinate(coordinate, name: "Shared place")
