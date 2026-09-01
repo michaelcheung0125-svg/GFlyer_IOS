@@ -457,7 +457,7 @@ final class SimulationController: ObservableObject {
                     )
                 }
                 let displaySpeed = Int((joystickSpeedMetresPerSecond * 3.6).rounded())
-                await send(current, message: "搖桿控制中 · \(displaySpeed) km/h")
+                guard await send(current, message: "搖桿控制中 · \(displaySpeed) km/h") else { return }
                 await sleepThroughPause(nanoseconds: tickNanoseconds)
             }
         }
@@ -501,6 +501,14 @@ final class SimulationController: ObservableObject {
             }
             isSearching = false
         }
+    }
+
+    func cancelSearch() {
+        searchTask?.cancel()
+        searchTask = nil
+        searchQuery = ""
+        searchResults = []
+        isSearching = false
     }
 
     func chooseSearchResult(_ result: PlaceSearchResult) {
@@ -758,8 +766,7 @@ final class SimulationController: ObservableObject {
                     case .simulate:
                         guard await move(from: start, to: end) else { return }
                     case .teleport:
-                        await send(end, message: "已傳送至第 \(number) 點")
-                        guard lastError == nil else { return }
+                        guard await send(end, message: "已傳送至第 \(number) 點") else { return }
                     }
                     saveSessionSnapshot(coordinate: end, force: true)
                     let isFinalStop = !loop && index + 1 == lapPoints.count - 1
@@ -786,8 +793,7 @@ final class SimulationController: ObservableObject {
                 lapPoints = traversal
                 guard loop else { break }
                 if transition == .teleportToStart, let first = points.first {
-                    await send(first, message: "循環路線模擬中")
-                    guard lastError == nil else { return }
+                    guard await send(first, message: "循環路線模擬中") else { return }
                 }
             }
             if !Task.isCancelled {
@@ -867,8 +873,10 @@ final class SimulationController: ObservableObject {
                     eastMetres: radius * cos(angle),
                     northMetres: radius * sin(angle)
                 )
-                await send(target, message: "繞圈中 · 第 \(lapIndex + 1)/\(radii.count) 圈 · 半徑 \(radiusValue) 米")
-                guard lastError == nil else { return false }
+                guard await send(
+                    target,
+                    message: "繞圈中 · 第 \(lapIndex + 1)/\(radii.count) 圈 · 半徑 \(radiusValue) 米"
+                ) else { return false }
                 await sleepThroughPause(nanoseconds: tickNanoseconds)
             }
         }
@@ -888,8 +896,7 @@ final class SimulationController: ObservableObject {
         for _ in 0..<steps {
             guard !Task.isCancelled else { return false }
             current = GeoMath.destination(from: current, bearingDegrees: 90, distanceMetres: stepLength)
-            await send(current, message: "到點微動中 · 向東 20 米")
-            guard lastError == nil else { return false }
+            guard await send(current, message: "到點微動中 · 向東 20 米") else { return false }
             await sleepThroughPause(nanoseconds: tickNanoseconds)
         }
         status.message = "已完成第 \(pointNumber) 點微動"
@@ -931,7 +938,7 @@ final class SimulationController: ObservableObject {
                 )
                 spiralState = step.state
                 current = step.coordinate
-                await send(current, message: "螺旋探索中")
+                guard await send(current, message: "螺旋探索中") else { return }
                 await sleepThroughPause(nanoseconds: tickNanoseconds)
             }
         }
@@ -942,17 +949,19 @@ final class SimulationController: ObservableObject {
         var travelled = 0.0
         while travelled < distance, !Task.isCancelled {
             let coordinate = GeoMath.interpolate(from: start, to: end, fraction: travelled / distance)
-            await send(coordinate, message: "路線模擬中")
-            if lastError != nil { return false }
+            guard await send(coordinate, message: "路線模擬中") else { return false }
             travelled += max(speedKilometresPerHour / 3.6 * tickSeconds, 0.5)
             await sleepThroughPause(nanoseconds: tickNanoseconds)
         }
         guard !Task.isCancelled else { return false }
-        await send(end, message: "路線模擬中")
-        return lastError == nil
+        return await send(end, message: "路線模擬中")
     }
 
-    private func send(_ coordinate: GeoCoordinate, message: String) async {
+    /// 回傳這次傳送是否成功。播放迴圈只依這個回傳值決定去留，
+    /// 不看共用的 `lastError`——否則其他畫面（例如留言板守衛）設定的
+    /// 錯誤訊息會被誤判成傳送失敗而中止路線。
+    @discardableResult
+    private func send(_ coordinate: GeoCoordinate, message: String) async -> Bool {
         do {
             try await backend.setLocation(
                 coordinate,
@@ -961,14 +970,15 @@ final class SimulationController: ObservableObject {
                 deviceIP: deviceIP
             )
             // Stop 之後回來的 in-flight 傳送不得復活狀態或重寫已清除的快照
-            guard !Task.isCancelled else { return }
+            guard !Task.isCancelled else { return false }
             status.isActive = true
             status.coordinate = coordinate
             status.mode = mode
             status.message = message
             saveSessionSnapshot(coordinate: coordinate)
+            return true
         } catch {
-            guard !Task.isCancelled else { return }
+            guard !Task.isCancelled else { return false }
             lastError = error.localizedDescription
             playbackTask?.cancel()
             joystickTask?.cancel()
@@ -982,6 +992,7 @@ final class SimulationController: ObservableObject {
             status.isOrbiting = false
             status.autoStopAt = nil
             deviceLocation.stopBackgroundRouteActivity()
+            return false
         }
     }
 

@@ -24,6 +24,7 @@ struct MainView: View {
     @State private var feedbackMessage: String?
     @State private var feedbackTask: Task<Void, Never>?
     @State private var cameraDistance: CLLocationDistance = 5_000
+    @FocusState private var searchFieldFocused: Bool
 
     var body: some View {
         NavigationStack {
@@ -65,6 +66,8 @@ struct MainView: View {
                     }
                     .mapStyle(.standard(elevation: .realistic))
                     .onTapGesture { point in
+                        // 點地圖同時收鍵盤，避免鍵盤佔住畫面又沒有明顯的關閉方式
+                        searchFieldFocused = false
                         guard let coordinate = proxy.convert(point, from: .local) else { return }
                         suppressNextRecenter = true
                         controller.select(GeoCoordinate(coordinate))
@@ -72,7 +75,7 @@ struct MainView: View {
                 }
 
                 VStack(spacing: 0) {
-                    SearchBar(controller: controller) { coordinate in
+                    SearchBar(controller: controller, isFocused: $searchFieldFocused) { coordinate in
                         position = .region(region(around: coordinate, span: 0.04))
                     }
                     if controller.searchResults.isEmpty {
@@ -112,6 +115,9 @@ struct MainView: View {
                     .padding(.horizontal, 12)
                     .padding(.bottom, 8)
             }
+            // 搜尋列在畫面頂端，不需要鍵盤避讓；少了這行，鍵盤（或 sheet 關閉後
+            // 殘留的鍵盤 inset）會把底部控制列往上頂到畫面中間。
+            .ignoresSafeArea(.keyboard, edges: .bottom)
             .navigationTitle("GFlyer")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -260,6 +266,7 @@ struct MainView: View {
 
 private struct SearchBar: View {
     @ObservedObject var controller: SimulationController
+    @FocusState.Binding var isFocused: Bool
     let onChoose: (GeoCoordinate) -> Void
 
     var body: some View {
@@ -269,7 +276,12 @@ private struct SearchBar: View {
                 TextField("搜尋地點或輸入座標", text: $controller.searchQuery)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
-                    .onSubmit { controller.search() }
+                    .focused($isFocused)
+                    .submitLabel(.search)
+                    .onSubmit {
+                        controller.search()
+                        isFocused = false
+                    }
                 if controller.isSearching { ProgressView().controlSize(.small) }
                 if !controller.searchQuery.isEmpty {
                     Button { controller.searchQuery = ""; controller.search() } label: {
@@ -277,19 +289,35 @@ private struct SearchBar: View {
                     }
                     .accessibilityLabel("清除搜尋")
                 }
-                Button { controller.search() } label: { Image(systemName: "arrow.right.circle.fill") }
-                    .disabled(controller.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                    .accessibilityLabel("搜尋")
+                if isFocused {
+                    Button("取消") {
+                        isFocused = false
+                        controller.cancelSearch()
+                    }
+                    .font(.subheadline)
+                } else {
+                    Button { controller.search() } label: { Image(systemName: "arrow.right.circle.fill") }
+                        .disabled(controller.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                        .accessibilityLabel("搜尋")
+                }
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 10)
             .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
+            .contentShape(RoundedRectangle(cornerRadius: 8))
+            .toolbar {
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button("完成") { isFocused = false }
+                }
+            }
 
             if !controller.searchResults.isEmpty {
                 ScrollView {
                     VStack(spacing: 0) {
                         ForEach(controller.searchResults) { result in
                             Button {
+                                isFocused = false
                                 controller.chooseSearchResult(result)
                                 onChoose(result.coordinate)
                             } label: {
@@ -306,6 +334,7 @@ private struct SearchBar: View {
                         }
                     }
                 }
+                .scrollDismissesKeyboard(.immediately)
                 .frame(maxHeight: 240)
                 .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
                 .padding(.top, 4)
@@ -359,12 +388,20 @@ private struct MapToolBar: View {
         .padding(6)
         .fixedSize()
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
+        // 讓整塊工具列（含按鈕之間的空隙與內距）吃掉點擊，
+        // 否則點到空隙會穿透到後面的地圖而變成選點
+        .contentShape(RoundedRectangle(cornerRadius: 8))
     }
 
     private func mapButton(_ icon: String, label: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) { Image(systemName: icon).frame(width: 32, height: 32) }
-            .buttonStyle(.plain)
-            .accessibilityLabel(label)
+        Button(action: action) {
+            Image(systemName: icon)
+                .frame(width: 40, height: 40)
+                // 沒有這行時，可點區域只有圖示筆畫本身而不是整個方框
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(label)
     }
 
     private func zoom(_ factor: Double) {
@@ -434,6 +471,7 @@ private struct ControlPanel: View {
         }
         .padding(14)
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
+        .contentShape(RoundedRectangle(cornerRadius: 8))
         .alert("儲存路線", isPresented: $showSaveRoute) {
             TextField("路線名稱", text: $routeName)
             Button("儲存") { controller.saveRoute(name: routeName); routeName = "" }
