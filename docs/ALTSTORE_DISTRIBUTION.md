@@ -117,6 +117,24 @@ release 與 Actions artifact 都需要登入，所以 iOS 的 IPA 和 Android �
 同一個 `version` + `buildVersion` 重跑腳本會就地取代該筆記錄，方便修正
 發佈錯誤；版本不同則會插到最前面。
 
+## 來源檔格式（不要簡化掉重複欄位）
+
+SideStore 讀的是舊版 AltStore 來源格式，**不是**只有 `versions` 陣列的新
+格式。少了下面任何一項，加入來源時會出現 `Failed to install / StoreApp is
+not valid`：
+
+- 頂層 `identifier`
+- App 物件上的扁平欄位 `version`、`versionDate`、`downloadURL`、`size`
+  （與 `versions[0]` 重複是正常的，SideStore 只看扁平欄位）
+- `permissions` 必須是陣列；新格式的 `appPermissions` 物件不會被讀取
+- 日期要用 ISO-8601 帶時間，例如 `2026-09-01T15:40:00Z`；只寫日期會失敗
+
+`scripts/update_altstore_source.py` 會在每次發佈時自動把扁平欄位同步成最新
+版本，所以正常流程不需要手動維護。要改格式前，先抓一份實際可用的來源
+（例如 `https://apps.sidestore.io`）比對欄位，不要只依文件推測。
+
+SideStore 會快取來源內容。改過來源檔後若沒看到新版，把來源移除再重新加入。
+
 ## 注意事項
 
 - 每次改動 Swift 程式碼都需要新的 IPA。座標圖鑑與留言板是 HTTPS 抓取的

@@ -84,6 +84,9 @@ C:\Project\GFlyer
   - 修正地圖工具列點擊穿透到後方地圖、底部控制列被鍵盤推到畫面中間、
     搜尋鍵盤無法關閉
   - 發佈路徑改為 AltStore／SideStore 來源，見 `docs/ALTSTORE_DISTRIBUTION.md`
+  - `0.4.0 (6)` 已發佈到公開的 `GFlyer-updates`（release `ios-v0.4.0`）並
+    確認可以從 SideStore 來源安裝到實機。來源檔必須維持舊版 AltStore 扁平
+    格式，細節見 `docs/ALTSTORE_DISTRIBUTION.md`
 
 GitHub Actions 的兩個 job 已在 Xcode 16.4 完整通過。Simulator unit test 曾因
 App target 的 `PRODUCT_NAME` 是 `GFlyer`，
