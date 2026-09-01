@@ -27,135 +27,56 @@ struct MainView: View {
     @State private var cameraDistance: CLLocationDistance = 5_000
     @FocusState private var searchFieldFocused: Bool
 
+    // 這個畫面的 body 拆成幾層小的計算屬性。整串堆在一起時 Swift 的型別
+    // 檢查器會在 MainView.body 上放棄（unable to type-check in reasonable
+    // time），加新的 sheet 或 alert 前請維持這個分層。
     var body: some View {
         NavigationStack {
-            ZStack(alignment: .bottom) {
-                MapReader { proxy in
-                    Map(position: $position, interactionModes: .all) {
-                        UserAnnotation()
-
-                        Annotation("選取位置", coordinate: controller.selectedCoordinate.clLocationCoordinate) {
-                            Image("GFlyerMarker")
-                                .resizable()
-                                .scaledToFit()
-                                .frame(width: 36, height: 36)
-                                .shadow(radius: 2)
-                        }
-
-                        if let active = controller.status.coordinate {
-                            Annotation("模擬位置", coordinate: active.clLocationCoordinate) {
-                                Image(systemName: "location.fill")
-                                    .foregroundStyle(.white)
-                                    .padding(8)
-                                    .background(.blue, in: Circle())
-                            }
-                        }
-
-                        ForEach(Array(controller.routePoints.enumerated()), id: \.offset) { index, point in
-                            Marker("路線點 \(index + 1)", coordinate: point.clLocationCoordinate)
-                                .tint(.orange)
-                        }
-
-                        if controller.routePoints.count >= 2 {
-                            MapPolyline(coordinates: controller.routePoints.map(\.clLocationCoordinate))
-                                .stroke(.orange, lineWidth: 4)
-                        }
-                        if controller.explorationPreview.count >= 2 {
-                            MapPolyline(coordinates: controller.explorationPreview.map(\.clLocationCoordinate))
-                                .stroke(.purple.opacity(0.75), style: StrokeStyle(lineWidth: 3, dash: [7, 5]))
-                        }
-                    }
-                    .mapStyle(.standard(elevation: .realistic))
-                    .onTapGesture { point in
-                        // 點地圖同時收鍵盤，避免鍵盤佔住畫面又沒有明顯的關閉方式
-                        searchFieldFocused = false
-                        guard let coordinate = proxy.convert(point, from: .local) else { return }
-                        suppressNextRecenter = true
-                        controller.select(GeoCoordinate(coordinate))
-                    }
+            contentWithSheets
+                .alert(
+                    "操作失敗",
+                    isPresented: errorAlertBinding
+                ) {
+                    Button("確定", role: .cancel) { controller.lastError = nil }
+                } message: {
+                    Text(controller.lastError ?? "未知錯誤")
                 }
+                .alert(
+                    "跨日期提醒",
+                    isPresented: crossDateAlertBinding,
+                    presenting: controller.pendingCrossDateWarning
+                ) { _ in
+                    Button("仍要傳送") { controller.confirmCrossDateStart() }
+                    Button("取消", role: .cancel) { controller.cancelCrossDateStart() }
+                } message: { warning in
+                    Text(Self.crossDateMessage(for: warning))
+                }
+                .alert(
+                    "有新版本",
+                    isPresented: $updateChecker.showsPrompt,
+                    presenting: updateChecker.availableUpdate
+                ) { update in
+                    Button("用 SideStore 更新") { updateChecker.openInstaller(for: update) }
+                    Button("今日不再顯示") { updateChecker.snoozeForToday() }
+                    Button("稍後", role: .cancel) { updateChecker.dismissPrompt() }
+                } message: { update in
+                    Text(updateMessage(for: update))
+                }
+                .alert(
+                    "恢復上次模擬？",
+                    isPresented: resumeAlertBinding,
+                    presenting: controller.pendingResumeSession
+                ) { snapshot in
+                    Button("恢復") { controller.resumeInterruptedSession(snapshot) }
+                    Button("放棄", role: .cancel) { controller.discardInterruptedSession() }
+                } message: { snapshot in
+                    Text(Self.resumeMessage(for: snapshot))
+                }
+        }
+    }
 
-                VStack(spacing: 0) {
-                    SearchBar(controller: controller, isFocused: $searchFieldFocused) { coordinate in
-                        position = .region(region(around: coordinate, span: 0.04))
-                    }
-                    if controller.searchResults.isEmpty {
-                        HStack {
-                        Spacer()
-                        MapToolBar(
-                            controller: controller,
-                            showJoystick: $showJoystick,
-                            isPanelExpanded: $isPanelExpanded,
-                            showFavorites: $showFavorites,
-                            showRoutes: $showRoutes,
-                            showBoardShare: $showBoardShare,
-                            showLibrary: $showLibrary,
-                            position: $position,
-                            cameraDistance: $cameraDistance,
-                            onLocate: locateCurrentPosition,
-                            onFeedback: announce
-                        )
-                        }
-                        .padding(.top, 8)
-                    }
-                    Spacer()
-                }
-                .padding(.horizontal, 12)
-                .padding(.top, 8)
-                .padding(.bottom, 112)
-
-                if showJoystick {
-                    JoystickPad(controller: controller)
-                        .frame(width: 132, height: 132)
-                        .padding(.leading, 18)
-                        .padding(.bottom, isPanelExpanded ? 258 : 120)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }
-
-                ControlPanel(controller: controller, isExpanded: $isPanelExpanded)
-                    .padding(.horizontal, 12)
-                    .padding(.bottom, 8)
-            }
-            // 搜尋列在畫面頂端，不需要鍵盤避讓；少了這行，鍵盤（或 sheet 關閉後
-            // 殘留的鍵盤 inset）會把底部控制列往上頂到畫面中間。
-            .ignoresSafeArea(.keyboard, edges: .bottom)
-            .navigationTitle("GFlyer")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Label(
-                        controller.canControlDeviceLocation ? "裝置模式" : "預覽模式",
-                        systemImage: controller.canControlDeviceLocation ? "iphone.gen3" : "eye"
-                    )
-                    .font(.caption)
-                }
-                ToolbarItem(placement: .principal) {
-                    HStack(spacing: 7) {
-                        Image("GFlyerIcon").resizable().scaledToFill().frame(width: 26, height: 26)
-                            .clipShape(RoundedRectangle(cornerRadius: 5))
-                        Text("GFlyer").font(.headline)
-                    }
-                }
-                ToolbarItemGroup(placement: .topBarTrailing) {
-                    Button { showMessageBoard = true } label: {
-                        Image(systemName: "bubble.left.and.bubble.right")
-                            .overlay(alignment: .topTrailing) {
-                                if messageBoard.unreadCount > 0 {
-                                    Text(messageBoard.unreadCount > 99 ? "99+" : "\(messageBoard.unreadCount)")
-                                        .font(.system(size: 8, weight: .bold))
-                                        .foregroundStyle(.white)
-                                        .padding(.horizontal, 3)
-                                        .frame(minWidth: 14, minHeight: 14)
-                                        .background(.red, in: Capsule())
-                                        .offset(x: 8, y: -8)
-                                }
-                            }
-                    }
-                    .accessibilityLabel("留言板，\(messageBoard.unreadCount) 個未讀項目")
-                    Button { showSetup = true } label: { Image(systemName: "gearshape") }
-                        .accessibilityLabel("設定")
-                }
-            }
+    private var contentWithSheets: some View {
+        contentWithChrome
             .sheet(isPresented: $showSetup) {
                 SetupView(controller: controller, updateChecker: updateChecker)
             }
@@ -170,6 +91,16 @@ struct MainView: View {
             .sheet(isPresented: $showLibrary) {
                 CoordinateLibraryView(library: coordinateLibrary, simulation: controller)
             }
+    }
+
+    private var contentWithChrome: some View {
+        contentStack
+            // 搜尋列在畫面頂端，不需要鍵盤避讓；少了這行，鍵盤（或 sheet 關閉後
+            // 殘留的鍵盤 inset）會把底部控制列往上頂到畫面中間。
+            .ignoresSafeArea(.keyboard, edges: .bottom)
+            .navigationTitle("GFlyer")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar { mainToolbar }
             .onChange(of: scenePhase) { _, phase in
                 if phase == .active {
                     messageBoard.refreshInBackground()
@@ -186,68 +117,182 @@ struct MainView: View {
             .onChange(of: isPanelExpanded) { _, expanded in
                 if expanded { showJoystick = false }
             }
-            .overlay(alignment: .top) {
-                if let feedbackMessage {
-                    Text(feedbackMessage)
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(.primary)
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 9)
-                        .background(.regularMaterial, in: Capsule())
-                        .shadow(radius: 4, y: 2)
-                        .padding(.top, 84)
-                        .transition(.move(edge: .top).combined(with: .opacity))
+            .overlay(alignment: .top) { feedbackOverlay }
+    }
+
+    private var contentStack: some View {
+        ZStack(alignment: .bottom) {
+            mapLayer
+            searchAndToolsLayer
+            if showJoystick {
+                JoystickPad(controller: controller)
+                    .frame(width: 132, height: 132)
+                    .padding(.leading, 18)
+                    .padding(.bottom, isPanelExpanded ? 258 : 120)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            ControlPanel(controller: controller, isExpanded: $isPanelExpanded)
+                .padding(.horizontal, 12)
+                .padding(.bottom, 8)
+        }
+    }
+
+    private var mapLayer: some View {
+        MapReader { proxy in
+            Map(position: $position, interactionModes: .all) {
+                UserAnnotation()
+
+                Annotation("選取位置", coordinate: controller.selectedCoordinate.clLocationCoordinate) {
+                    Image("GFlyerMarker")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 36, height: 36)
+                        .shadow(radius: 2)
+                }
+
+                if let active = controller.status.coordinate {
+                    Annotation("模擬位置", coordinate: active.clLocationCoordinate) {
+                        Image(systemName: "location.fill")
+                            .foregroundStyle(.white)
+                            .padding(8)
+                            .background(.blue, in: Circle())
+                    }
+                }
+
+                ForEach(Array(controller.routePoints.enumerated()), id: \.offset) { index, point in
+                    Marker("路線點 \(index + 1)", coordinate: point.clLocationCoordinate)
+                        .tint(.orange)
+                }
+
+                if controller.routePoints.count >= 2 {
+                    MapPolyline(coordinates: controller.routePoints.map(\.clLocationCoordinate))
+                        .stroke(.orange, lineWidth: 4)
+                }
+                if controller.explorationPreview.count >= 2 {
+                    MapPolyline(coordinates: controller.explorationPreview.map(\.clLocationCoordinate))
+                        .stroke(.purple.opacity(0.75), style: StrokeStyle(lineWidth: 3, dash: [7, 5]))
                 }
             }
-            .alert(
-                "操作失敗",
-                isPresented: Binding(
-                    get: { controller.lastError != nil },
-                    set: { if !$0 { controller.lastError = nil } }
-                )
-            ) {
-                Button("確定", role: .cancel) { controller.lastError = nil }
-            } message: {
-                Text(controller.lastError ?? "未知錯誤")
-            }
-            .alert(
-                "跨日期提醒",
-                isPresented: Binding(
-                    get: { controller.pendingCrossDateWarning != nil },
-                    set: { if !$0 { controller.cancelCrossDateStart() } }
-                ),
-                presenting: controller.pendingCrossDateWarning
-            ) { _ in
-                Button("仍要傳送") { controller.confirmCrossDateStart() }
-                Button("取消", role: .cancel) { controller.cancelCrossDateStart() }
-            } message: { warning in
-                Text("目的地當地日期約為 \(warning.destinationDateText)，與本機日期 \(warning.deviceDateText) 不同。部分遊戲的每日任務或獎勵可能受影響。")
-            }
-            .alert(
-                "有新版本",
-                isPresented: $updateChecker.showsPrompt,
-                presenting: updateChecker.availableUpdate
-            ) { update in
-                Button("用 SideStore 更新") { updateChecker.openInstaller(for: update) }
-                Button("今日不再顯示") { updateChecker.snoozeForToday() }
-                Button("稍後", role: .cancel) { updateChecker.dismissPrompt() }
-            } message: { update in
-                Text(updateMessage(for: update))
-            }
-            .alert(
-                "恢復上次模擬？",
-                isPresented: Binding(
-                    get: { controller.pendingResumeSession != nil },
-                    set: { if !$0 { controller.clearResumePrompt() } }
-                ),
-                presenting: controller.pendingResumeSession
-            ) { snapshot in
-                Button("恢復") { controller.resumeInterruptedSession(snapshot) }
-                Button("放棄", role: .cancel) { controller.discardInterruptedSession() }
-            } message: { snapshot in
-                Text(Self.resumeMessage(for: snapshot))
+            .mapStyle(.standard(elevation: .realistic))
+            .onTapGesture { point in
+                // 點地圖同時收鍵盤，避免鍵盤佔住畫面又沒有明顯的關閉方式
+                searchFieldFocused = false
+                guard let coordinate = proxy.convert(point, from: .local) else { return }
+                suppressNextRecenter = true
+                controller.select(GeoCoordinate(coordinate))
             }
         }
+    }
+
+    private var searchAndToolsLayer: some View {
+        VStack(spacing: 0) {
+            SearchBar(controller: controller, isFocused: $searchFieldFocused) { coordinate in
+                position = .region(region(around: coordinate, span: 0.04))
+            }
+            if controller.searchResults.isEmpty {
+                HStack {
+                    Spacer()
+                    MapToolBar(
+                        controller: controller,
+                        showJoystick: $showJoystick,
+                        isPanelExpanded: $isPanelExpanded,
+                        showFavorites: $showFavorites,
+                        showRoutes: $showRoutes,
+                        showBoardShare: $showBoardShare,
+                        showLibrary: $showLibrary,
+                        position: $position,
+                        cameraDistance: $cameraDistance,
+                        onLocate: locateCurrentPosition,
+                        onFeedback: announce
+                    )
+                }
+                .padding(.top, 8)
+            }
+            Spacer()
+        }
+        .padding(.horizontal, 12)
+        .padding(.top, 8)
+        .padding(.bottom, 112)
+    }
+
+    @ViewBuilder
+    private var feedbackOverlay: some View {
+        if let feedbackMessage {
+            Text(feedbackMessage)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.primary)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 9)
+                .background(.regularMaterial, in: Capsule())
+                .shadow(radius: 4, y: 2)
+                .padding(.top, 84)
+                .transition(.move(edge: .top).combined(with: .opacity))
+        }
+    }
+
+    @ToolbarContentBuilder
+    private var mainToolbar: some ToolbarContent {
+        ToolbarItem(placement: .topBarLeading) {
+            Label(
+                controller.canControlDeviceLocation ? "裝置模式" : "預覽模式",
+                systemImage: controller.canControlDeviceLocation ? "iphone.gen3" : "eye"
+            )
+            .font(.caption)
+        }
+        ToolbarItem(placement: .principal) {
+            HStack(spacing: 7) {
+                Image("GFlyerIcon").resizable().scaledToFill().frame(width: 26, height: 26)
+                    .clipShape(RoundedRectangle(cornerRadius: 5))
+                Text("GFlyer").font(.headline)
+            }
+        }
+        ToolbarItemGroup(placement: .topBarTrailing) {
+            Button { showMessageBoard = true } label: {
+                Image(systemName: "bubble.left.and.bubble.right")
+                    .overlay(alignment: .topTrailing) { unreadBadge }
+            }
+            .accessibilityLabel("留言板，\(messageBoard.unreadCount) 個未讀項目")
+            Button { showSetup = true } label: { Image(systemName: "gearshape") }
+                .accessibilityLabel("設定")
+        }
+    }
+
+    @ViewBuilder
+    private var unreadBadge: some View {
+        if messageBoard.unreadCount > 0 {
+            Text(messageBoard.unreadCount > 99 ? "99+" : "\(messageBoard.unreadCount)")
+                .font(.system(size: 8, weight: .bold))
+                .foregroundStyle(.white)
+                .padding(.horizontal, 3)
+                .frame(minWidth: 14, minHeight: 14)
+                .background(.red, in: Capsule())
+                .offset(x: 8, y: -8)
+        }
+    }
+
+    private var errorAlertBinding: Binding<Bool> {
+        Binding(
+            get: { controller.lastError != nil },
+            set: { if !$0 { controller.lastError = nil } }
+        )
+    }
+
+    private var crossDateAlertBinding: Binding<Bool> {
+        Binding(
+            get: { controller.pendingCrossDateWarning != nil },
+            set: { if !$0 { controller.cancelCrossDateStart() } }
+        )
+    }
+
+    private var resumeAlertBinding: Binding<Bool> {
+        Binding(
+            get: { controller.pendingResumeSession != nil },
+            set: { if !$0 { controller.clearResumePrompt() } }
+        )
+    }
+
+    private static func crossDateMessage(for warning: CrossDateWarning) -> String {
+        "目的地當地日期約為 \(warning.destinationDateText)，與本機日期 \(warning.deviceDateText) 不同。部分遊戲的每日任務或獎勵可能受影響。"
     }
 
     private func updateMessage(for update: AvailableUpdate) -> String {
