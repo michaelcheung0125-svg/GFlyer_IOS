@@ -87,6 +87,12 @@ C:\Project\GFlyer
   - `0.4.0 (6)` 已發佈到公開的 `GFlyer-updates`（release `ios-v0.4.0`）並
     確認可以從 SideStore 來源安裝到實機。來源檔必須維持舊版 AltStore 扁平
     格式，細節見 `docs/ALTSTORE_DISTRIBUTION.md`
+- `0.4.1 (7)`：加入 App 圖示。先前沒有 `AppIcon.appiconset`，主畫面只顯示
+  空白預設圖示。圖示由 Android 版共用的 `gflyer_icon_art.png` 產生：取中央
+  75%（對應 Android adaptive icon 遮罩後實際可見的範圍），放大到
+  1024×1024 並存成無 alpha 的 24-bit PNG。`project.yml` 需要
+  `ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon`，否則 asset catalog 裡的
+  圖示不會被套用
 
 GitHub Actions 的兩個 job 已在 Xcode 16.4 完整通過。Simulator unit test 曾因
 App target 的 `PRODUCT_NAME` 是 `GFlyer`，

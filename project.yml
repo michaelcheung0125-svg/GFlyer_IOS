@@ -27,6 +27,7 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.geopilot.gflyer.ios
         PRODUCT_NAME: GFlyer
         PRODUCT_MODULE_NAME: GFlyerIOS
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         GENERATE_INFOPLIST_FILE: NO
         INFOPLIST_FILE: GFlyerIOS/Info.plist
         CODE_SIGN_ENTITLEMENTS: GFlyerIOS/GFlyerIOS.entitlements
