@@ -128,6 +128,20 @@ release 與 Actions artifact 都需要登入，所以 iOS 的 IPA 和 Android �
 同一個 `version` + `buildVersion` 重跑腳本會就地取代該筆記錄，方便修正
 發佈錯誤；版本不同則會插到最前面。
 
+## 安裝或更新卡在轉圈
+
+SideStore 需要 LocalDevVPN 連線才能安裝，**VPN 斷掉時它不會報錯，而是一直
+轉圈**。iOS 會在記憶體壓力下或重開機後自行終止 VPN extension，所以這個狀況
+會反覆出現：實測就遇過一次 LocalDevVPN 被 iOS 殺掉，導致更新一直卡住。
+
+卡住時先確認 LocalDevVPN 仍然連線（順手強制關閉 GFlyer，它的裝置模式用同
+一條通道），再依序嘗試 SideStore 官方的排查步驟：重啟 SideStore、清除快取、
+更換 Anisette 伺服器、重啟裝置、重新產生 pairing file。
+
+SideStore 另有一個已知的畫面問題：進度轉圈凍住但安裝仍在背景進行，切到主
+畫面可以讓它完成。判斷是否真的裝好，看 GFlyer 的**設定 → 關於 → App 版本**
+比看轉圈可靠。
+
 ## 來源檔格式（不要簡化掉重複欄位）
 
 SideStore 讀的是舊版 AltStore 來源格式，**不是**只有 `versions` 陣列的新
