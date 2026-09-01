@@ -344,6 +344,9 @@ final class SimulationController: ObservableObject {
     }
 
     func stop(reason: String? = nil) {
+        // 先記下要等的任務：它們可能各有一筆 setLocation 已經出發。
+        // 若先清除、再讓那筆落地，裝置會在「已清除」訊息下繼續模擬。
+        let motionTasks = [playbackTask, joystickTask].compactMap { $0 }
         playbackTask?.cancel()
         playbackTask = nil
         joystickTask?.cancel()
@@ -357,6 +360,7 @@ final class SimulationController: ObservableObject {
         deviceLocation.stopBackgroundRouteActivity()
         guard pairingIsReady else { return }
         Task {
+            for task in motionTasks { _ = await task.value }
             do {
                 try await backend.clearLocation(
                     pairingFileURL: pairingStore.url,
@@ -409,12 +413,14 @@ final class SimulationController: ObservableObject {
         }
     }
 
-    func requestCurrentLocation(onSuccess: @escaping (GeoCoordinate) -> Void) {
+    func requestCurrentLocation(
+        onSuccess: @escaping (DeviceLocationService.CurrentLocationFix) -> Void
+    ) {
         lastError = nil
         deviceLocation.requestCurrentLocation { [weak self] result in
             switch result {
-            case let .success(coordinate):
-                onSuccess(coordinate)
+            case let .success(fix):
+                onSuccess(fix)
             case let .failure(error):
                 self?.lastError = error.localizedDescription
             }
@@ -962,6 +968,9 @@ final class SimulationController: ObservableObject {
     /// 錯誤訊息會被誤判成傳送失敗而中止路線。
     @discardableResult
     private func send(_ coordinate: GeoCoordinate, message: String) async -> Bool {
+        // 取消後排隊中的傳送不能再送出：這一筆若在 clearLocation 之後
+        // 才進到後端，裝置會被重新設成模擬位置
+        guard !Task.isCancelled else { return false }
         do {
             try await backend.setLocation(
                 coordinate,

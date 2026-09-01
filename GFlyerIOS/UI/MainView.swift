@@ -315,10 +315,18 @@ struct MainView: View {
     }
 
     private func locateCurrentPosition() {
-        controller.requestCurrentLocation { coordinate in
+        controller.requestCurrentLocation { fix in
             cameraDistance = 5_000
-            position = .region(region(around: coordinate, span: 0.04))
-            announce("已定位到目前位置")
+            position = .region(region(around: fix.coordinate, span: 0.04))
+            if fix.isSimulatedBySoftware {
+                // 全機模擬生效時，「目前位置」就是模擬座標——照實說，
+                // 不讓使用者誤以為定位到了真實位置
+                announce(controller.status.isActive
+                    ? "已定位到模擬位置"
+                    : "仍在回報模擬座標，可到設定強制清除")
+            } else {
+                announce("已定位到目前位置")
+            }
         }
     }
 

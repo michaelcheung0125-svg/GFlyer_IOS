@@ -21,11 +21,21 @@ final class DeviceLocationService: NSObject, ObservableObject {
         }
     }
 
+    /// 一次性的目前位置回報。
+    struct CurrentLocationFix {
+        let coordinate: GeoCoordinate
+        /// 由軟體模擬的定位。清除模擬後若仍為 true，代表模擬位置還在生效。
+        let isSimulatedBySoftware: Bool
+    }
+
     @Published private(set) var authorizationStatus: CLAuthorizationStatus
     @Published private(set) var isBackgroundActivityActive = false
 
     private let manager = CLLocationManager()
-    private var locationCompletion: ((Result<GeoCoordinate, Error>) -> Void)?
+    private var locationCompletion: ((Result<CurrentLocationFix, Error>) -> Void)?
+    private var locationRequestStartedAt = Date.distantPast
+    private var staleFallbackLocation: CLLocation?
+    private var locationTimeoutTask: Task<Void, Never>?
     private var backgroundActivitySession: CLBackgroundActivitySession?
 
     override init() {
@@ -36,15 +46,14 @@ final class DeviceLocationService: NSObject, ObservableObject {
     }
 
     func requestCurrentLocation(
-        completion: @escaping (Result<GeoCoordinate, Error>) -> Void
+        completion: @escaping (Result<CurrentLocationFix, Error>) -> Void
     ) {
         locationCompletion = completion
         switch manager.authorizationStatus {
         case .notDetermined:
             manager.requestWhenInUseAuthorization()
         case .authorizedAlways, .authorizedWhenInUse:
-            prepareForCurrentLocationRequest()
-            manager.requestLocation()
+            beginCurrentLocationRequest()
         case .denied:
             finishLocationRequest(.failure(LocationError.permissionDenied))
         case .restricted:
@@ -112,13 +121,54 @@ final class DeviceLocationService: NSObject, ObservableObject {
         }
     }
 
-    private func finishLocationRequest(_ result: Result<GeoCoordinate, Error>) {
+    private func finishLocationRequest(_ result: Result<CurrentLocationFix, Error>) {
+        locationTimeoutTask?.cancel()
+        locationTimeoutTask = nil
+        staleFallbackLocation = nil
         let completion = locationCompletion
         locationCompletion = nil
         completion?(result)
         if isBackgroundActivityActive {
             prepareForBackgroundRouteActivity()
+        } else {
+            manager.stopUpdatingLocation()
         }
+    }
+
+    /// `requestLocation()` 常常先回一筆快取的舊定位——模擬剛結束時，快取裡
+    /// 正是殘留的模擬座標。改用連續更新，只接受「按下按鈕之後」產生的新定
+    /// 位；逾時才退回最新的快取值。
+    private func beginCurrentLocationRequest() {
+        locationRequestStartedAt = Date()
+        staleFallbackLocation = nil
+        prepareForCurrentLocationRequest()
+        manager.startUpdatingLocation()
+        locationTimeoutTask?.cancel()
+        locationTimeoutTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 8_000_000_000)
+            guard let self, !Task.isCancelled, locationCompletion != nil else { return }
+            if let fallback = staleFallbackLocation, let fix = Self.fix(from: fallback) {
+                finishLocationRequest(.success(fix))
+            } else {
+                finishLocationRequest(.failure(LocationError.unavailable("等待新的定位逾時")))
+            }
+        }
+    }
+
+    /// 只接受請求開始之後產生的定位（留 1 秒時鐘誤差）。
+    static func isFreshFix(timestamp: Date, requestStartedAt: Date) -> Bool {
+        timestamp >= requestStartedAt.addingTimeInterval(-1)
+    }
+
+    private static func fix(from location: CLLocation) -> CurrentLocationFix? {
+        guard let coordinate = GeoCoordinate.validated(
+            latitude: location.coordinate.latitude,
+            longitude: location.coordinate.longitude
+        ) else { return nil }
+        return CurrentLocationFix(
+            coordinate: coordinate,
+            isSimulatedBySoftware: location.sourceInformation?.isSimulatedBySoftware ?? false
+        )
     }
 
     private func prepareForCurrentLocationRequest() {
@@ -146,8 +196,7 @@ extension DeviceLocationService: CLLocationManagerDelegate {
         guard locationCompletion != nil else { return }
         switch manager.authorizationStatus {
         case .authorizedAlways, .authorizedWhenInUse:
-            prepareForCurrentLocationRequest()
-            manager.requestLocation()
+            beginCurrentLocationRequest()
         case .denied:
             finishLocationRequest(.failure(LocationError.permissionDenied))
         case .restricted:
@@ -161,11 +210,21 @@ extension DeviceLocationService: CLLocationManagerDelegate {
 
     func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
         guard locationCompletion != nil, let location = locations.last else { return }
-        finishLocationRequest(.success(GeoCoordinate(location.coordinate)))
+        if Self.isFreshFix(timestamp: location.timestamp, requestStartedAt: locationRequestStartedAt) {
+            if let fix = Self.fix(from: location) {
+                finishLocationRequest(.success(fix))
+            }
+        } else if staleFallbackLocation.map({ location.timestamp > $0.timestamp }) ?? true {
+            // 舊快取先留著當逾時保底，繼續等新的
+            staleFallbackLocation = location
+        }
     }
 
     func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
         guard locationCompletion != nil else { return }
+        if let clError = error as? CLError, clError.code == .locationUnknown {
+            return // 暫時取不到定位，等下一筆或逾時
+        }
         finishLocationRequest(.failure(LocationError.unavailable(error.localizedDescription)))
     }
 }
