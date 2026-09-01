@@ -192,6 +192,13 @@ struct SetupView: View {
                 "原生程式庫",
                 value: controller.canControlDeviceLocation ? "已載入" : "尚未啟用"
             )
+            if let guideURL = URL(string: "https://michaelcheung0125-svg.github.io/GFlyer-updates/USER_GUIDE_ZH_HK.html") {
+                Button {
+                    openURL(guideURL)
+                } label: {
+                    Label("使用教學", systemImage: "book")
+                }
+            }
         }
     }
 
