@@ -74,6 +74,16 @@ C:\Project\GFlyer
   - 中斷恢復：模擬中每 15 秒與到點時寫入快照（10 分鐘有效），重啟時提示
     從中斷位置恢復
   - `LocalDataSnapshot` 改為容錯解碼，新增欄位不會清空既有收藏／路線
+- `0.4.0 (6)`：
+  - App 內更新檢查：讀取與 SideStore 相同的 `altstore.json`，比對版本後
+    提示，並用 `sidestore://install?url=` 把安裝交給 SideStore／AltStore。
+    App 本身不會也不能安裝 IPA。前景最多每 6 小時檢查一次，可「今日不再
+    顯示」，設定頁有手動檢查與一鍵加入來源
+  - 修正播放迴圈誤用共用 `lastError`：其他畫面（例如留言板守衛）的錯誤
+    訊息會讓進行中的路線停住，且暫停／繼續無效
+  - 修正地圖工具列點擊穿透到後方地圖、底部控制列被鍵盤推到畫面中間、
+    搜尋鍵盤無法關閉
+  - 發佈路徑改為 AltStore／SideStore 來源，見 `docs/ALTSTORE_DISTRIBUTION.md`
 
 GitHub Actions 的兩個 job 已在 Xcode 16.4 完整通過。Simulator unit test 曾因
 App target 的 `PRODUCT_NAME` 是 `GFlyer`，

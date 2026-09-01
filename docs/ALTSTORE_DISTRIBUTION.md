@@ -24,18 +24,49 @@ GFlyer 的裝置模式本來就需要 pairing file 與 LocalDevVPN，所以 Side
 需要的東西你已經有了，不需要再讓電腦常駐。兩者使用同一種來源格式，下面
 建立的來源檔對兩者都適用。
 
-## 安裝目前的版本
+## 安裝 SideStore
 
-AltStore 與 SideStore 都接受未簽名的 IPA，會在安裝時用你的 Apple ID 重新
-簽名。所以 CI 產出的 `GFlyerIOS-Idevice-unsigned.ipa` 可以直接使用：
+SideStore 目前的官方安裝流程用 **iloader** 與 **LocalDevVPN**，正好是 GFlyer
+裝置模式已經需要的兩樣工具，所以不會多裝新東西。
 
-1. 從 GitHub Actions 的 `GFlyerIOS-Idevice-unsigned` artifact 下載並解壓縮。
-2. 把 `.ipa` 傳到 iPhone 的「檔案」App。
-3. 在 AltStore / SideStore 選 **My Apps → +**，挑這個 IPA。
+1. iPhone 用 USB 接上電腦，開啟 iloader。
+2. 在 iloader 登入 Apple ID，選擇這部裝置，選 **Install SideStore (Stable)**。
+3. iPhone 上到**設定 → 一般 → VPN 與裝置管理**，信任「開發者 App」下的
+   Apple ID。
+4. iOS 16.1 以上需要開啟**設定 → 隱私權與安全性 → 開發者模式**。
+5. 開啟 LocalDevVPN 並連線。
+6. 開啟 SideStore 登入 Apple ID，點畫面上的 **7 DAYS** 計數器做一次重簽，
+   確認流程正常。
 
-換用 AltStore 安裝前，先在 GFlyer 的**設定 → 資料匯入與匯出 → 匯出備份檔**
+之後 SideStore 就能在 iPhone 上自行重簽，不需要再接電腦。若登入時出現
+anisette 相關錯誤，到 SideStore 的設定換一個 Anisette 伺服器再試。
+
+## 安裝 GFlyer
+
+加入來源之後直接在 SideStore 裡安裝：
+
+1. SideStore → **Browse → Sources → +**
+2. 貼上 `https://michaelcheung0125-svg.github.io/GFlyer-updates/altstore.json`
+3. 在來源裡選 GFlyer 安裝
+
+也可以用未簽名的 IPA 手動安裝：下載 release 資產或 CI artifact，傳到
+iPhone 的「檔案」App，在 SideStore 選 **My Apps → +** 挑該檔案。
+
+換用 SideStore 安裝前，先在 GFlyer 的**設定 → 資料匯入與匯出 → 匯出備份檔**
 備份收藏與路線。簽名身分改變時 iOS 會視為不同的 App，舊資料不會保留；
 pairing file 需要重新匯入，留言板也要用邀請碼重新加入。
+
+## App 內更新提示
+
+GFlyer 會讀取同一份 `altstore.json` 比對版本，有新版時提示，並把安裝交給
+SideStore 的 `sidestore://install?url=` 連結。App 自己不會、也無法安裝 IPA。
+
+- 回到前景時最多每 6 小時自動檢查一次
+- **設定 → 軟體更新**可以手動檢查，也有一鍵把來源加入 SideStore 的按鈕
+- 提示可以選「今日不再顯示」
+
+更新來源網址存在 `Info.plist` 的 `GFlyerUpdateSourceURL`；`canOpenURL` 需要
+`LSApplicationQueriesSchemes` 宣告 `sidestore` 與 `altstore`，兩者都已設定。
 
 ## 自動更新來源
 

@@ -50,6 +50,10 @@ passed both macOS CI jobs in
 archive and IPA. Personal signing, target-iPhone regression, and live
 Android/iOS backup interoperability remain separate validation gates.
 
+Version `0.4.0 (6)` adds the in-app update check described below, plus fixes
+for map-overlay hit testing, the keyboard-displaced control panel, and a
+playback loop that aborted when an unrelated screen reported an error.
+
 ## Installing with AltStore / SideStore
 
 The unsigned CI IPA can be installed directly by AltStore or SideStore, which
