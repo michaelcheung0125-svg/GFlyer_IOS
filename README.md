@@ -92,13 +92,12 @@ verification rule). Read that section before touching related code.
 
 ## End-user guide
 
-The complete Traditional Chinese installation and usage guide is available in
-[Markdown](docs/USER_GUIDE_ZH_HK.md) and as a self-contained
-[HTML document](docs/USER_GUIDE_ZH_HK.html). It covers Windows/Sideloadly
-installation, device-specific remote pairing, LocalDevVPN, first-use DDI setup,
-daily operation, seven-day signing refreshes, and multi-user distribution.
-
-Public guide: https://michaelcheung0125-svg.github.io/GFlyer-updates/USER_GUIDE_ZH_HK.html
+The Traditional Chinese usage guide is published at
+https://michaelcheung0125-svg.github.io/GFlyer-updates/USER_GUIDE_ZH_HK.html
+(hosted in the public `GFlyer-updates` repository; the copies previously kept
+in this repository were removed). It describes the original Windows/Sideloadly
+installation flow; the current install and update path is SideStore, documented
+in [docs/ALTSTORE_DISTRIBUTION.md](docs/ALTSTORE_DISTRIBUTION.md).
 
 ## Why the backend is separate
 
