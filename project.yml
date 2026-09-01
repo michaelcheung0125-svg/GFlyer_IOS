@@ -15,13 +15,14 @@ targets:
   GFlyerIOS:
     type: application
     platform: iOS
+    # Resources 必須留在 sources 裡：XcodeGen 沒有 target 層級的 `resources`
+    # 欄位，寫了會被忽略。之前把 Resources 排除又只寫在被忽略的 `resources`
+    # 下，結果 Assets.xcassets 從未加入 target，打包出來的 App 沒有任何圖片。
+    # XcodeGen 會自動把 .xcassets 放進 Resources build phase 交給 actool 編譯。
     sources:
       - path: GFlyerIOS
         excludes:
           - Vendor
-          - Resources
-    resources:
-      - path: GFlyerIOS/Resources
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.geopilot.gflyer.ios
