@@ -150,7 +150,7 @@ final class DeviceLocationService: NSObject, ObservableObject {
             if let fallback = staleFallbackLocation, let fix = Self.fix(from: fallback) {
                 finishLocationRequest(.success(fix))
             } else {
-                finishLocationRequest(.failure(LocationError.unavailable("等待新的定位逾時")))
+                finishLocationRequest(.failure(LocationError.unavailable("等不到新的定位。剛清除模擬後，iOS 可能還需要一段時間才會回報真實位置；可開關一次飛行模式、到收訊較好的位置，或稍後再試。")))
             }
         }
     }

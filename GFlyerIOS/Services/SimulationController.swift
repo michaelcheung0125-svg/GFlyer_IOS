@@ -346,11 +346,13 @@ final class SimulationController: ObservableObject {
     func stop(reason: String? = nil) {
         let motionTasks = beginStop()
         guard pairingIsReady else { return }
-        Task { _ = await performClear(motionTasks: motionTasks, reason: reason) }
+        Task { _ = await performClear(motionTasks: motionTasks, reason: reason, tearDownSession: false) }
     }
 
-    /// 強制清除並「等待結果」，供設定頁的恢復按鈕使用，讓它能顯示成功或失敗
-    /// 訊息，而不是像 stop() 那樣把清除丟到背景、設定頁看不到任何回饋。
+    /// 完整清除：清除座標、拆掉模擬 session，然後「驗證」——抓一筆新的定位，
+    /// 如實回報現在是真實位置、仍是模擬座標，還是取不到定位。
+    /// 實機觀察：即使拆掉 session，iOS 仍會沿用快取的模擬定位直到取得新的
+    /// 真實 fix，所以只能驗證與指引，不能宣稱「已恢復真實定位」。
     @discardableResult
     func forceClearSimulation() async -> String {
         let motionTasks = beginStop()
@@ -359,7 +361,36 @@ final class SimulationController: ObservableObject {
             status = SimulationStatus(message: message)
             return message
         }
-        return await performClear(motionTasks: motionTasks, reason: nil)
+        let cleared = await performClear(motionTasks: motionTasks, reason: nil, tearDownSession: true)
+        guard lastError == nil else { return cleared }
+
+        // 驗證：等一筆「清除之後」產生的新定位
+        let verification: String
+        switch await verifyRealLocation() {
+        case .real:
+            verification = "已完整清除，目前回報的是真實位置。"
+        case .simulated:
+            verification = "模擬 session 已關閉，但 iOS 仍回報模擬座標。請關閉 LocalDevVPN，開關一次飛行模式後再確認；必要時重新開機。"
+        case .unavailable:
+            verification = "模擬 session 已關閉，但暫時取不到新的定位。請到收訊較好的位置，或開關一次飛行模式後再試。"
+        }
+        status.message = verification
+        return verification
+    }
+
+    private enum LocationVerification { case real, simulated, unavailable }
+
+    private func verifyRealLocation() async -> LocationVerification {
+        await withCheckedContinuation { continuation in
+            deviceLocation.requestCurrentLocation { result in
+                switch result {
+                case let .success(fix):
+                    continuation.resume(returning: fix.isSimulatedBySoftware ? .simulated : .real)
+                case .failure:
+                    continuation.resume(returning: .unavailable)
+                }
+            }
+        }
     }
 
     /// 取消進行中的任務並釋放本機狀態，回傳需要先等它結束的移動任務。
@@ -382,15 +413,22 @@ final class SimulationController: ObservableObject {
     }
 
     @discardableResult
-    private func performClear(motionTasks: [Task<Void, Never>], reason: String?) async -> String {
+    private func performClear(
+        motionTasks: [Task<Void, Never>],
+        reason: String?,
+        tearDownSession: Bool
+    ) async -> String {
         for task in motionTasks { _ = await task.value }
         do {
             try await backend.clearLocation(
                 pairingFileURL: pairingStore.url,
                 pairingFileRevision: pairingStore.revision,
-                deviceIP: deviceIP
+                deviceIP: deviceIP,
+                tearDownSession: tearDownSession
             )
-            let base = "已清除模擬位置；已恢復真實定位"
+            // 誠實訊息：清除只是送出指令，iOS 可能仍沿用快取的模擬定位。
+            // 要確認回到真實位置，用設定內的「完整清除模擬定位」。
+            let base = "已清除模擬位置；通道保持待命"
             let message = reason.map { "\($0)；\(base)" } ?? base
             status = SimulationStatus(message: message)
             return message

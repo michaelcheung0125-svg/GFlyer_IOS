@@ -89,7 +89,7 @@ struct SetupView: View {
                 } message: {
                     Text(transferSummary ?? "")
                 }
-                .alert("已清除", isPresented: binding(for: $forceClearMessage)) {
+                .alert("清除結果", isPresented: binding(for: $forceClearMessage)) {
                     Button("確定", role: .cancel) { forceClearMessage = nil }
                 } message: {
                     Text(forceClearMessage ?? "")
@@ -456,22 +456,22 @@ struct SetupView: View {
                 Task {
                     let message = await controller.forceClearSimulation()
                     isForceClearing = false
-                    // 清除失敗時 controller.lastError 會觸發「操作失敗」提示，
-                    // 這裡只在成功時顯示確認訊息
+                    // 清除指令本身失敗時由「操作失敗」提示顯示；
+                    // 其餘一律顯示驗證結果（真實／仍模擬／取不到定位）
                     if controller.lastError == nil { forceClearMessage = message }
                 }
             } label: {
                 if isForceClearing {
                     HStack {
                         ProgressView()
-                        Text("正在清除並恢復真實定位")
+                        Text("正在清除並驗證定位")
                     }
                 } else {
-                    Text("強制清除模擬定位")
+                    Text("完整清除模擬定位")
                 }
             }
             .disabled(isForceClearing)
-            Text("App 曾被強制關閉或重新啟動時，可使用此操作重新連線並恢復真實 GPS。清除會關閉模擬 session，讓 iOS 回到真實定位。")
+            Text("想讓其他 App 回到真實位置時使用：清除模擬、關閉模擬 session，並驗證目前回報的定位。iOS 可能要取得新的真實定位後才會更新；若驗證顯示仍是模擬座標，關閉 LocalDevVPN 並開關一次飛行模式通常可解決。")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }

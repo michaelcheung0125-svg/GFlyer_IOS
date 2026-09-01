@@ -57,7 +57,12 @@ actor IdeviceLocationSimulationBackend: LocationSimulationBackend {
         }
     }
 
-    func clearLocation(pairingFileURL: URL, pairingFileRevision: UUID, deviceIP: String) async throws {
+    func clearLocation(
+        pairingFileURL: URL,
+        pairingFileRevision: UUID,
+        deviceIP: String,
+        tearDownSession: Bool
+    ) async throws {
         for attempt in 0..<2 {
             do {
                 try await ensureSession(
@@ -70,12 +75,12 @@ actor IdeviceLocationSimulationBackend: LocationSimulationBackend {
                 }
                 let error = location_simulation_clear(locationSimulation)
                 try check(error, fallback: "無法清除模擬位置。")
-                // Tear down the DVT location-simulation session so iOS actually
-                // reverts to real GPS. location_simulation_clear alone only drops
-                // the set point; while the session stays open the device keeps
-                // reporting the last simulated location. The next Start rebuilds
-                // the session through ensureSession.
-                cleanup()
+                // 一般停止保留 session（蜂窩網路重連成本高）。完整清除才拆掉
+                // session；實機觀察：即使拆掉，iOS 也不會立刻回報真實位置——
+                // 定位堆疊會沿用快取的最後（模擬）定位，直到取得新的真實
+                // fix（可能需要開關飛行模式或到收訊好的地方）。所以「恢復
+                // 真實定位」交給上層驗證與提示，這裡不做任何保證。
+                if tearDownSession { cleanup() }
                 return
             } catch {
                 cleanup()

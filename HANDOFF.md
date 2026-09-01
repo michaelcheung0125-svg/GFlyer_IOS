@@ -87,11 +87,17 @@ C:\Project\GFlyer
   - `0.4.0 (6)` 已發佈到公開的 `GFlyer-updates`（release `ios-v0.4.0`）並
     確認可以從 SideStore 來源安裝到實機。來源檔必須維持舊版 AltStore 扁平
     格式，細節見 `docs/ALTSTORE_DISTRIBUTION.md`
-- `0.4.4 (10)`：修正裝置模式下「停止後仍在模擬」與強制清除沒有回饋。
-  - 根因：`clearLocation` 過去刻意保留模擬 session（為蜂窩網路重連），但
-    DVT 定位模擬只要 session 開著，iOS 就維持模擬模式，`location_simulation_clear`
-    只清座標點、不會回退真實 GPS。現在清除後呼叫 `cleanup()` 拆掉 session，
-    下一次 Start 由 `ensureSession` 重建。**不可以改回保留 session。**
+- `0.4.5 (11)`：完整清除改為「驗證＋指引」設計。**實機發現**：即使拆掉模擬
+  session，iOS 仍沿用快取的模擬定位，直到取得新的真實 fix（0.4.4 拆 session
+  的做法在實機上也無法立刻回報真實位置）。因此：
+  - 一般停止回到輕量行為：清座標點、保留 session（蜂窩網路友善），訊息不
+    宣稱已恢復真實定位
+  - 設定的「完整清除模擬定位」：清除＋拆 session＋抓一筆新定位驗證，如實顯
+    示「真實位置／仍是模擬座標（附關 VPN、開關飛行模式指引）／取不到定位」
+  - `clearLocation` 增加 `tearDownSession` 參數區分兩種路徑
+  - **任何清除路徑都不可以宣稱「已恢復真實定位」而不驗證**
+- `0.4.4 (10)`：修正強制清除沒有回饋；嘗試以拆 session 恢復真實 GPS（實機
+  證實不足夠，見 0.4.5）。
   - （0.4.3 起）停止與清除的競態：被取消的播放任務可能有一筆 `setLocation` 在
     路上，會在 clear 之後才落地。停止現在先 `await` 這些任務結束才清除，`send()`
     開頭也加了取消守衛。

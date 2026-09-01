@@ -159,9 +159,11 @@ Stop/Clear restart testing pending.
 - Use `UIBackgroundModes=location`, continuous Core Location updates, and iOS 17 `CLBackgroundActivitySession` only while movement is active.
 - Keep the system background-location indicator visible and release the session on Stop, completion, or failure.
 - Rebuild the CoreDevice session once after a transient `BrokenPipe`, `Channel closed`, connection-reset, or not-connected failure.
-- Tear down the location-simulation session on Stop/Clear so iOS reverts to
-  real GPS; the next Start rebuilds it (an earlier build kept it alive, which
-  left the device reporting the last simulated location after Stop).
+- Stop clears the set point and keeps the session; the full-clear action tears
+  the session down and verifies the reported fix. Device finding: iOS keeps
+  serving the cached simulated fix until a new real fix arrives, even after the
+  session is torn down, so no path may claim real GPS is restored without
+  verifying.
 - Measure foreground-to-background survival, battery use, and recovery on the target iOS version.
 - Document that force quit, resource termination, LocalDevVPN loss, and future iOS changes can still end playback.
 
@@ -180,7 +182,7 @@ Exit criterion: a 30-minute route continues while another App is in the foregrou
 | Route moved to background | The system location indicator remains visible and route updates continue |
 | Stale channel after foreground return | `BrokenPipe`/`Channel closed` causes one clean reconnect before an error is shown |
 | Pause | Coordinate stops changing without clearing simulation |
-| Stop | Route task ends, the simulation session is torn down, real GPS returns, and an in-flight setLocation cannot land after the clear |
+| Stop | Route task ends, the set point is cleared, the session is kept for the next Start, and an in-flight setLocation cannot land after the clear |
 | Airplane mode to cellular, then Clear and Start | The retained session accepts a new coordinate without another airplane-mode cycle |
 | Airplane mode to cellular, then route Stop and Start | The retained session starts the next route without opening a replacement socket |
 | Transport failure on cellular | Error tells cellular users to rebuild in airplane mode |
@@ -193,7 +195,8 @@ Exit criterion: a 30-minute route continues while another App is in the foregrou
 | iOS shares a coordinate or route | Android can refresh and use the new item through the same Worker/D1 backend |
 | Teleport crosses the estimated date line | A confirmation dialog appears before the location is sent; cancel keeps the current location |
 | Multi-point route with teleport travel mode | Each point is jumped to, dwell/arrival actions run, and manual advance waits for the user |
-| Auto-stop timer elapses | Simulation clears with the auto-stop message and iOS reverts to real GPS |
+| Auto-stop timer elapses | Simulation clears with the auto-stop message; the session is kept like a normal Stop |
+| Full clear from Settings | Session torn down, then the app requests a fresh fix and reports real / still-simulated (with recovery guidance) / unavailable |
 | GPX file with tracks, routes, and loose waypoints | Tracks/routes with two or more points import as saved routes with unique names |
 | Android `gflyer-backup.json` imported on iOS | Folders, favorites, history, routes, and presets restore with folder links preserved |
 | App killed during route playback | Relaunch within 10 minutes offers to resume from the interrupted position |
