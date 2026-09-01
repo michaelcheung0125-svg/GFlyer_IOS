@@ -94,10 +94,12 @@ verification rule). Read that section before touching related code.
 
 The Traditional Chinese usage guide is published at
 https://michaelcheung0125-svg.github.io/GFlyer-updates/USER_GUIDE_ZH_HK.html
-(hosted in the public `GFlyer-updates` repository; the copies previously kept
-in this repository were removed). It describes the original Windows/Sideloadly
-installation flow; the current install and update path is SideStore, documented
-in [docs/ALTSTORE_DISTRIBUTION.md](docs/ALTSTORE_DISTRIBUTION.md).
+(hosted in the public `GFlyer-updates` repository). The 2026-09-02 edition is a
+full rewrite for the SideStore flow, written for complete beginners: glossary,
+animated overview diagram, per-stage checkpoints, the device-confirmed
+full-clear + airplane-mode recovery, and a troubleshooting table. The
+maintainer-facing install notes stay in
+[docs/ALTSTORE_DISTRIBUTION.md](docs/ALTSTORE_DISTRIBUTION.md).
 
 ## Why the backend is separate
 
