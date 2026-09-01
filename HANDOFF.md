@@ -60,8 +60,7 @@ C:\Project\GFlyer
 - GitHub Actions macOS simulator test 與 unsigned device archive workflow
 - 實機硬性可行性測試記錄表
 - `idevice` MIT 授權 notice 與個人側載限制文件
-- `0.3.0 (5)` 從 Android 版移植的功能（僅完成 Windows 靜態檢查，macOS CI 與
-  實機驗證未跑）：
+- `0.3.0 (5)` 從 Android 版移植的功能（macOS CI 已通過，實機驗證未跑）：
   - 跨日期傳送提醒（經度離線估算時區，可在設定關閉）
   - 多點路線播放選項：逐點傳送移動方式、到點停留秒數、繞圈（含跳過鍵）／
     微動到點動作、手動「下一點」前進、開始前倒數、自動停止計時器
@@ -107,6 +106,13 @@ SHA-256 1771316CC5026DBF3B837352DEB73DE79EF528F224C630E90D0BA07EAAB08D32
 這只證明 Swift/XCTest、arm64 device archive 與 `idevice` link 成功；尚未證明
 個人簽署、iPhone UI、真實 Android/iOS 雙向留言板或目標 iPhone 定位回歸。
 
+`0.3.0 (5)` 在 commit `ada19c5` 通過 Xcode workflow
+[`33500571429`](https://github.com/michaelcheung0125-svg/GFlyer_IOS/actions/runs/33500571429)：
+38 個 Simulator tests 全部通過（含新增的 `PlaybackFeatureTests`、
+`TransferTests`、`CoordinateLibraryTests`），`Idevice unsigned archive` 亦
+成功並產出 unsigned IPA artifact。實機回歸、個人簽署與 Android 備份／
+座標圖鑑互通仍待驗證。
+
 ## 重要檔案
 
 ```text
@@ -141,16 +147,14 @@ GFlyerIOS/UI/LibraryViews.swift
 
 新對話開始時，先讀取本檔案、`AGENTS.md`、`README.md` 及 `docs/IMPLEMENTATION_PLAN.md`，然後依序處理：
 
-### -1. 為 `0.3.0 (5)` 跑 macOS CI
+### -1. 驗證 `0.3.0 (5)` 的新功能互通
 
-`0.3.0 (5)` 的新功能（播放選項、跨日期提醒、搖桿動力學、GPX、備份、
-座標圖鑑、中斷恢復）只完成 Windows 靜態檢查。先推送並確認
-`.github/workflows/macos-xcode.yml` 兩個 job 通過（新單元測試在
-`PlaybackFeatureTests`、`TransferTests`、`CoordinateLibraryTests`），
-再處理其他項目。若 Simulator 測試失敗，優先修編譯錯誤而不是改測試。
-另外用一部 Android 裝置匯出 `gflyer-backup.json`，在 iOS 還原驗證互通；
-座標圖鑑需要 `GFlyer-updates` Pages 上的 `coordinates/coordinates.json`
-可公開存取。
+macOS CI 已在 commit `ada19c5`（run `33500571429`）通過。接下來：
+用一部 Android 裝置匯出 `gflyer-backup.json`，在 iOS 還原驗證互通（反向
+亦然）；確認 `GFlyer-updates` Pages 上的 `coordinates/coordinates.json`
+可公開存取並在 iOS 圖鑑載入；在實機驗證播放選項（逐點傳送／停留／繞圈／
+手動前進／倒數／自動停止）、跨日期提醒、搖桿動力學、GPX 匯入匯出與
+中斷恢復提示。
 
 ### 0. 驗證留言板 `0.2.0 (4)`
 
@@ -266,5 +270,5 @@ DDI 會在 App 第一次需要時下載到 iOS Application Support，並以 pinn
 搖桿後，才算驗證完成。這次新增的目前位置及背景播放需另外通過上述實機測試；
 留言板還需通過 Android/iOS 雙向發布、回覆、管理與撤銷 session 測試。
 `0.3.0 (5)` 的播放選項、跨日期提醒、搖桿動力學、GPX、備份、座標圖鑑與
-中斷恢復需先通過 macOS CI，再做實機與 Android 互通驗證。
-冷卻計時 UI 與路線重排仍屬後續工作。
+中斷恢復已通過 macOS CI（commit `ada19c5`、run `33500571429`），仍需實機
+與 Android 互通驗證。冷卻計時 UI 與路線重排仍屬後續工作。

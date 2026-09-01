@@ -43,9 +43,12 @@ testing; Windows checks do not replace those device gates.
 
 Version `0.3.0 (5)` adds the Android-parity feature set above (playback
 options, cross-date reminder, joystick dynamics, GPX, backup/restore,
-coordinate library, and session resume) with new unit tests. So far it has
-passed only Windows static checks; the macOS CI run, personal signing, and
-target-iPhone regression for this version are still pending.
+coordinate library, and session resume) with new unit tests. Commit `ada19c5`
+passed both macOS CI jobs in
+[workflow run 33500571429](https://github.com/michaelcheung0125-svg/GFlyer_IOS/actions/runs/33500571429):
+38 simulator unit tests with 0 failures, plus the unsigned arm64 device
+archive and IPA. Personal signing, target-iPhone regression, and live
+Android/iOS backup interoperability remain separate validation gates.
 
 ## End-user guide
 

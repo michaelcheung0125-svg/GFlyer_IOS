@@ -107,12 +107,17 @@ Exit criterion: a 30-minute foreground route completes without losing the tunnel
 - Favorites, favorite folders, and local history (implemented; validation pending)
 - Named routes and route-draft recovery after relaunch (implemented; validation pending)
 - GPX import and export (implemented in `0.3.0 (5)`: multi-track import into
-  saved routes with unique naming, all-routes export; CI and device validation
+  saved routes with unique naming, all-routes export; device validation
   pending)
 - Route playback options ported from Android (implemented in `0.3.0 (5)`:
   per-point teleport travel mode, dwell seconds, orbit (skippable) and
   micro-move arrival actions, manual advance, start countdown, auto-stop
-  timer; CI and device validation pending)
+  timer; device validation pending)
+
+  The `0.3.0 (5)` additions above and below passed both macOS CI jobs at
+  commit `ada19c5` (workflow run 33500571429: 38 simulator unit tests with 0
+  failures, unsigned arm64 archive/IPA). Target-iPhone regression and live
+  Android interoperability remain open.
 - Joystick movement (implemented for foreground use; `0.3.0 (5)` adds the
   Android displacement-based speed dynamics, edge continuous acceleration and
   an independent joystick speed cap; validation pending)
