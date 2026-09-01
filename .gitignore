@@ -30,3 +30,7 @@ PersonalizedImages/
 .env
 .env.*
 !.env.example
+
+# 74MB 的角色圖素材：本機可用，但不進 repo（CI 每次 push 都會 checkout）。
+# 要在其他機器使用，從 https://github.com/Unclecheng-li/AI_Animation 重新複製。
+.claude/skills/video-shot-demos/
