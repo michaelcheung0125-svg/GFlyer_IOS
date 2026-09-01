@@ -93,16 +93,74 @@ final class AppUpdateTests: XCTestCase {
         ))
     }
 
+    /// SideStore／AltStore 用免費 Apple ID 安裝時會在 bundle identifier
+    /// 後面加上 team id，執行時的 id 因此比來源檔長一截。0.4.0 用完全相等
+    /// 比對，結果永遠回報「已是最新版本」。
+    func testParserMatchesResignedBundleIdentifierWithSuffix() throws {
+        let data = source(versions: version("0.4.1", build: "7"))
+        let update = try AltStoreSourceParser.latestUpdate(
+            from: data,
+            bundleIdentifier: "\(bundleID).A1B2C3D4E5",
+            currentVersion: "0.4.0",
+            currentBuild: "6"
+        )
+        XCTAssertEqual(update?.version, "0.4.1")
+    }
+
+    func testMatchingAppPrefersExactThenPrefixThenSoleApp() {
+        let target: [String: Any] = ["bundleIdentifier": bundleID]
+        let other: [String: Any] = ["bundleIdentifier": "com.example.other"]
+        let lookalike: [String: Any] = ["bundleIdentifier": "com.geopilot.gflyer.iosextra"]
+
+        let exact = AltStoreSourceParser.matchingApp(in: [other, target], bundleIdentifier: bundleID)
+        XCTAssertEqual(exact?["bundleIdentifier"] as? String, bundleID)
+
+        let prefixed = AltStoreSourceParser.matchingApp(
+            in: [other, target],
+            bundleIdentifier: "\(bundleID).TEAMID1234"
+        )
+        XCTAssertEqual(prefixed?["bundleIdentifier"] as? String, bundleID)
+
+        // 點號邊界：com.geopilot.gflyer.iosextra 不可以被當成前綴命中
+        XCTAssertNil(AltStoreSourceParser.matchingApp(
+            in: [other, lookalike],
+            bundleIdentifier: "\(bundleID).TEAMID1234"
+        ))
+
+        // 單一 App 的來源檔即使 id 完全對不上也用那一個
+        let sole = AltStoreSourceParser.matchingApp(
+            in: [target],
+            bundleIdentifier: "com.something.totally.different"
+        )
+        XCTAssertEqual(sole?["bundleIdentifier"] as? String, bundleID)
+
+        // 多個 App 又都對不上時不猜
+        XCTAssertNil(AltStoreSourceParser.matchingApp(
+            in: [other, lookalike],
+            bundleIdentifier: "com.something.totally.different"
+        ))
+    }
+
     func testParserIgnoresOtherAppsAndNonHTTPSDownloads() throws {
         let data = source(versions: version("9.9.9", build: "99", url: "http://example.com/a.ipa"))
         // 非 HTTPS 的項目會被略過，於是沒有可用的新版
         XCTAssertNil(try AltStoreSourceParser.latestUpdate(
             from: data, bundleIdentifier: bundleID, currentVersion: "0.3.0", currentBuild: "5"
         ))
-        // 找不到對應的 bundle identifier 時回傳 nil 而不是報錯
+        // 多個 App 且都對不上時回傳 nil 而不是報錯。
+        // 單一 App 的來源檔會走「就用那一個」的後備，見 matchingApp 的測試。
+        let twoApps = Data("""
+        {
+          "apps": [
+            {"bundleIdentifier": "com.example.one", "versions": [\(version("9.9.9", build: "99"))]},
+            {"bundleIdentifier": "com.example.two", "versions": [\(version("9.9.9", build: "99"))]}
+          ],
+          "news": []
+        }
+        """.utf8)
         XCTAssertNil(try AltStoreSourceParser.latestUpdate(
-            from: source(versions: version("0.4.0", build: "6")),
-            bundleIdentifier: "com.example.other",
+            from: twoApps,
+            bundleIdentifier: bundleID,
             currentVersion: "0.3.0",
             currentBuild: "5"
         ))

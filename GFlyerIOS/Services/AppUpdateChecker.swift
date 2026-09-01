@@ -16,8 +16,9 @@ final class AppUpdateChecker: ObservableObject {
     let currentVersion: String
     let currentBuild: String
     let sourceURL: URL?
+    /// 重簽時可能被加上後綴，顯示在設定頁方便診斷比對問題。
+    let bundleIdentifier: String
 
-    private let bundleIdentifier: String
     private let session: URLSession
     private let defaults: UserDefaults
     private let checkInterval: TimeInterval = 6 * 60 * 60

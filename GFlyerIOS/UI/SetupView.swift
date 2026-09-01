@@ -178,6 +178,8 @@ struct SetupView: View {
     private var backendSection: some View {
         Section("關於") {
             LabeledContent("App 版本", value: updateChecker.displayVersion)
+            LabeledContent("Bundle ID", value: updateChecker.bundleIdentifier)
+                .font(.caption.monospaced())
             LabeledContent("定位後端", value: controller.backendName)
             LabeledContent(
                 "原生程式庫",

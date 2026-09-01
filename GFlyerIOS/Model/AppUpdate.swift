@@ -61,7 +61,7 @@ enum AltStoreSourceParser {
               let apps = root["apps"] as? [[String: Any]] else {
             throw AppUpdateError.invalidSource
         }
-        guard let app = apps.first(where: { $0["bundleIdentifier"] as? String == bundleIdentifier }),
+        guard let app = matchingApp(in: apps, bundleIdentifier: bundleIdentifier),
               let versions = app["versions"] as? [[String: Any]] else {
             return nil
         }
@@ -100,6 +100,33 @@ enum AltStoreSourceParser {
             build: currentBuild
         ) else { return nil }
         return newest
+    }
+}
+
+extension AltStoreSourceParser {
+    /// 找出來源檔裡對應這個 App 的項目。
+    ///
+    /// 不能只用完全相等比對：SideStore／AltStore 以免費 Apple ID 安裝時，
+    /// 會在 bundle identifier 後面接上 team id 之類的後綴，所以執行時拿到的
+    /// 是 `com.example.app.TEAMID`，而來源檔寫的是 `com.example.app`。
+    static func matchingApp(
+        in apps: [[String: Any]],
+        bundleIdentifier: String
+    ) -> [String: Any]? {
+        if let exact = apps.first(where: { $0["bundleIdentifier"] as? String == bundleIdentifier }) {
+            return exact
+        }
+        if let prefixed = apps.first(where: { app in
+            guard let sourceID = app["bundleIdentifier"] as? String, !sourceID.isEmpty else {
+                return false
+            }
+            // 要求接在點號邊界，避免 com.example.app 誤配 com.example.apple
+            return bundleIdentifier.hasPrefix(sourceID + ".")
+        }) {
+            return prefixed
+        }
+        // 單一 App 的來源檔沒有其他候選，重簽改過 id 也不會認錯對象
+        return apps.count == 1 ? apps.first : nil
     }
 }
 
