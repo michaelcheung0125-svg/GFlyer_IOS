@@ -6,6 +6,7 @@ struct MainView: View {
     @ObservedObject var controller: SimulationController
     @ObservedObject var messageBoard: MessageBoardController
     @ObservedObject var coordinateLibrary: CoordinateLibraryController
+    @ObservedObject var updateChecker: AppUpdateChecker
     @State private var position: MapCameraPosition = .region(
         MKCoordinateRegion(
             center: CLLocationCoordinate2D(latitude: 22.3193, longitude: 114.1694),
@@ -155,7 +156,9 @@ struct MainView: View {
                         .accessibilityLabel("設定")
                 }
             }
-            .sheet(isPresented: $showSetup) { SetupView(controller: controller) }
+            .sheet(isPresented: $showSetup) {
+                SetupView(controller: controller, updateChecker: updateChecker)
+            }
             .sheet(isPresented: $showFavorites) { SavedPlacesView(controller: controller) }
             .sheet(isPresented: $showRoutes) { SavedRoutesView(controller: controller) }
             .sheet(isPresented: $showMessageBoard) {
@@ -168,7 +171,10 @@ struct MainView: View {
                 CoordinateLibraryView(library: coordinateLibrary, simulation: controller)
             }
             .onChange(of: scenePhase) { _, phase in
-                if phase == .active { messageBoard.refreshInBackground() }
+                if phase == .active {
+                    messageBoard.refreshInBackground()
+                    updateChecker.checkIfDue()
+                }
             }
             .onChange(of: controller.selectedCoordinate) { _, coordinate in
                 if suppressNextRecenter {
@@ -218,6 +224,17 @@ struct MainView: View {
                 Text("目的地當地日期約為 \(warning.destinationDateText)，與本機日期 \(warning.deviceDateText) 不同。部分遊戲的每日任務或獎勵可能受影響。")
             }
             .alert(
+                "有新版本",
+                isPresented: $updateChecker.showsPrompt,
+                presenting: updateChecker.availableUpdate
+            ) { update in
+                Button("用 SideStore 更新") { updateChecker.openInstaller(for: update) }
+                Button("今日不再顯示") { updateChecker.snoozeForToday() }
+                Button("稍後", role: .cancel) { updateChecker.dismissPrompt() }
+            } message: { update in
+                Text(updateMessage(for: update))
+            }
+            .alert(
                 "恢復上次模擬？",
                 isPresented: Binding(
                     get: { controller.pendingResumeSession != nil },
@@ -231,6 +248,15 @@ struct MainView: View {
                 Text(Self.resumeMessage(for: snapshot))
             }
         }
+    }
+
+    private func updateMessage(for update: AvailableUpdate) -> String {
+        var text = "GFlyer \(update.displayVersion) 已發佈（目前為 \(updateChecker.displayVersion)）。"
+        if !update.releaseNotes.isEmpty {
+            text += "\n\n\(update.releaseNotes)"
+        }
+        text += "\n\n更新會交給 SideStore 下載並用你的 Apple ID 重新簽名。"
+        return text
     }
 
     private static func resumeMessage(for snapshot: ActiveSessionSnapshot) -> String {

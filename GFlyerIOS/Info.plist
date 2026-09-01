@@ -22,8 +22,15 @@
 	<string>https://michaelcheung0125-svg.github.io/GFlyer-updates/coordinates/coordinates.json</string>
 	<key>GFlyerMessageBoardAPIURL</key>
 	<string>https://gflyer-message-board.gflyer-michaelcheung0125.workers.dev</string>
+	<key>GFlyerUpdateSourceURL</key>
+	<string>https://michaelcheung0125-svg.github.io/GFlyer-updates/altstore.json</string>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
+	<key>LSApplicationQueriesSchemes</key>
+	<array>
+		<string>sidestore</string>
+		<string>altstore</string>
+	</array>
 	<key>LSSupportsOpeningDocumentsInPlace</key>
 	<true/>
 	<key>NSLocalNetworkUsageDescription</key>

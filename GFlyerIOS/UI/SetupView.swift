@@ -23,7 +23,9 @@ struct ExportedDataDocument: FileDocument {
 
 struct SetupView: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.openURL) private var openURL
     @ObservedObject var controller: SimulationController
+    @ObservedObject var updateChecker: AppUpdateChecker
     @ObservedObject private var pairingStore: PairingFileStore
     @ObservedObject private var deviceLocation: DeviceLocationService
     @State private var showImporter = false
@@ -40,8 +42,9 @@ struct SetupView: View {
     @State private var pendingBackupData: Data?
     @State private var transferSummary: String?
 
-    init(controller: SimulationController) {
+    init(controller: SimulationController, updateChecker: AppUpdateChecker) {
         self.controller = controller
+        self.updateChecker = updateChecker
         _pairingStore = ObservedObject(wrappedValue: controller.pairingStore)
         _deviceLocation = ObservedObject(wrappedValue: controller.deviceLocation)
     }
@@ -245,6 +248,41 @@ struct SetupView: View {
                         .foregroundStyle(.secondary)
                 }
 
+                Section("軟體更新") {
+                    LabeledContent("目前版本", value: updateChecker.displayVersion)
+                    LabeledContent("更新狀態", value: updateChecker.statusMessage)
+                    Button {
+                        updateChecker.checkNow()
+                    } label: {
+                        if updateChecker.isChecking {
+                            HStack {
+                                ProgressView()
+                                Text("正在檢查更新")
+                            }
+                        } else {
+                            Label("檢查更新", systemImage: "arrow.triangle.2.circlepath")
+                        }
+                    }
+                    .disabled(updateChecker.isChecking)
+                    if let update = updateChecker.availableUpdate {
+                        Button {
+                            updateChecker.openInstaller(for: update)
+                        } label: {
+                            Label("用 SideStore 更新到 \(update.displayVersion)", systemImage: "square.and.arrow.down")
+                        }
+                    }
+                    if let sourceURL = updateChecker.addSourceURL(using: .sideStore) {
+                        Button {
+                            openURL(sourceURL)
+                        } label: {
+                            Label("把更新來源加入 SideStore", systemImage: "plus.rectangle.on.folder")
+                        }
+                    }
+                    Text("GFlyer 不能自行安裝 IPA，更新一律交給 SideStore 或 AltStore 下載並用你的 Apple ID 重新簽名。免費 Apple ID 的簽名仍然每 7 天到期。")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
                 Section("資料匯入與匯出") {
                     Button { showGpxImporter = true } label: {
                         Label("匯入 GPX 路線", systemImage: "square.and.arrow.down")
@@ -331,6 +369,17 @@ struct SetupView: View {
                 Button("確定", role: .cancel) { controller.lastError = nil }
             } message: {
                 Text(controller.lastError ?? "未知錯誤")
+            }
+            .alert(
+                "更新",
+                isPresented: Binding(
+                    get: { updateChecker.lastError != nil },
+                    set: { if !$0 { updateChecker.lastError = nil } }
+                )
+            ) {
+                Button("確定", role: .cancel) { updateChecker.lastError = nil }
+            } message: {
+                Text(updateChecker.lastError ?? "未知錯誤")
             }
             .fileImporter(
                 isPresented: $showGpxImporter,
