@@ -70,7 +70,12 @@ actor IdeviceLocationSimulationBackend: LocationSimulationBackend {
                 }
                 let error = location_simulation_clear(locationSimulation)
                 try check(error, fallback: "無法清除模擬位置。")
-                // Keep the transport alive so cellular interface changes do not force a new socket.
+                // Tear down the DVT location-simulation session so iOS actually
+                // reverts to real GPS. location_simulation_clear alone only drops
+                // the set point; while the session stays open the device keeps
+                // reporting the last simulated location. The next Start rebuilds
+                // the session through ensureSession.
+                cleanup()
                 return
             } catch {
                 cleanup()

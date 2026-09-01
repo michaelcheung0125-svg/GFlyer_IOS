@@ -344,8 +344,28 @@ final class SimulationController: ObservableObject {
     }
 
     func stop(reason: String? = nil) {
-        // 先記下要等的任務：它們可能各有一筆 setLocation 已經出發。
-        // 若先清除、再讓那筆落地，裝置會在「已清除」訊息下繼續模擬。
+        let motionTasks = beginStop()
+        guard pairingIsReady else { return }
+        Task { _ = await performClear(motionTasks: motionTasks, reason: reason) }
+    }
+
+    /// 強制清除並「等待結果」，供設定頁的恢復按鈕使用，讓它能顯示成功或失敗
+    /// 訊息，而不是像 stop() 那樣把清除丟到背景、設定頁看不到任何回饋。
+    @discardableResult
+    func forceClearSimulation() async -> String {
+        let motionTasks = beginStop()
+        guard pairingIsReady else {
+            let message = "目前為預覽模式，不需要清除裝置定位。"
+            status = SimulationStatus(message: message)
+            return message
+        }
+        return await performClear(motionTasks: motionTasks, reason: nil)
+    }
+
+    /// 取消進行中的任務並釋放本機狀態，回傳需要先等它結束的移動任務。
+    private func beginStop() -> [Task<Void, Never>] {
+        // 這些任務可能各有一筆 setLocation 已經送出。若先清除、再讓那筆落地，
+        // 裝置會在「已清除」訊息下繼續模擬，所以要先等它們結束才清除。
         let motionTasks = [playbackTask, joystickTask].compactMap { $0 }
         playbackTask?.cancel()
         playbackTask = nil
@@ -358,20 +378,25 @@ final class SimulationController: ObservableObject {
         currentLapNextIndex = 0
         status.autoStopAt = nil
         deviceLocation.stopBackgroundRouteActivity()
-        guard pairingIsReady else { return }
-        Task {
-            for task in motionTasks { _ = await task.value }
-            do {
-                try await backend.clearLocation(
-                    pairingFileURL: pairingStore.url,
-                    pairingFileRevision: pairingStore.revision,
-                    deviceIP: deviceIP
-                )
-                let base = "已清除模擬位置；CoreDevice 通道保持待命"
-                status = SimulationStatus(message: reason.map { "\($0)；\(base)" } ?? base)
-            } catch {
-                lastError = error.localizedDescription
-            }
+        return motionTasks
+    }
+
+    @discardableResult
+    private func performClear(motionTasks: [Task<Void, Never>], reason: String?) async -> String {
+        for task in motionTasks { _ = await task.value }
+        do {
+            try await backend.clearLocation(
+                pairingFileURL: pairingStore.url,
+                pairingFileRevision: pairingStore.revision,
+                deviceIP: deviceIP
+            )
+            let base = "已清除模擬位置；已恢復真實定位"
+            let message = reason.map { "\($0)；\(base)" } ?? base
+            status = SimulationStatus(message: message)
+            return message
+        } catch {
+            lastError = error.localizedDescription
+            return error.localizedDescription
         }
     }
 

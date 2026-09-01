@@ -43,7 +43,7 @@ C:\Project\GFlyer
 - Preview backend，讓沒有 `idevice` 靜態函式庫時仍可開發 UI
 - `idevice` backend 的 CoreDevice/RPPairing、RemoteXPC、`location_simulation_set()` 與 `location_simulation_clear()` 接點
 - `BrokenPipe`、`Channel closed`、connection reset/not connected 後清理舊資源並自動重建一次 CoreDevice session
-- 通道測試與成功 Stop/Clear 後保留健康的 CoreDevice session，避免行動網絡介面切換後每次開始都要建立新 socket
+- 通道測試後保留健康的 CoreDevice session；但 Stop/Clear 會拆掉模擬 session，讓 iOS 回退真實 GPS（見下方 0.4.3 說明），下一次 Start 重建
 - 目標 IP 改變、Pairing File 被替換或 transport 真正斷線時會清理與重建 session；斷線訊息分別說明行動網絡與 Wi-Fi/熱點的恢復方式
 - Personalized Developer Disk Image 下載、固定 revision、SHA-256 驗證及需要時掛載
 - 修正固定 DDI commit 的 BuildManifest SHA-256 與 iPhoneOS Rust sysroot 建置參數
@@ -87,6 +87,19 @@ C:\Project\GFlyer
   - `0.4.0 (6)` 已發佈到公開的 `GFlyer-updates`（release `ios-v0.4.0`）並
     確認可以從 SideStore 來源安裝到實機。來源檔必須維持舊版 AltStore 扁平
     格式，細節見 `docs/ALTSTORE_DISTRIBUTION.md`
+- `0.4.4 (10)`：修正裝置模式下「停止後仍在模擬」與強制清除沒有回饋。
+  - 根因：`clearLocation` 過去刻意保留模擬 session（為蜂窩網路重連），但
+    DVT 定位模擬只要 session 開著，iOS 就維持模擬模式，`location_simulation_clear`
+    只清座標點、不會回退真實 GPS。現在清除後呼叫 `cleanup()` 拆掉 session，
+    下一次 Start 由 `ensureSession` 重建。**不可以改回保留 session。**
+  - （0.4.3 起）停止與清除的競態：被取消的播放任務可能有一筆 `setLocation` 在
+    路上，會在 clear 之後才落地。停止現在先 `await` 這些任務結束才清除，`send()`
+    開頭也加了取消守衛。
+  - （0.4.3 起）定位按鈕改用連續更新且只接受按鈕按下之後的新定位，避免回傳
+    快取的殘留模擬座標；結果帶 `isSimulatedBySoftware` 旗標如實標示。session
+    未拆除前這會逾時，拆除後才真正取得真實定位。
+  - 設定頁「強制清除模擬定位」改為 await 並顯示成功／失敗訊息（原本把清除丟到
+    背景，設定頁看不到任何回饋）。
 - `0.4.2 (8)`：修正 App 內更新檢查永遠回報「已是最新版本」。**已在實機
   確認**：SideStore 以免費 Apple ID 安裝後，執行時的 bundle identifier 確實
   帶有 team id 後綴，與來源檔的 `com.geopilot.gflyer.ios` 不相等，原本的完全

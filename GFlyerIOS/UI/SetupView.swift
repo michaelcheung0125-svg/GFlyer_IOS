@@ -44,6 +44,8 @@ struct SetupView: View {
     @State private var backupDocument = ExportedDataDocument()
     @State private var pendingBackupData: Data?
     @State private var transferSummary: String?
+    @State private var forceClearMessage: String?
+    @State private var isForceClearing = false
 
     init(controller: SimulationController, updateChecker: AppUpdateChecker) {
         self.controller = controller
@@ -86,6 +88,11 @@ struct SetupView: View {
                     Button("確定", role: .cancel) { transferSummary = nil }
                 } message: {
                     Text(transferSummary ?? "")
+                }
+                .alert("已清除", isPresented: binding(for: $forceClearMessage)) {
+                    Button("確定", role: .cancel) { forceClearMessage = nil }
+                } message: {
+                    Text(forceClearMessage ?? "")
                 }
         }
     }
@@ -443,10 +450,28 @@ struct SetupView: View {
 
     private var recoverySection: some View {
         Section("恢復") {
-            Button("強制清除模擬定位", role: .destructive) {
-                controller.stop()
+            Button(role: .destructive) {
+                guard !isForceClearing else { return }
+                isForceClearing = true
+                Task {
+                    let message = await controller.forceClearSimulation()
+                    isForceClearing = false
+                    // 清除失敗時 controller.lastError 會觸發「操作失敗」提示，
+                    // 這裡只在成功時顯示確認訊息
+                    if controller.lastError == nil { forceClearMessage = message }
+                }
+            } label: {
+                if isForceClearing {
+                    HStack {
+                        ProgressView()
+                        Text("正在清除並恢復真實定位")
+                    }
+                } else {
+                    Text("強制清除模擬定位")
+                }
             }
-            Text("App 曾被強制關閉或重新啟動時，可使用此操作重新連線並恢復真實 GPS。")
+            .disabled(isForceClearing)
+            Text("App 曾被強制關閉或重新啟動時，可使用此操作重新連線並恢復真實 GPS。清除會關閉模擬 session，讓 iOS 回到真實定位。")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }

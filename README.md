@@ -31,8 +31,8 @@ This is a separate SwiftUI prototype for personal sideloading. It does not modif
 - Pairing-file import and protected local storage
 - Preview backend that builds without native dependencies
 - Optional `idevice` backend for device-wide GPS simulation
-- Retained CoreDevice sessions across Stop/Clear so a cellular interface switch
-  does not require a replacement socket for every new simulation
+- Stop and Clear tear down the CoreDevice location-simulation session so iOS
+  reliably reverts to real GPS; the next Start rebuilds the session
 
 The prototype deliberately excludes anti-detection, modified third-party clients, and App Store distribution.
 
@@ -218,10 +218,12 @@ Record the hard-gate result in
 - This is a research/personal-use path, not an App Store-compatible capability.
 - Background route playback uses the documented iOS 17 `CLBackgroundActivitySession` and `location` background mode. iOS displays its background-location indicator; this consumes additional battery and is not a guarantee against force quit, resource termination, VPN loss, or every future iOS behavior change.
 - A stale CoreDevice channel is discarded and rebuilt once after transient transport errors such as `BrokenPipe` or `Channel closed`.
-- Stop/Clear retains a healthy CoreDevice session, but iOS process termination,
-  LocalDevVPN reconnection, a transport failure, target-IP changes, and
-  pairing-file replacement still require a new session. Cellular users may
-  need airplane mode for that reconnection; Wi-Fi/hotspot users do not.
+- Stop and Clear tear down the location-simulation session so real GPS returns;
+  every subsequent Start rebuilds the session. On cellular that rebuild may need
+  an airplane-mode cycle; Wi-Fi/hotspot users just reconnect LocalDevVPN. An
+  earlier build kept the session alive across Stop to avoid this rebuild, but on
+  device that left iOS reporting the last simulated location after Stop, so
+  reverting to real GPS now takes priority over reusing the socket.
 - MapKit search and map tiles require network access. The pinned DDI is downloaded once; GPS simulation then uses the local VPN path.
 - The shared message board requires Internet access and a valid, non-revoked
   invite/session. It is unavailable offline, but this does not block the local

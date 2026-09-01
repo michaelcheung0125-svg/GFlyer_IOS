@@ -159,8 +159,9 @@ Stop/Clear restart testing pending.
 - Use `UIBackgroundModes=location`, continuous Core Location updates, and iOS 17 `CLBackgroundActivitySession` only while movement is active.
 - Keep the system background-location indicator visible and release the session on Stop, completion, or failure.
 - Rebuild the CoreDevice session once after a transient `BrokenPipe`, `Channel closed`, connection-reset, or not-connected failure.
-- Keep a healthy CoreDevice session after Stop/Clear so a cellular interface
-  switch does not force a replacement socket for the next simulation.
+- Tear down the location-simulation session on Stop/Clear so iOS reverts to
+  real GPS; the next Start rebuilds it (an earlier build kept it alive, which
+  left the device reporting the last simulated location after Stop).
 - Measure foreground-to-background survival, battery use, and recovery on the target iOS version.
 - Document that force quit, resource termination, LocalDevVPN loss, and future iOS changes can still end playback.
 
@@ -179,7 +180,7 @@ Exit criterion: a 30-minute route continues while another App is in the foregrou
 | Route moved to background | The system location indicator remains visible and route updates continue |
 | Stale channel after foreground return | `BrokenPipe`/`Channel closed` causes one clean reconnect before an error is shown |
 | Pause | Coordinate stops changing without clearing simulation |
-| Stop | Route task ends, real location is restored, and the healthy CoreDevice session remains ready |
+| Stop | Route task ends, the simulation session is torn down, real GPS returns, and an in-flight setLocation cannot land after the clear |
 | Airplane mode to cellular, then Clear and Start | The retained session accepts a new coordinate without another airplane-mode cycle |
 | Airplane mode to cellular, then route Stop and Start | The retained session starts the next route without opening a replacement socket |
 | Transport failure on cellular | Error tells cellular users to rebuild in airplane mode |
@@ -192,7 +193,7 @@ Exit criterion: a 30-minute route continues while another App is in the foregrou
 | iOS shares a coordinate or route | Android can refresh and use the new item through the same Worker/D1 backend |
 | Teleport crosses the estimated date line | A confirmation dialog appears before the location is sent; cancel keeps the current location |
 | Multi-point route with teleport travel mode | Each point is jumped to, dwell/arrival actions run, and manual advance waits for the user |
-| Auto-stop timer elapses | Simulation clears with the auto-stop message and the CoreDevice session is retained |
+| Auto-stop timer elapses | Simulation clears with the auto-stop message and iOS reverts to real GPS |
 | GPX file with tracks, routes, and loose waypoints | Tracks/routes with two or more points import as saved routes with unique names |
 | Android `gflyer-backup.json` imported on iOS | Folders, favorites, history, routes, and presets restore with folder links preserved |
 | App killed during route playback | Relaunch within 10 minutes offers to resume from the interrupted position |
