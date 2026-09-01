@@ -52,9 +52,11 @@ passed both macOS CI jobs in
 archive and IPA. Personal signing, target-iPhone regression, and live
 Android/iOS backup interoperability remain separate validation gates.
 
-Version `0.4.0 (6)` adds the in-app update check described below, plus fixes
-for map-overlay hit testing, the keyboard-displaced control panel, and a
-playback loop that aborted when an unrelated screen reported an error.
+Version `0.4.0 (6)` added the in-app update check, and `0.4.1`-`0.4.5` were
+verified on the target iPhone through the SideStore source: install, in-app
+update prompts, the app icon, playback fixes, and the clear-simulation
+behaviour described below. The per-version history lives in `HANDOFF.md`; the
+currently published release is listed in the public `altstore.json`.
 
 ## Installing with AltStore / SideStore
 
@@ -71,6 +73,22 @@ seven days; AltStore and SideStore only automate the refresh. See
 [docs/ALTSTORE_DISTRIBUTION.md](docs/ALTSTORE_DISTRIBUTION.md) for the install
 steps and the release process, including `scripts/update_altstore_source.py`,
 which regenerates the source entry from a built IPA.
+
+## Release process
+
+Every code change reaches users through the runbook in
+[docs/RELEASE_PROCESS.md](docs/RELEASE_PROCESS.md): bump the version in
+`Info.plist`, push and wait for CI, download the unsigned IPA artifact,
+**inspect the IPA payload** (a green CI run does not prove the payload is
+complete — an early build shipped without the entire asset catalog), publish
+it as an `ios-v<version>` release in the public `GFlyer-updates` repository,
+regenerate `altstore.json` with `scripts/update_altstore_source.py`, verify
+the live source and download URL, then record the version in `HANDOFF.md`.
+
+The runbook also lists the decisions that must not be reverted (SideStore's
+flat source format, the resigned-bundle-identifier matching, the XcodeGen
+resources rule, the split SwiftUI view bodies, and the clear-simulation
+verification rule). Read that section before touching related code.
 
 ## End-user guide
 
@@ -222,11 +240,12 @@ Record the hard-gate result in
 - A stale CoreDevice channel is discarded and rebuilt once after transient transport errors such as `BrokenPipe` or `Channel closed`.
 - Clearing the simulation does not guarantee an immediate return to real GPS.
   On the test device iOS kept reporting the cached simulated fix even after the
-  simulation session was torn down, until a new real fix arrived. Stop therefore
-  keeps the session (cellular-friendly) and reports honestly; the Settings
-  full-clear tears the session down, then verifies by requesting a fresh fix and
-  tells the user whether the reported location is real, still simulated (with
-  the LocalDevVPN-off / airplane-mode guidance), or unavailable.
+  simulation session was torn down; an airplane-mode toggle was confirmed
+  necessary before real GPS returned. Stop therefore keeps the session
+  (cellular-friendly) and reports honestly; the Settings full-clear tears the
+  session down, then verifies by requesting a fresh fix and tells the user
+  whether the reported location is real, still simulated (with the
+  LocalDevVPN-off / airplane-mode guidance), or unavailable.
 - MapKit search and map tiles require network access. The pinned DDI is downloaded once; GPS simulation then uses the local VPN path.
 - The shared message board requires Internet access and a valid, non-revoked
   invite/session. It is unavailable offline, but this does not block the local

@@ -20,6 +20,16 @@
 - `GFlyerIOS/Vendor/idevice/`、`.build/`、產生的 `.xcodeproj` 都應保持未追蹤。
 - 不要加入反偵測、修改第三方遊戲客戶端或規避第三方定位檢查功能。
 
+## 發佈規則
+
+- 要把程式碼改動交付給使用者，必須依照 `docs/RELEASE_PROCESS.md` 的流程：
+  升版本號 → CI → **拆開 IPA 驗證內容** → 公開 release → 更新
+  `altstore.json` → 線上驗證 → 記錄到 `HANDOFF.md`。
+- CI 綠燈不等於產物正確；發佈前一定要驗證 IPA 內含 `Assets.car`、App 圖示
+  與正確版本號。
+- `docs/RELEASE_PROCESS.md` 末段列出「不可回退的決定」；修改相關程式碼前
+  先讀那一節。
+
 ## 建置限制
 
 - 本專案必須在 macOS/Xcode 上完成真正的 iOS 編譯與實機驗證。
