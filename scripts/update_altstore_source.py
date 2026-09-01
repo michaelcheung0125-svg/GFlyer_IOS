@@ -66,6 +66,23 @@ def read_ipa_metadata(ipa_path: Path) -> dict:
     }
 
 
+def version_key(version: str, build: str) -> tuple:
+    """行銷版本優先、build 次之，逐段以數字比較。"""
+
+    def parts(value: str) -> tuple:
+        result = []
+        for segment in str(value).split("."):
+            digits = ""
+            for char in segment:
+                if not char.isdigit():
+                    break
+                digits += char
+            result.append(int(digits) if digits else 0)
+        return tuple(result)
+
+    return (parts(version), parts(build))
+
+
 def sha256_of(path: Path) -> str:
     digest = hashlib.sha256()
     with path.open("rb") as handle:
@@ -95,9 +112,13 @@ def main() -> int:
     download_url = args.url or DEFAULT_RELEASE_URL.format(
         tag=args.tag, filename=args.ipa.name
     )
-    release_date = args.date or datetime.datetime.now(datetime.timezone.utc).strftime(
-        "%Y-%m-%d"
-    )
+    # SideStore 期望 ISO-8601 帶時間的日期；只給日期會解析失敗
+    if args.date:
+        release_date = args.date if "T" in args.date else f"{args.date}T00:00:00Z"
+    else:
+        release_date = datetime.datetime.now(datetime.timezone.utc).strftime(
+            "%Y-%m-%dT%H:%M:%SZ"
+        )
 
     source = json.loads(args.source.read_text(encoding="utf-8"))
     apps = [
@@ -145,6 +166,19 @@ def main() -> int:
         versions[existing] = entry
         action = "更新"
     app["versions"] = versions
+
+    # SideStore 讀的是 App 物件上的扁平欄位，不是只有 versions 陣列。
+    # 少了這些欄位，加入來源時會出現 StoreApp is not valid。
+    newest = max(
+        versions,
+        key=lambda item: version_key(item.get("version", "0"), item.get("buildVersion", "0")),
+    )
+    app["version"] = newest["version"]
+    app["buildVersion"] = newest.get("buildVersion", newest["version"])
+    app["versionDate"] = newest["date"]
+    app["versionDescription"] = newest.get("localizedDescription", "")
+    app["downloadURL"] = newest["downloadURL"]
+    app["size"] = newest["size"]
 
     args.source.write_text(
         json.dumps(source, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
