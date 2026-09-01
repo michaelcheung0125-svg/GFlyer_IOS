@@ -88,31 +88,42 @@ release 與 Actions artifact 都需要登入，所以 iOS 的 IPA 和 Android �
 
 1. 確認 `.github/workflows/macos-xcode.yml` 的兩個 job 都通過。
 2. 下載該次 run 的 `GFlyerIOS-Idevice-unsigned` artifact 並解壓縮。
-3. 把檔案改名成 `GFlyerIOS-<版本>-unsigned.ipa`，例如
-   `GFlyerIOS-0.3.0-unsigned.ipa`。
-4. 在 `GFlyer-updates` 建立 release，tag 用 `ios-v<版本>`，避開 Android 的
+3. **拆開 IPA 檢查產物內容，不要只看 CI 綠燈。** 建置與封裝少了資源檔也
+   會成功，`0.4.0` 之前每一版都因此缺少整個 `Assets.xcassets`。至少確認：
+
+   ```bash
+   unzip -l GFlyerIOS-*.ipa   # 應該看得到 Assets.car 與 AppIcon*.png
+   ```
+
+   以及 `Payload/GFlyer.app/Info.plist` 裡的 `CFBundleShortVersionString`、
+   `CFBundleVersion` 與 `CFBundleIcons` 是否正確。
+4. 把檔案改名成 `GFlyerIOS-<版本>-unsigned.ipa`，例如
+   `GFlyerIOS-0.4.1-unsigned.ipa`。
+5. 在 `GFlyer-updates` 建立 release，tag 用 `ios-v<版本>`，避開 Android 的
    `v<版本>` tag，並上傳這個 IPA：
 
    ```bash
-   gh release create ios-v0.3.0 GFlyerIOS-0.3.0-unsigned.ipa \
+   gh release create ios-v0.4.1 GFlyerIOS-0.4.1-unsigned.ipa \
      --repo michaelcheung0125-svg/GFlyer-updates \
-     --title "GFlyer iOS v0.3.0" \
+     --title "GFlyer iOS v0.4.1" \
      --notes "更新內容"
    ```
 
-5. 更新來源檔。腳本會自己從 IPA 讀出版本、build、bundle identifier 與最低
+6. 更新來源檔。腳本會自己從 IPA 讀出版本、build、bundle identifier 與最低
    iOS 版本，並計算大小與 SHA-256：
 
    ```bash
    python3 scripts/update_altstore_source.py \
-     --ipa GFlyerIOS-0.3.0-unsigned.ipa \
+     --ipa GFlyerIOS-0.4.1-unsigned.ipa \
      --source ../GFlyer-updates/altstore.json \
-     --tag ios-v0.3.0 \
+     --tag ios-v0.4.1 \
      --notes "更新內容"
    ```
 
-6. 在 `GFlyer-updates` 提交並推送 `altstore.json`。GitHub Pages 更新後，
+7. 在 `GFlyer-updates` 提交並推送 `altstore.json`。GitHub Pages 更新後，
    AltStore / SideStore 就會看到新版。
+8. 抓一次線上的 `altstore.json`，確認扁平欄位指向新版本，且 `downloadURL`
+   回應 HTTP 200 且 `Content-Length` 與來源檔的 `size` 相符。
 
 同一個 `version` + `buildVersion` 重跑腳本會就地取代該筆記錄，方便修正
 發佈錯誤；版本不同則會插到最前面。
