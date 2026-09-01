@@ -106,10 +106,29 @@ Exit criterion: a 30-minute foreground route completes without losing the tunnel
 - Place and coordinate search (implemented; validation pending)
 - Favorites, favorite folders, and local history (implemented; validation pending)
 - Named routes and route-draft recovery after relaunch (implemented; validation pending)
-- GPX import and export
-- Joystick movement (implemented for foreground use; validation pending)
+- GPX import and export (implemented in `0.3.0 (5)`: multi-track import into
+  saved routes with unique naming, all-routes export; CI and device validation
+  pending)
+- Route playback options ported from Android (implemented in `0.3.0 (5)`:
+  per-point teleport travel mode, dwell seconds, orbit (skippable) and
+  micro-move arrival actions, manual advance, start countdown, auto-stop
+  timer; CI and device validation pending)
+- Joystick movement (implemented for foreground use; `0.3.0 (5)` adds the
+  Android displacement-based speed dynamics, edge continuous acceleration and
+  an independent joystick speed cap; validation pending)
 - Spiral exploration (implemented; validation pending)
-- Cooldown timer and cross-date warning
+- Cross-date teleport warning (implemented in `0.3.0 (5)` with the Android
+  longitude-based offline estimate; validation pending)
+- Cross-platform backup/restore in the Android `GFlyer Backup` v1 JSON format
+  (implemented in `0.3.0 (5)`; cross-platform restore validation pending)
+- Coordinate library (座標圖鑑) downloaded from the GFlyer-updates Pages JSON
+  with favorites, visit reminders, and anonymous stale-data reports
+  (implemented in `0.3.0 (5)`; unlike Android there is no bundled seed, the
+  first load requires network; validation pending)
+- Interrupted-session resume: periodic active-session snapshots with a
+  10-minute expiry and a relaunch resume prompt (implemented in `0.3.0 (5)`;
+  validation pending)
+- Cooldown timer
 - Route polyline editing and waypoint reorder
 
 Exit criterion: behavior matches the existing Android model tests where the platform does not impose a different constraint.
@@ -166,6 +185,12 @@ Exit criterion: a 30-minute route continues while another App is in the foregrou
 | No Internet | Existing coordinates work through the local VPN path; map/search availability is reported separately |
 | Android creates coordinate, route, announcement and reply | iOS decodes every payload, preserves fractional ISO-8601 dates, and displays matching content |
 | iOS shares a coordinate or route | Android can refresh and use the new item through the same Worker/D1 backend |
+| Teleport crosses the estimated date line | A confirmation dialog appears before the location is sent; cancel keeps the current location |
+| Multi-point route with teleport travel mode | Each point is jumped to, dwell/arrival actions run, and manual advance waits for the user |
+| Auto-stop timer elapses | Simulation clears with the auto-stop message and the CoreDevice session is retained |
+| GPX file with tracks, routes, and loose waypoints | Tracks/routes with two or more points import as saved routes with unique names |
+| Android `gflyer-backup.json` imported on iOS | Folders, favorites, history, routes, and presets restore with folder links preserved |
+| App killed during route playback | Relaunch within 10 minutes offers to resume from the interrupted position |
 | Message board visible during refresh | Visible foreign posts/replies remain read; after leaving, later foreign activity increments the badge |
 | Session revoked by administrator | The next API request clears the local Keychain session and returns to the join screen |
 | Save shared route with a duplicate name | iOS adds the author and a numeric suffix without replacing an existing local route |

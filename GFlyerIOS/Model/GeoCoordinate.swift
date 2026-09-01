@@ -11,15 +11,22 @@ struct GeoCoordinate: Codable, Equatable, Hashable, Identifiable, Sendable {
     }
     var display: String { String(format: "%.6f, %.6f", latitude, longitude) }
 
+    /// 不信任來源（GPX、備份、下載資料）用的失敗式建構：
+    /// 超出範圍回傳 nil，而不是觸發 `init` 的 precondition。
+    static func validated(latitude: Double, longitude: Double) -> GeoCoordinate? {
+        guard latitude.isFinite, longitude.isFinite,
+              (-90.0...90.0).contains(latitude), (-180.0...180.0).contains(longitude) else {
+            return nil
+        }
+        return GeoCoordinate(latitude: latitude, longitude: longitude)
+    }
+
     static func parse(_ text: String) -> GeoCoordinate? {
         let parts = text
             .split(whereSeparator: { $0 == "," || $0 == " " || $0 == "\n" || $0 == "\t" })
             .compactMap { Double($0.trimmingCharacters(in: .whitespacesAndNewlines)) }
         guard parts.count >= 2 else { return nil }
-        guard (-90.0...90.0).contains(parts[0]), (-180.0...180.0).contains(parts[1]) else {
-            return nil
-        }
-        return GeoCoordinate(latitude: parts[0], longitude: parts[1])
+        return validated(latitude: parts[0], longitude: parts[1])
     }
 
     init(latitude: Double, longitude: Double) {
@@ -81,6 +88,20 @@ enum GeoMath {
             cos(angularDistance) - sin(lat1) * sin(lat2)
         )
         return GeoCoordinate(latitude: lat2.radiansToDegrees, longitude: normalizeLongitude(lon2.radiansToDegrees))
+    }
+
+    /// Equirectangular offset in metres (positive east / north), used for
+    /// small local motions such as orbiting a route point. Latitude is clamped
+    /// so poles cannot produce an invalid coordinate.
+    static func offset(from origin: GeoCoordinate, eastMetres: Double, northMetres: Double) -> GeoCoordinate {
+        let metresPerDegree = 111_320.0
+        let latitudeDelta = northMetres / metresPerDegree
+        let cosLatitude = max(cos(origin.latitude.degreesToRadians), 1e-6)
+        let longitudeDelta = eastMetres / (metresPerDegree * cosLatitude)
+        return GeoCoordinate(
+            latitude: min(max(origin.latitude + latitudeDelta, -90), 90),
+            longitude: normalizeLongitude(origin.longitude + longitudeDelta)
+        )
     }
 
     private static func shortestLongitudeDelta(from: Double, to: Double) -> Double {

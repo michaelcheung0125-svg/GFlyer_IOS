@@ -8,10 +8,24 @@ This is a separate SwiftUI prototype for personal sideloading. It does not modif
 - Current-device-location button with explicit Core Location permission handling
 - Static teleport plus single-point, multi-point, and spiral exploration modes
 - Multi-point route playback with a nonlinear 1.8-900 km/h speed scale
+- Route playback options ported from GFlyer Android: per-point teleport travel
+  mode, dwell seconds, orbit (skippable) and micro-move arrival actions,
+  manual "next point" advance, start countdown, and an auto-stop timer
+- Cross-date teleport reminder using the Android longitude-based offline
+  UTC-offset estimate
 - Visible iOS 17 background location activity for route and exploration playback
 - Pause, resume, stop, looping, and return behavior
-- In-app foreground joystick control and reusable speed presets
+- In-app foreground joystick with Android-parity displacement speed dynamics,
+  edge continuous acceleration, and an independent speed cap
+- Reusable built-in and custom speed presets
 - Local favorites, history, favorite folders, named routes, and route-draft recovery
+- GPX 1.1 import (tracks, routes, and loose waypoints) and all-routes export
+- Cross-platform backup/restore in the Android-compatible `GFlyer Backup` v1
+  JSON format (favorites, history, folders, routes, speed presets)
+- Coordinate library (座標圖鑑) downloaded from the GFlyer-updates Pages JSON,
+  with favorites, visit reminders, and anonymous stale-data reports; unlike
+  Android there is no bundled seed, so the first load needs network access
+- Interrupted-session snapshots with a relaunch resume prompt (10-minute window)
 - Private message board shared with GFlyer Android for coordinates, routes,
   announcements, replies, tags, pinning, expiry, and member administration
 - Pairing-file import and protected local storage
@@ -26,6 +40,12 @@ The feature UI, current-location flow, background activity, message-board unit
 tests, and native archive pass the repository's macOS/Xcode CI. Message-board
 version `0.2.0 (4)` still requires target-iPhone and Android/iOS interoperability
 testing; Windows checks do not replace those device gates.
+
+Version `0.3.0 (5)` adds the Android-parity feature set above (playback
+options, cross-date reminder, joystick dynamics, GPX, backup/restore,
+coordinate library, and session resume) with new unit tests. So far it has
+passed only Windows static checks; the macOS CI run, personal signing, and
+target-iPhone regression for this version are still pending.
 
 ## End-user guide
 

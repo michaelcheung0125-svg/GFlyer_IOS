@@ -21,6 +21,9 @@ final class SimulationController: ObservableObject {
     @Published private(set) var status = SimulationStatus()
     @Published private(set) var tunnelTestMessage = "尚未測試"
     @Published private(set) var isTestingTunnel = false
+    @Published private(set) var playbackSettings = PlaybackSettings()
+    @Published private(set) var pendingCrossDateWarning: CrossDateWarning?
+    @Published private(set) var pendingResumeSession: ActiveSessionSnapshot?
     @Published var lastError: String?
 
     let pairingStore = PairingFileStore()
@@ -28,10 +31,22 @@ final class SimulationController: ObservableObject {
     let deviceLocation = DeviceLocationService()
 
     private let dataStore: LocalDataStore
+    private let sessionStore: ActiveSessionStore
+    private var lastSessionSnapshotAt = Date.distantPast
+    private var currentLapPoints: [GeoCoordinate] = []
+    private var currentLapNextIndex = 0
+    // 每次啟動遞增；被取代的播放任務在 defer 中比對，避免關閉新任務的背景活動
+    private var playbackGeneration = 0
     private var playbackTask: Task<Void, Never>?
     private var joystickTask: Task<Void, Never>?
     private var searchTask: Task<Void, Never>?
+    private var autoStopTask: Task<Void, Never>?
     private var joystickBearing = 0.0
+    private var joystickMagnitude = 0.0
+    private var joystickSpeedMetresPerSecond = 0.0
+    private var advanceRequested = false
+    private var countdownSkipRequested = false
+    private var orbitSkipRequested = false
     private var spiralState = SpiralState()
     private var spiralCenter: GeoCoordinate?
     private let tickNanoseconds: UInt64 = 250_000_000
@@ -39,16 +54,20 @@ final class SimulationController: ObservableObject {
 
     init(
         backend: (any LocationSimulationBackend)? = nil,
-        dataStore: LocalDataStore = LocalDataStore()
+        dataStore: LocalDataStore = LocalDataStore(),
+        sessionStore: ActiveSessionStore = ActiveSessionStore()
     ) {
         self.backend = backend ?? LocationSimulationBackendFactory.makeDefault()
         self.dataStore = dataStore
+        self.sessionStore = sessionStore
+        pendingResumeSession = sessionStore.load()
         let stored = dataStore.snapshot
         favorites = stored.favorites
         history = stored.history
         favoriteFolders = stored.folders
         savedRoutes = stored.routes
         quickSpeedPresets = stored.presets
+        playbackSettings = stored.playback
         if let draft = stored.draft {
             routePoints = draft.points
             loopRoute = draft.loop
@@ -144,14 +163,26 @@ final class SimulationController: ObservableObject {
         setSpeed(preset.kilometresPerHour)
     }
 
-    func start() {
+    func start(bypassCrossDateCheck: Bool = false) {
         lastError = nil
+        if mode == .teleport,
+           !bypassCrossDateCheck,
+           playbackSettings.crossDateWarningEnabled,
+           let warning = CrossDateChecker.warning(destination: selectedCoordinate) {
+            pendingCrossDateWarning = warning
+            return
+        }
+        pendingCrossDateWarning = nil
         playbackTask?.cancel()
         joystickTask?.cancel()
         joystickTask = nil
         deviceLocation.stopBackgroundRouteActivity()
 
         guard pairingIsReady else { return }
+        lastSessionSnapshotAt = .distantPast
+        currentLapPoints = []
+        currentLapNextIndex = 0
+        playbackGeneration += 1
 
         switch mode {
         case .teleport:
@@ -161,6 +192,7 @@ final class SimulationController: ObservableObject {
                 guard let self else { return }
                 await send(selectedCoordinate, message: "裝置定位模擬中")
             }
+            scheduleAutoStop()
         case .singleRoute, .multiRoute:
             guard routePoints.count >= 2 else {
                 lastError = SimulationError.routeNeedsTwoPoints.localizedDescription
@@ -173,13 +205,136 @@ final class SimulationController: ObservableObject {
             dataStore.addHistory(coordinate: routePoints.last ?? selectedCoordinate)
             refreshStoredData()
             startRoute()
+            scheduleAutoStop()
         case .explore:
             guard deviceLocation.startBackgroundRouteActivity() else {
                 lastError = deviceLocation.backgroundPermissionMessage
                 return
             }
             startExplore()
+            scheduleAutoStop()
         }
+    }
+
+    // 不檢查 pendingCrossDateWarning：SwiftUI 可能在按鈕動作前先把
+    // isPresented binding 設為 false（清掉 pending），確認仍必須生效。
+    func confirmCrossDateStart() {
+        pendingCrossDateWarning = nil
+        start(bypassCrossDateCheck: true)
+    }
+
+    func cancelCrossDateStart() {
+        pendingCrossDateWarning = nil
+    }
+
+    // MARK: - 中斷恢復
+
+    /// 恢復中斷的模擬。快照由呼叫端（alert 的 presenting 值）傳入，
+    /// 因為 isPresented binding 的 setter 可能在按鈕動作前先清掉 pending 狀態。
+    func resumeInterruptedSession(_ snapshotOverride: ActiveSessionSnapshot? = nil) {
+        guard let snapshot = snapshotOverride ?? pendingResumeSession else { return }
+        pendingResumeSession = nil
+        guard pairingIsReady else { return }
+        speedKilometresPerHour = SpeedScale.clamped(snapshot.speedKilometresPerHour)
+        lastSessionSnapshotAt = .distantPast
+        switch snapshot.mode {
+        case .teleport:
+            mode = .teleport
+            routePoints = []
+            selectedCoordinate = snapshot.coordinate
+            start(bypassCrossDateCheck: true)
+        case .singleRoute, .multiRoute:
+            guard snapshot.routePoints.count >= 2 else {
+                sessionStore.clear()
+                return
+            }
+            mode = snapshot.mode
+            routePoints = snapshot.routePoints
+            loopRoute = snapshot.loop
+            loopTransitionMode = snapshot.transition
+            selectedCoordinate = snapshot.coordinate
+            dataStore.saveDraft(points: routePoints, loop: loopRoute)
+            guard deviceLocation.startBackgroundRouteActivity() else {
+                lastError = deviceLocation.backgroundPermissionMessage
+                return
+            }
+            let firstLap = [snapshot.coordinate] + snapshot.remainingPoints
+            startRoute(resumingFrom: firstLap.count >= 2 ? firstLap : nil)
+            scheduleAutoStop()
+        case .explore:
+            mode = .explore
+            routePoints = []
+            spiralCenter = snapshot.spiralCenter ?? snapshot.coordinate
+            spiralState = SpiralState(angleRadians: snapshot.spiralAngleRadians ?? 0)
+            selectedCoordinate = snapshot.coordinate
+            guard deviceLocation.startBackgroundRouteActivity() else {
+                lastError = deviceLocation.backgroundPermissionMessage
+                return
+            }
+            startExplore(preserveState: true)
+            scheduleAutoStop()
+        }
+    }
+
+    /// 只關閉恢復提示，不動已儲存的快照（alert 收合時呼叫）。
+    func clearResumePrompt() {
+        pendingResumeSession = nil
+    }
+
+    func discardInterruptedSession() {
+        pendingResumeSession = nil
+        sessionStore.clear()
+    }
+
+    private func saveSessionSnapshot(coordinate: GeoCoordinate, force: Bool = false) {
+        guard status.isActive else { return }
+        let now = Date()
+        guard force || now.timeIntervalSince(lastSessionSnapshotAt) >= 15 else { return }
+        lastSessionSnapshotAt = now
+        // 搖桿移動時視為「保持位置」快照，恢復時不會重播整條路線
+        let snapshotMode: SimulationMode = joystickTask != nil ? .teleport : (status.mode ?? mode)
+        let remaining: [GeoCoordinate]
+        if snapshotMode.isRoute, currentLapNextIndex < currentLapPoints.count {
+            remaining = Array(currentLapPoints[currentLapNextIndex...])
+        } else {
+            remaining = []
+        }
+        sessionStore.save(
+            ActiveSessionSnapshot(
+                mode: snapshotMode,
+                coordinate: coordinate,
+                routePoints: snapshotMode.isRoute ? routePoints : [],
+                remainingPoints: remaining,
+                loop: loopRoute,
+                transition: loopTransitionMode,
+                speedKilometresPerHour: speedKilometresPerHour,
+                spiralCenter: snapshotMode == .explore ? spiralCenter : nil,
+                spiralAngleRadians: snapshotMode == .explore ? spiralState.angleRadians : nil,
+                savedAt: now
+            )
+        )
+    }
+
+    func updatePlayback(_ mutate: (inout PlaybackSettings) -> Void) {
+        var settings = playbackSettings
+        mutate(&settings)
+        playbackSettings = settings.sanitized()
+        dataStore.savePlaybackSettings(playbackSettings)
+    }
+
+    func skipStartCountdown() {
+        guard status.countdownRemaining != nil else { return }
+        countdownSkipRequested = true
+    }
+
+    func advanceToNextRoutePoint() {
+        guard status.waitingManualAdvance else { return }
+        advanceRequested = true
+    }
+
+    func skipOrbit() {
+        guard status.isOrbiting else { return }
+        orbitSkipRequested = true
     }
 
     func togglePause() {
@@ -188,11 +343,17 @@ final class SimulationController: ObservableObject {
         status.message = status.isPaused ? "已暫停" : "模擬中"
     }
 
-    func stop() {
+    func stop(reason: String? = nil) {
         playbackTask?.cancel()
         playbackTask = nil
         joystickTask?.cancel()
         joystickTask = nil
+        autoStopTask?.cancel()
+        autoStopTask = nil
+        sessionStore.clear()
+        currentLapPoints = []
+        currentLapNextIndex = 0
+        status.autoStopAt = nil
         deviceLocation.stopBackgroundRouteActivity()
         guard pairingIsReady else { return }
         Task {
@@ -202,10 +363,27 @@ final class SimulationController: ObservableObject {
                     pairingFileRevision: pairingStore.revision,
                     deviceIP: deviceIP
                 )
-                status = SimulationStatus(message: "已清除模擬位置；CoreDevice 通道保持待命")
+                let base = "已清除模擬位置；CoreDevice 通道保持待命"
+                status = SimulationStatus(message: reason.map { "\($0)；\(base)" } ?? base)
             } catch {
                 lastError = error.localizedDescription
             }
+        }
+    }
+
+    private func scheduleAutoStop() {
+        autoStopTask?.cancel()
+        autoStopTask = nil
+        let minutes = playbackSettings.autoStopMinutes
+        guard minutes > 0 else {
+            status.autoStopAt = nil
+            return
+        }
+        status.autoStopAt = Date().addingTimeInterval(Double(minutes) * 60)
+        autoStopTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: UInt64(minutes) * 60 * 1_000_000_000)
+            guard let self, !Task.isCancelled else { return }
+            stop(reason: "已按自動停止設定關閉虛擬定位")
         }
     }
 
@@ -243,33 +421,58 @@ final class SimulationController: ObservableObject {
         }
     }
 
-    func startJoystick(bearingDegrees: Double) {
+    func startJoystick(bearingDegrees: Double, magnitude: Double = 1) {
         guard pairingIsReady else { return }
         joystickBearing = bearingDegrees
+        joystickMagnitude = min(max(magnitude, 0), 1)
         if joystickTask != nil { return }
-        joystickTask?.cancel()
+        // 搖桿接管移動：結束路線／探索播放，避免兩個任務同時推送座標
+        playbackTask?.cancel()
+        playbackTask = nil
+        playbackGeneration += 1
+        deviceLocation.stopBackgroundRouteActivity()
+        currentLapPoints = []
+        currentLapNextIndex = 0
+        status.isPaused = false
+        status.countdownRemaining = nil
+        status.waitingManualAdvance = false
+        status.isOrbiting = false
+        joystickSpeedMetresPerSecond = 0
         joystickTask = Task { [weak self] in
             guard let self else { return }
             var current = status.coordinate ?? selectedCoordinate
             while !Task.isCancelled {
-                while status.isPaused, !Task.isCancelled {
-                    try? await Task.sleep(nanoseconds: tickNanoseconds)
+                joystickSpeedMetresPerSecond = JoystickDynamics.nextSpeed(
+                    currentMetresPerSecond: joystickSpeedMetresPerSecond,
+                    magnitude: joystickMagnitude,
+                    maxSpeedMetresPerSecond: Double(playbackSettings.joystickMaxSpeedKilometresPerHour) / 3.6,
+                    deltaSeconds: tickSeconds
+                )
+                let distance = joystickSpeedMetresPerSecond * tickSeconds
+                if distance > 0 {
+                    current = GeoMath.destination(
+                        from: current,
+                        bearingDegrees: joystickBearing,
+                        distanceMetres: distance
+                    )
                 }
-                let distance = max(speedKilometresPerHour / 3.6 * tickSeconds, 0.5)
-                current = GeoMath.destination(from: current, bearingDegrees: joystickBearing, distanceMetres: distance)
-                await send(current, message: "搖桿控制中")
-                try? await Task.sleep(nanoseconds: tickNanoseconds)
+                let displaySpeed = Int((joystickSpeedMetresPerSecond * 3.6).rounded())
+                await send(current, message: "搖桿控制中 · \(displaySpeed) km/h")
+                await sleepThroughPause(nanoseconds: tickNanoseconds)
             }
         }
     }
 
-    func updateJoystick(bearingDegrees: Double) {
+    func updateJoystick(bearingDegrees: Double, magnitude: Double = 1) {
         joystickBearing = bearingDegrees
+        joystickMagnitude = min(max(magnitude, 0), 1)
     }
 
     func stopJoystick() {
         joystickTask?.cancel()
         joystickTask = nil
+        joystickMagnitude = 0
+        joystickSpeedMetresPerSecond = 0
         if status.isActive {
             status.message = "位置已保持"
         }
@@ -352,8 +555,17 @@ final class SimulationController: ObservableObject {
 
     @discardableResult
     func previewBoardCoordinate(_ coordinate: GeoCoordinate, startImmediately: Bool) -> Bool {
+        previewExternalCoordinate(coordinate, startImmediately: startImmediately, sourceLabel: "留言板")
+    }
+
+    @discardableResult
+    func previewExternalCoordinate(
+        _ coordinate: GeoCoordinate,
+        startImmediately: Bool,
+        sourceLabel: String
+    ) -> Bool {
         guard !status.isActive else {
-            lastError = "請先停止目前的定位模擬，再使用留言板座標。"
+            lastError = "請先停止目前的定位模擬，再使用\(sourceLabel)座標。"
             return false
         }
         mode = .teleport
@@ -394,15 +606,81 @@ final class SimulationController: ObservableObject {
     func saveBoardRoute(_ route: SharedBoardRoute, authorName: String) {
         let baseName = String("\(route.name) (\(authorName))".prefix(80))
         let existingNames = Set(savedRoutes.map { $0.name.lowercased() })
-        var name = baseName
-        var suffix = 2
-        while existingNames.contains(name.lowercased()) {
-            let suffixText = " \(suffix)"
-            name = String(baseName.prefix(max(80 - suffixText.count, 1))) + suffixText
-            suffix += 1
-        }
+        let name = Self.uniqueRouteName(base: baseName, existingLowercased: existingNames)
         dataStore.saveRoute(name: name, points: route.points, loop: route.loop)
         refreshStoredData()
+    }
+
+    // MARK: - GPX 與備份
+
+    @discardableResult
+    func importGpxData(_ data: Data) -> Int {
+        let imported = GpxCodec.readRoutes(from: data).filter { $0.points.count >= 2 }
+        guard !imported.isEmpty else {
+            lastError = "GPX 檔案中找不到可用路線（每條路線至少需要兩個座標）。"
+            return 0
+        }
+        var existingNames = Set(savedRoutes.map { $0.name.lowercased() })
+        var namedRoutes: [(name: String, points: [GeoCoordinate], loop: Bool)] = []
+        for route in imported {
+            let base = route.name.map { String($0.prefix(80)) } ?? "匯入路線"
+            let name = Self.uniqueRouteName(base: base, existingLowercased: existingNames)
+            existingNames.insert(name.lowercased())
+            namedRoutes.append((name: name, points: route.points, loop: false))
+        }
+        dataStore.saveRoutes(namedRoutes)
+        refreshStoredData()
+        // 只有在沒有進行中的模擬、也沒有未儲存的路線草稿時才自動載入
+        if !status.isActive,
+           routePoints.count <= 1,
+           let firstName = namedRoutes.first?.name,
+           let firstRoute = savedRoutes.first(where: { $0.name == firstName }) {
+            loadSavedRoute(firstRoute)
+        }
+        return imported.count
+    }
+
+    func exportAllRoutesAsGpx() -> Data? {
+        let routes = savedRoutes.filter { $0.points.count >= 2 }
+        guard !routes.isEmpty else {
+            lastError = "沒有可匯出的已儲存路線。"
+            return nil
+        }
+        return GpxCodec.write(routes: routes.map { GpxCodec.ExportRoute(name: $0.name, points: $0.points) })
+    }
+
+    func exportBackupData() -> Data? {
+        do {
+            return try AppBackupCodec.export(snapshot: dataStore.snapshot)
+        } catch {
+            lastError = error.localizedDescription
+            return nil
+        }
+    }
+
+    @discardableResult
+    func importBackupData(_ data: Data) -> BackupImportResult? {
+        do {
+            let payload = try AppBackupCodec.decode(data)
+            let result = dataStore.applyBackup(payload)
+            refreshStoredData()
+            playbackSettings = dataStore.snapshot.playback
+            return result
+        } catch {
+            lastError = error.localizedDescription
+            return nil
+        }
+    }
+
+    static func uniqueRouteName(base: String, existingLowercased: Set<String>) -> String {
+        var name = String(base.prefix(80))
+        var suffix = 2
+        while existingLowercased.contains(name.lowercased()) {
+            let suffixText = " \(suffix)"
+            name = String(base.prefix(max(80 - suffixText.count, 1))) + suffixText
+            suffix += 1
+        }
+        return name
     }
 
     func saveQuickSpeedPreset(name: String, speed: Double) {
@@ -426,39 +704,225 @@ final class SimulationController: ObservableObject {
         return true
     }
 
-    private func startRoute() {
-        let points = RoutePlan.traversalPoints(routePoints, loop: loopRoute, transitionMode: loopTransitionMode)
+    private func startRoute(resumingFrom firstLapPoints: [GeoCoordinate]? = nil) {
+        var settings = playbackSettings
+        // 進階播放選項的 UI 只出現在多點模式，單點路線一律用預設行為
+        if mode != .multiRoute {
+            settings.travelMode = .simulate
+            settings.pointAction = .none
+            settings.manualAdvance = false
+        }
+        let points = routePoints
+        let traversal = RoutePlan.traversalPoints(points, loop: loopRoute, transitionMode: loopTransitionMode)
+        let loop = loopRoute
+        let transition = loopTransitionMode
+        advanceRequested = false
+        countdownSkipRequested = false
+        orbitSkipRequested = false
+        status.isActive = true
+        status.isPaused = false
+        status.mode = mode
+        playbackGeneration += 1
+        let generation = playbackGeneration
+        // 依 lap 內位置換算原路線的顯示編號；walk-back 尾段回到第 1 點。
+        // 恢復的第一圈是 traversal 的尾段，先對齊再換算。
+        func pointNumber(lapPoints: [GeoCoordinate], nextIndex: Int) -> Int {
+            let traversalIndex = min(
+                max(traversal.count - lapPoints.count + nextIndex, 0),
+                max(traversal.count - 1, 0)
+            )
+            if loop, transition == .walkBack, traversalIndex == traversal.count - 1 { return 1 }
+            return traversalIndex + 1
+        }
         playbackTask = Task { [weak self] in
             guard let self else { return }
-            defer { deviceLocation.stopBackgroundRouteActivity() }
-            while !Task.isCancelled {
-                for index in 0..<max(points.count - 1, 0) {
-                    guard await move(from: points[index], to: points[index + 1]) else { return }
-                }
-                guard loopRoute else { break }
-                if loopTransitionMode == .teleportToStart, let first = routePoints.first {
-                    await send(first, message: "循環路線模擬中")
+            defer {
+                if generation == playbackGeneration {
+                    deviceLocation.stopBackgroundRouteActivity()
+                    status.countdownRemaining = nil
+                    status.waitingManualAdvance = false
+                    status.isOrbiting = false
                 }
             }
-            if !Task.isCancelled { status.message = "路線已完成" }
+            let countdownSeconds = firstLapPoints == nil ? settings.startDelaySeconds : 0
+            guard await runStartCountdown(seconds: countdownSeconds) else { return }
+            var lapPoints = firstLapPoints ?? traversal
+            while !Task.isCancelled {
+                currentLapPoints = lapPoints
+                for index in 0..<max(lapPoints.count - 1, 0) {
+                    let start = lapPoints[index]
+                    let end = lapPoints[index + 1]
+                    let number = pointNumber(lapPoints: lapPoints, nextIndex: index + 1)
+                    currentLapNextIndex = index + 1
+                    switch settings.travelMode {
+                    case .simulate:
+                        guard await move(from: start, to: end) else { return }
+                    case .teleport:
+                        await send(end, message: "已傳送至第 \(number) 點")
+                        guard lastError == nil else { return }
+                    }
+                    saveSessionSnapshot(coordinate: end, force: true)
+                    let isFinalStop = !loop && index + 1 == lapPoints.count - 1
+                    let hasArrivalStep = settings.manualAdvance
+                        || settings.pointAction != .none
+                        || (settings.travelMode == .teleport && settings.dwellSeconds > 0)
+                    if !hasArrivalStep && isFinalStop { continue }
+                    if settings.travelMode == .teleport, settings.dwellSeconds > 0 {
+                        guard await dwellAtPoint(seconds: settings.dwellSeconds, pointNumber: number) else { return }
+                    }
+                    switch settings.pointAction {
+                    case .orbit:
+                        guard await orbitAround(end, pointNumber: number, radiiMetres: settings.orbitRadiiMetres) else { return }
+                    case .microMove:
+                        guard await microMoveEast(from: end, pointNumber: number) else { return }
+                    case .none:
+                        break
+                    }
+                    if isFinalStop { continue }
+                    if settings.manualAdvance {
+                        guard await waitForManualAdvance(pointNumber: number) else { return }
+                    }
+                }
+                lapPoints = traversal
+                guard loop else { break }
+                if transition == .teleportToStart, let first = points.first {
+                    await send(first, message: "循環路線模擬中")
+                    guard lastError == nil else { return }
+                }
+            }
+            if !Task.isCancelled {
+                status.message = "路線已完成"
+                sessionStore.clear()
+                currentLapPoints = []
+                currentLapNextIndex = 0
+            }
         }
     }
 
-    private func startExplore() {
-        guard !status.isActive else {
+    private func runStartCountdown(seconds: Int) async -> Bool {
+        guard seconds > 0 else { return true }
+        var remaining = seconds
+        while remaining > 0, !Task.isCancelled, !countdownSkipRequested {
+            status.countdownRemaining = remaining
+            status.message = "\(remaining) 秒後開始路線…"
+            await sleepThroughPause(nanoseconds: 1_000_000_000)
+            if !status.isPaused { remaining -= 1 }
+        }
+        let skipped = countdownSkipRequested && remaining > 0
+        countdownSkipRequested = false
+        status.countdownRemaining = nil
+        guard !Task.isCancelled else { return false }
+        if skipped { status.message = "已跳過倒數，立即開始路線" }
+        return true
+    }
+
+    private func dwellAtPoint(seconds: Int, pointNumber: Int) async -> Bool {
+        var remaining = seconds
+        while remaining > 0, !Task.isCancelled {
+            status.message = "第 \(pointNumber) 點 · 停留 \(remaining) 秒…"
+            await sleepThroughPause(nanoseconds: 1_000_000_000)
+            if !status.isPaused { remaining -= 1 }
+        }
+        return !Task.isCancelled
+    }
+
+    private func waitForManualAdvance(pointNumber: Int) async -> Bool {
+        advanceRequested = false
+        status.waitingManualAdvance = true
+        status.message = "已到達第 \(pointNumber) 點，按「下一點」繼續"
+        defer { status.waitingManualAdvance = false }
+        while !advanceRequested, !Task.isCancelled {
+            try? await Task.sleep(nanoseconds: tickNanoseconds)
+        }
+        advanceRequested = false
+        guard !Task.isCancelled else { return false }
+        status.message = "前往下一點"
+        return true
+    }
+
+    private func orbitAround(_ center: GeoCoordinate, pointNumber: Int, radiiMetres: [Int]) async -> Bool {
+        let radii = radiiMetres.isEmpty ? PlaybackSettings.defaultOrbitRadiiMetres : radiiMetres
+        orbitSkipRequested = false
+        status.isOrbiting = true
+        defer { status.isOrbiting = false }
+        var angle = 0.0
+        for (lapIndex, radiusValue) in radii.enumerated() {
+            let radius = Double(radiusValue)
+            let stepRadians = OrbitPlanner.stepRadians(
+                speedMetresPerSecond: clampedSpeedMetresPerSecond,
+                radiusMetres: radius,
+                tickSeconds: tickSeconds
+            )
+            let stepsPerLap = OrbitPlanner.stepsPerLap(stepRadians: stepRadians)
+            for _ in 0..<stepsPerLap {
+                if orbitSkipRequested {
+                    orbitSkipRequested = false
+                    status.message = "已跳過繞圈，前往下一點"
+                    return true
+                }
+                guard !Task.isCancelled else { return false }
+                angle += stepRadians
+                let target = GeoMath.offset(
+                    from: center,
+                    eastMetres: radius * cos(angle),
+                    northMetres: radius * sin(angle)
+                )
+                await send(target, message: "繞圈中 · 第 \(lapIndex + 1)/\(radii.count) 圈 · 半徑 \(radiusValue) 米")
+                guard lastError == nil else { return false }
+                await sleepThroughPause(nanoseconds: tickNanoseconds)
+            }
+        }
+        status.message = "已完成第 \(pointNumber) 點繞圈"
+        return true
+    }
+
+    private var clampedSpeedMetresPerSecond: Double {
+        max(speedKilometresPerHour / 3.6, 0.5)
+    }
+
+    private func microMoveEast(from origin: GeoCoordinate, pointNumber: Int) async -> Bool {
+        let distance = PlaybackSettings.microMoveDistanceMetres
+        let steps = max(Int(ceil(distance / (clampedSpeedMetresPerSecond * tickSeconds))), 1)
+        let stepLength = distance / Double(steps)
+        var current = origin
+        for _ in 0..<steps {
+            guard !Task.isCancelled else { return false }
+            current = GeoMath.destination(from: current, bearingDegrees: 90, distanceMetres: stepLength)
+            await send(current, message: "到點微動中 · 向東 20 米")
+            guard lastError == nil else { return false }
+            await sleepThroughPause(nanoseconds: tickNanoseconds)
+        }
+        status.message = "已完成第 \(pointNumber) 點微動"
+        return true
+    }
+
+    private func sleepThroughPause(nanoseconds: UInt64) async {
+        while status.isPaused, !Task.isCancelled {
+            try? await Task.sleep(nanoseconds: tickNanoseconds)
+        }
+        try? await Task.sleep(nanoseconds: nanoseconds)
+    }
+
+    private func startExplore(preserveState: Bool = false) {
+        guard !status.isActive || preserveState else {
             lastError = SimulationError.exploreAlreadyActive.localizedDescription
             return
         }
-        spiralCenter = selectedCoordinate
-        spiralState = SpiralState()
+        if !preserveState {
+            spiralCenter = selectedCoordinate
+            spiralState = SpiralState()
+        }
+        playbackGeneration += 1
+        let generation = playbackGeneration
         playbackTask = Task { [weak self] in
             guard let self, let center = spiralCenter else { return }
-            defer { deviceLocation.stopBackgroundRouteActivity() }
+            defer {
+                if generation == playbackGeneration {
+                    deviceLocation.stopBackgroundRouteActivity()
+                }
+            }
             var current = selectedCoordinate
             while !Task.isCancelled {
-                while status.isPaused, !Task.isCancelled {
-                    try? await Task.sleep(nanoseconds: tickNanoseconds)
-                }
                 let step = SpiralPath.advance(
                     center: center,
                     current: current,
@@ -468,7 +932,7 @@ final class SimulationController: ObservableObject {
                 spiralState = step.state
                 current = step.coordinate
                 await send(current, message: "螺旋探索中")
-                try? await Task.sleep(nanoseconds: tickNanoseconds)
+                await sleepThroughPause(nanoseconds: tickNanoseconds)
             }
         }
     }
@@ -477,15 +941,13 @@ final class SimulationController: ObservableObject {
         let distance = max(GeoMath.distanceMetres(from: start, to: end), 0.1)
         var travelled = 0.0
         while travelled < distance, !Task.isCancelled {
-            while status.isPaused, !Task.isCancelled {
-                try? await Task.sleep(nanoseconds: tickNanoseconds)
-            }
             let coordinate = GeoMath.interpolate(from: start, to: end, fraction: travelled / distance)
             await send(coordinate, message: "路線模擬中")
             if lastError != nil { return false }
             travelled += max(speedKilometresPerHour / 3.6 * tickSeconds, 0.5)
-            try? await Task.sleep(nanoseconds: tickNanoseconds)
+            await sleepThroughPause(nanoseconds: tickNanoseconds)
         }
+        guard !Task.isCancelled else { return false }
         await send(end, message: "路線模擬中")
         return lastError == nil
     }
@@ -498,12 +960,27 @@ final class SimulationController: ObservableObject {
                 pairingFileRevision: pairingStore.revision,
                 deviceIP: deviceIP
             )
-            status = SimulationStatus(isActive: true, isPaused: status.isPaused, coordinate: coordinate, mode: mode, message: message)
+            // Stop 之後回來的 in-flight 傳送不得復活狀態或重寫已清除的快照
+            guard !Task.isCancelled else { return }
+            status.isActive = true
+            status.coordinate = coordinate
+            status.mode = mode
+            status.message = message
+            saveSessionSnapshot(coordinate: coordinate)
         } catch {
+            guard !Task.isCancelled else { return }
             lastError = error.localizedDescription
             playbackTask?.cancel()
             joystickTask?.cancel()
             joystickTask = nil
+            autoStopTask?.cancel()
+            autoStopTask = nil
+            status.isActive = false
+            status.isPaused = false
+            status.countdownRemaining = nil
+            status.waitingManualAdvance = false
+            status.isOrbiting = false
+            status.autoStopAt = nil
             deviceLocation.stopBackgroundRouteActivity()
         }
     }

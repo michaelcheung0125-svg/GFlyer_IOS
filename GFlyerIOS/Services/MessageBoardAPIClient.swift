@@ -248,6 +248,27 @@ actor MessageBoardAPIClient {
         )
     }
 
+    /// 座標圖鑑「資料已過時」匿名回報（Worker 端依 IP 限流），不需要留言板登入。
+    func reportLibraryCoordinate(
+        coordinateID: String,
+        coordinateName: String?,
+        reason: String,
+        message: String?
+    ) async throws {
+        let trimmedMessage = message?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let _: CoordReportResponse = try await request(
+            method: "POST",
+            path: "/v1/coord-reports",
+            body: CoordReportRequest(
+                clientRequestId: UUID().uuidString,
+                coordinateId: String(coordinateID.prefix(60)),
+                coordinateName: coordinateName.map { String($0.prefix(80)) },
+                reason: String(reason.prefix(40)),
+                message: trimmedMessage.flatMap { $0.isEmpty ? nil : String($0.prefix(300)) }
+            )
+        )
+    }
+
     private func request<Response: Decodable>(
         method: String,
         path: String,
@@ -354,6 +375,18 @@ private struct AuthenticationRequest: Encodable {
     let adminCode: String?
     let username: String
     let deviceLabel: String
+}
+
+private struct CoordReportRequest: Encodable {
+    let clientRequestId: String
+    let coordinateId: String
+    let coordinateName: String?
+    let reason: String
+    let message: String?
+}
+
+private struct CoordReportResponse: Decodable {
+    let ok: Bool
 }
 
 private struct AuthenticationResponse: Decodable {

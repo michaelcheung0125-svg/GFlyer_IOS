@@ -5,6 +5,7 @@ struct MainView: View {
     @Environment(\.scenePhase) private var scenePhase
     @ObservedObject var controller: SimulationController
     @ObservedObject var messageBoard: MessageBoardController
+    @ObservedObject var coordinateLibrary: CoordinateLibraryController
     @State private var position: MapCameraPosition = .region(
         MKCoordinateRegion(
             center: CLLocationCoordinate2D(latitude: 22.3193, longitude: 114.1694),
@@ -17,6 +18,7 @@ struct MainView: View {
     @State private var showJoystick = false
     @State private var showMessageBoard = false
     @State private var showBoardShare = false
+    @State private var showLibrary = false
     @State private var isPanelExpanded = true
     @State private var suppressNextRecenter = false
     @State private var feedbackMessage: String?
@@ -83,6 +85,7 @@ struct MainView: View {
                             showFavorites: $showFavorites,
                             showRoutes: $showRoutes,
                             showBoardShare: $showBoardShare,
+                            showLibrary: $showLibrary,
                             position: $position,
                             cameraDistance: $cameraDistance,
                             onLocate: locateCurrentPosition,
@@ -155,6 +158,9 @@ struct MainView: View {
             .sheet(isPresented: $showBoardShare) {
                 ShareToMessageBoardView(board: messageBoard, simulation: controller)
             }
+            .sheet(isPresented: $showLibrary) {
+                CoordinateLibraryView(library: coordinateLibrary, simulation: controller)
+            }
             .onChange(of: scenePhase) { _, phase in
                 if phase == .active { messageBoard.refreshInBackground() }
             }
@@ -192,7 +198,38 @@ struct MainView: View {
             } message: {
                 Text(controller.lastError ?? "未知錯誤")
             }
+            .alert(
+                "跨日期提醒",
+                isPresented: Binding(
+                    get: { controller.pendingCrossDateWarning != nil },
+                    set: { if !$0 { controller.cancelCrossDateStart() } }
+                ),
+                presenting: controller.pendingCrossDateWarning
+            ) { _ in
+                Button("仍要傳送") { controller.confirmCrossDateStart() }
+                Button("取消", role: .cancel) { controller.cancelCrossDateStart() }
+            } message: { warning in
+                Text("目的地當地日期約為 \(warning.destinationDateText)，與本機日期 \(warning.deviceDateText) 不同。部分遊戲的每日任務或獎勵可能受影響。")
+            }
+            .alert(
+                "恢復上次模擬？",
+                isPresented: Binding(
+                    get: { controller.pendingResumeSession != nil },
+                    set: { if !$0 { controller.clearResumePrompt() } }
+                ),
+                presenting: controller.pendingResumeSession
+            ) { snapshot in
+                Button("恢復") { controller.resumeInterruptedSession(snapshot) }
+                Button("放棄", role: .cancel) { controller.discardInterruptedSession() }
+            } message: { snapshot in
+                Text(Self.resumeMessage(for: snapshot))
+            }
         }
+    }
+
+    private static func resumeMessage(for snapshot: ActiveSessionSnapshot) -> String {
+        let minutes = max(Int(Date().timeIntervalSince(snapshot.savedAt) / 60), 0)
+        return "GFlyer 上次在「\(snapshot.mode.rawValue)」模式中斷（約 \(minutes) 分鐘前）。恢復會重新連線並從中斷位置繼續。"
     }
 
     private func region(around coordinate: GeoCoordinate, span: CLLocationDegrees) -> MKCoordinateRegion {
@@ -284,6 +321,7 @@ private struct MapToolBar: View {
     @Binding var showFavorites: Bool
     @Binding var showRoutes: Bool
     @Binding var showBoardShare: Bool
+    @Binding var showLibrary: Bool
     @Binding var position: MapCameraPosition
     @Binding var cameraDistance: CLLocationDistance
     let onLocate: () -> Void
@@ -313,6 +351,9 @@ private struct MapToolBar: View {
             HStack(spacing: 4) {
                 mapButton("point.3.filled.connected.trianglepath.dotted", label: "已儲存路線") { showRoutes = true }
                 mapButton("square.and.arrow.up", label: "分享到留言板") { showBoardShare = true }
+            }
+            HStack(spacing: 4) {
+                mapButton("books.vertical", label: "座標圖鑑") { showLibrary = true }
             }
         }
         .padding(6)
@@ -348,6 +389,10 @@ private struct ControlPanel: View {
                     Text(controller.status.message).font(.subheadline.weight(.semibold))
                     Text(controller.status.coordinate?.display ?? controller.selectedCoordinate.display)
                         .font(.caption.monospacedDigit()).foregroundStyle(.secondary)
+                    if controller.status.isActive, let stopAt = controller.status.autoStopAt {
+                        Text("將於 \(stopAt.formatted(date: .omitted, time: .shortened)) 自動停止")
+                            .font(.caption2).foregroundStyle(.secondary)
+                    }
                 }
                 Spacer()
                 if controller.status.isActive {
@@ -368,6 +413,8 @@ private struct ControlPanel: View {
 
                 if controller.mode.isRoute { routeControls }
                 if controller.mode == .explore { exploreControls }
+
+                if controller.status.isActive { playbackActionButtons }
 
                 HStack(spacing: 10) {
                     Button { controller.start() } label: {
@@ -416,6 +463,69 @@ private struct ControlPanel: View {
                 Picker("循環方式", selection: Binding(get: { controller.loopTransitionMode }, set: controller.setLoopTransitionMode)) {
                     ForEach(LoopTransitionMode.allCases) { mode in Text(mode.rawValue).tag(mode) }
                 }.pickerStyle(.segmented)
+            }
+            if controller.mode == .multiRoute { advancedPlaybackOptions }
+        }
+    }
+
+    private var advancedPlaybackOptions: some View {
+        DisclosureGroup {
+            VStack(spacing: 8) {
+                Picker("移動方式", selection: Binding(
+                    get: { controller.playbackSettings.travelMode },
+                    set: { value in controller.updatePlayback { $0.travelMode = value } }
+                )) {
+                    ForEach(RouteTravelMode.allCases) { mode in Text(mode.rawValue).tag(mode) }
+                }
+                .pickerStyle(.segmented)
+                Picker("到點動作", selection: Binding(
+                    get: { controller.playbackSettings.pointAction },
+                    set: { value in controller.updatePlayback { $0.pointAction = value } }
+                )) {
+                    ForEach(RoutePointAction.allCases) { action in
+                        Text(action == .none ? "無動作" : "到點\(action.rawValue)").tag(action)
+                    }
+                }
+                .pickerStyle(.segmented)
+                Toggle("到點後手動前進", isOn: Binding(
+                    get: { controller.playbackSettings.manualAdvance },
+                    set: { value in controller.updatePlayback { $0.manualAdvance = value } }
+                ))
+                if controller.playbackSettings.travelMode == .teleport {
+                    Text("每點傳送後停留 \(controller.playbackSettings.dwellSeconds) 秒，可在設定頁調整")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            }
+            .padding(.top, 6)
+        } label: {
+            Label("進階播放選項", systemImage: "slider.horizontal.3").font(.caption)
+        }
+    }
+
+    private var playbackActionButtons: some View {
+        VStack(spacing: 8) {
+            if let remaining = controller.status.countdownRemaining {
+                Button { controller.skipStartCountdown() } label: {
+                    Label("跳過倒數（\(remaining) 秒）", systemImage: "forward.end")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+            }
+            if controller.status.waitingManualAdvance {
+                Button { controller.advanceToNextRoutePoint() } label: {
+                    Label("下一點", systemImage: "arrow.right.circle.fill")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+            }
+            if controller.status.isOrbiting {
+                Button { controller.skipOrbit() } label: {
+                    Label("跳過繞圈", systemImage: "forward.end")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
             }
         }
     }
@@ -470,10 +580,19 @@ private struct JoystickPad: View {
             .gesture(DragGesture(minimumDistance: 0)
                 .onChanged { value in
                     let vector = CGVector(dx: value.translation.width, dy: value.translation.height)
-                    let length = min(CGFloat(hypot(vector.dx, vector.dy)), radius * 0.7)
+                    let maxLength = radius * 0.7
+                    let length = min(CGFloat(hypot(vector.dx, vector.dy)), maxLength)
                     let angle = atan2(vector.dy, vector.dx)
                     knob = CGSize(width: cos(angle) * length, height: sin(angle) * length)
-                    controller.startJoystick(bearingDegrees: Double(angle * 180 / .pi + 90).truncatingRemainder(dividingBy: 360))
+                    let rawMagnitude = maxLength > 0 ? Double(length / maxLength) : 0
+                    let deadZone = 0.1
+                    let magnitude = rawMagnitude <= deadZone
+                        ? 0
+                        : (rawMagnitude - deadZone) / (1 - deadZone)
+                    controller.startJoystick(
+                        bearingDegrees: Double(angle * 180 / .pi + 90).truncatingRemainder(dividingBy: 360),
+                        magnitude: magnitude
+                    )
                 }
                 .onEnded { _ in
                     knob = .zero

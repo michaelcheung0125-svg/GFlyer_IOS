@@ -1,5 +1,25 @@
 import Foundation
 import SwiftUI
+import UniformTypeIdentifiers
+
+extension UTType {
+    static var gpx: UTType { UTType(filenameExtension: "gpx", conformingTo: .xml) ?? .xml }
+}
+
+struct ExportedDataDocument: FileDocument {
+    static var readableContentTypes: [UTType] { [.data, .json, .xml, .gpx] }
+    var data: Data
+
+    init(data: Data = Data()) { self.data = data }
+
+    init(configuration: ReadConfiguration) throws {
+        data = configuration.file.regularFileContents ?? Data()
+    }
+
+    func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper {
+        FileWrapper(regularFileWithContents: data)
+    }
+}
 
 struct SetupView: View {
     @Environment(\.dismiss) private var dismiss
@@ -11,11 +31,28 @@ struct SetupView: View {
     @State private var showPresetPrompt = false
     @State private var presetName = ""
     @State private var presetSpeed = "50"
+    @State private var showGpxImporter = false
+    @State private var showGpxExporter = false
+    @State private var gpxDocument = ExportedDataDocument()
+    @State private var showBackupImporter = false
+    @State private var showBackupExporter = false
+    @State private var backupDocument = ExportedDataDocument()
+    @State private var pendingBackupData: Data?
+    @State private var transferSummary: String?
 
     init(controller: SimulationController) {
         self.controller = controller
         _pairingStore = ObservedObject(wrappedValue: controller.pairingStore)
         _deviceLocation = ObservedObject(wrappedValue: controller.deviceLocation)
+    }
+
+    private func playbackBinding<Value>(
+        _ keyPath: WritableKeyPath<PlaybackSettings, Value>
+    ) -> Binding<Value> {
+        Binding(
+            get: { controller.playbackSettings[keyPath: keyPath] },
+            set: { value in controller.updatePlayback { $0[keyPath: keyPath] = value } }
+        )
     }
 
     var body: some View {
@@ -132,6 +169,113 @@ struct SetupView: View {
                     }
                 }
 
+                Section("路線播放") {
+                    Picker("開始前倒數", selection: playbackBinding(\.startDelaySeconds)) {
+                        ForEach(PlaybackSettings.startDelayOptions, id: \.self) { seconds in
+                            Text(seconds == 0 ? "關閉" : "\(seconds) 秒").tag(seconds)
+                        }
+                    }
+                    Picker("自動停止", selection: playbackBinding(\.autoStopMinutes)) {
+                        ForEach(PlaybackSettings.autoStopOptions, id: \.self) { minutes in
+                            Text(minutes == 0 ? "關閉" : "\(minutes) 分鐘").tag(minutes)
+                        }
+                    }
+                    Stepper(
+                        "逐點傳送停留 \(controller.playbackSettings.dwellSeconds) 秒",
+                        value: playbackBinding(\.dwellSeconds),
+                        in: PlaybackSettings.dwellRange,
+                        step: 5
+                    )
+                    Toggle("跨日期傳送提醒", isOn: playbackBinding(\.crossDateWarningEnabled))
+                    Picker("搖桿速度上限", selection: playbackBinding(\.joystickMaxSpeedKilometresPerHour)) {
+                        ForEach(PlaybackSettings.joystickMaxSpeedOptions, id: \.self) { speed in
+                            Text("\(speed) km/h").tag(speed)
+                        }
+                    }
+                    Text("倒數方便先切回遊戲畫面；停留秒數只在多點路線的「逐點傳送」模式使用。搖桿以推桿幅度控制速度，推到底會持續加速到上限。")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                Section("到點繞圈半徑") {
+                    ForEach(Array(controller.playbackSettings.orbitRadiiMetres.enumerated()), id: \.offset) { index, radius in
+                        Stepper(
+                            "第 \(index + 1) 圈 · \(radius) 米",
+                            value: Binding(
+                                get: {
+                                    let radii = controller.playbackSettings.orbitRadiiMetres
+                                    return radii.indices.contains(index) ? radii[index] : radius
+                                },
+                                set: { value in
+                                    controller.updatePlayback { settings in
+                                        if settings.orbitRadiiMetres.indices.contains(index) {
+                                            settings.orbitRadiiMetres[index] = value
+                                        }
+                                    }
+                                }
+                            ),
+                            in: PlaybackSettings.orbitRadiusRange,
+                            step: 5
+                        )
+                    }
+                    HStack {
+                        Button {
+                            controller.updatePlayback { settings in
+                                settings.orbitRadiiMetres.append(PlaybackSettings.defaultOrbitRadiiMetres.last ?? 30)
+                            }
+                        } label: {
+                            Label("新增一圈", systemImage: "plus")
+                        }
+                        .disabled(controller.playbackSettings.orbitRadiiMetres.count >= PlaybackSettings.maxOrbitLaps)
+                        Spacer()
+                        Button(role: .destructive) {
+                            controller.updatePlayback { settings in
+                                if settings.orbitRadiiMetres.count > 1 {
+                                    settings.orbitRadiiMetres.removeLast()
+                                }
+                            }
+                        } label: {
+                            Label("移除最後一圈", systemImage: "minus.circle")
+                        }
+                        .disabled(controller.playbackSettings.orbitRadiiMetres.count <= 1)
+                    }
+                    .buttonStyle(.borderless)
+                    Text("多點路線選擇「到點繞圈」時，會依序以這些半徑各繞一圈（最多 \(PlaybackSettings.maxOrbitLaps) 圈）。")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                Section("資料匯入與匯出") {
+                    Button { showGpxImporter = true } label: {
+                        Label("匯入 GPX 路線", systemImage: "square.and.arrow.down")
+                    }
+                    .disabled(controller.isMotionActive)
+                    Button {
+                        if let data = controller.exportAllRoutesAsGpx() {
+                            gpxDocument = ExportedDataDocument(data: data)
+                            showGpxExporter = true
+                        }
+                    } label: {
+                        Label("匯出全部路線（GPX）", systemImage: "square.and.arrow.up")
+                    }
+                    .disabled(controller.savedRoutes.isEmpty)
+                    Button {
+                        if let data = controller.exportBackupData() {
+                            backupDocument = ExportedDataDocument(data: data)
+                            showBackupExporter = true
+                        }
+                    } label: {
+                        Label("匯出備份檔", systemImage: "externaldrive.badge.timemachine")
+                    }
+                    Button { showBackupImporter = true } label: {
+                        Label("還原備份檔", systemImage: "arrow.counterclockwise")
+                    }
+                    .disabled(controller.isMotionActive)
+                    Text("備份檔為 GFlyer Backup v1 格式，包含收藏、歷史、資料夾、路線與速度預設，與 GFlyer Android 的備份/還原互通。留言板登入與 Pairing File 不會包含在備份內。")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
                 Section("操作順序") {
                     Text("1. 用電腦產生這部 iPhone 的 pairing file。")
                     Text("2. 將檔案傳到 iPhone 並在此匯入。")
@@ -178,7 +322,7 @@ struct SetupView: View {
                 Text(importError ?? "未知錯誤")
             }
             .alert(
-                "通道操作失敗",
+                "操作失敗",
                 isPresented: Binding(
                     get: { controller.lastError != nil },
                     set: { if !$0 { controller.lastError = nil } }
@@ -188,6 +332,85 @@ struct SetupView: View {
             } message: {
                 Text(controller.lastError ?? "未知錯誤")
             }
+            .fileImporter(
+                isPresented: $showGpxImporter,
+                allowedContentTypes: [.gpx, .xml],
+                allowsMultipleSelection: true
+            ) { result in
+                do {
+                    var importedRoutes = 0
+                    for url in try result.get() {
+                        let data = try readSecurityScopedFile(at: url)
+                        importedRoutes += controller.importGpxData(data)
+                    }
+                    if importedRoutes > 0 {
+                        transferSummary = "已匯入 \(importedRoutes) 條 GPX 路線。"
+                    }
+                } catch {
+                    importError = error.localizedDescription
+                }
+            }
+            .fileExporter(
+                isPresented: $showGpxExporter,
+                document: gpxDocument,
+                contentType: .gpx,
+                defaultFilename: "gflyer-routes.gpx"
+            ) { result in
+                if case let .failure(error) = result { importError = error.localizedDescription }
+            }
+            .fileImporter(
+                isPresented: $showBackupImporter,
+                allowedContentTypes: [.json]
+            ) { result in
+                do {
+                    pendingBackupData = try readSecurityScopedFile(at: result.get())
+                } catch {
+                    importError = error.localizedDescription
+                }
+            }
+            .fileExporter(
+                isPresented: $showBackupExporter,
+                document: backupDocument,
+                contentType: .json,
+                defaultFilename: "gflyer-backup.json"
+            ) { result in
+                if case let .failure(error) = result { importError = error.localizedDescription }
+            }
+            .alert(
+                "還原備份",
+                isPresented: Binding(
+                    get: { pendingBackupData != nil },
+                    set: { if !$0 { pendingBackupData = nil } }
+                ),
+                presenting: pendingBackupData
+            ) { data in
+                Button("還原", role: .destructive) {
+                    if let result = controller.importBackupData(data) {
+                        transferSummary = "已還原 \(result.favoriteCount) 個收藏、\(result.routeCount) 條路線、\(result.folderCount) 個資料夾與 \(result.presetCount) 個速度預設。"
+                    }
+                    pendingBackupData = nil
+                }
+                Button("取消", role: .cancel) { pendingBackupData = nil }
+            } message: { _ in
+                Text("還原會以備份內容取代現有的收藏、歷史、資料夾、路線與速度預設。留言板登入與 Pairing File 不受影響。")
+            }
+            .alert(
+                "完成",
+                isPresented: Binding(
+                    get: { transferSummary != nil },
+                    set: { if !$0 { transferSummary = nil } }
+                )
+            ) {
+                Button("確定", role: .cancel) { transferSummary = nil }
+            } message: {
+                Text(transferSummary ?? "")
+            }
         }
+    }
+
+    private func readSecurityScopedFile(at url: URL) throws -> Data {
+        let accessed = url.startAccessingSecurityScopedResource()
+        defer { if accessed { url.stopAccessingSecurityScopedResource() } }
+        return try Data(contentsOf: url)
     }
 }

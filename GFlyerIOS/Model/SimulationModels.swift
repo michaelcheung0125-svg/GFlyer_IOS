@@ -1,6 +1,6 @@
 import Foundation
 
-enum SimulationMode: String, CaseIterable, Identifiable {
+enum SimulationMode: String, CaseIterable, Identifiable, Codable {
     case teleport = "傳送"
     case singleRoute = "單點"
     case multiRoute = "多點"
@@ -18,6 +18,111 @@ enum LoopTransitionMode: String, CaseIterable, Identifiable, Codable {
     case teleportToStart = "直接返回"
 
     var id: Self { self }
+}
+
+enum RouteTravelMode: String, CaseIterable, Identifiable, Codable {
+    case simulate = "模擬移動"
+    case teleport = "逐點傳送"
+
+    var id: Self { self }
+}
+
+enum RoutePointAction: String, CaseIterable, Identifiable, Codable {
+    case none = "無"
+    case orbit = "繞圈"
+    case microMove = "微動"
+
+    var id: Self { self }
+}
+
+struct PlaybackSettings: Codable, Equatable {
+    static let dwellRange = 0...300
+    static let orbitRadiusRange = 5...500
+    static let maxOrbitLaps = 4
+    static let defaultOrbitRadiiMetres = [20, 30]
+    static let startDelayOptions = [0, 3, 5, 10]
+    static let autoStopOptions = [0, 30, 60, 120]
+    static let microMoveDistanceMetres = 20.0
+    static let joystickMaxSpeedOptions = [20, 60, 150, 500, 900]
+    static let joystickMaxSpeedRange = 5...900
+
+    var travelMode: RouteTravelMode = .simulate
+    var pointAction: RoutePointAction = .none
+    var manualAdvance = false
+    var dwellSeconds = 10
+    var orbitRadiiMetres = defaultOrbitRadiiMetres
+    var startDelaySeconds = 0
+    var autoStopMinutes = 0
+    var crossDateWarningEnabled = true
+    var joystickMaxSpeedKilometresPerHour = 500
+
+    init() {}
+
+    private enum CodingKeys: String, CodingKey {
+        case travelMode, pointAction, manualAdvance, dwellSeconds
+        case orbitRadiiMetres, startDelaySeconds, autoStopMinutes, crossDateWarningEnabled
+        case joystickMaxSpeedKilometresPerHour
+    }
+
+    // 缺欄位或型別不符時退回屬性宣告上的預設值（單一定義處）。
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        var settings = PlaybackSettings()
+        settings.travelMode = (try? container.decode(RouteTravelMode.self, forKey: .travelMode)) ?? settings.travelMode
+        settings.pointAction = (try? container.decode(RoutePointAction.self, forKey: .pointAction)) ?? settings.pointAction
+        settings.manualAdvance = (try? container.decode(Bool.self, forKey: .manualAdvance)) ?? settings.manualAdvance
+        settings.dwellSeconds = (try? container.decode(Int.self, forKey: .dwellSeconds)) ?? settings.dwellSeconds
+        settings.orbitRadiiMetres = (try? container.decode([Int].self, forKey: .orbitRadiiMetres)) ?? settings.orbitRadiiMetres
+        settings.startDelaySeconds = (try? container.decode(Int.self, forKey: .startDelaySeconds)) ?? settings.startDelaySeconds
+        settings.autoStopMinutes = (try? container.decode(Int.self, forKey: .autoStopMinutes)) ?? settings.autoStopMinutes
+        settings.crossDateWarningEnabled =
+            (try? container.decode(Bool.self, forKey: .crossDateWarningEnabled)) ?? settings.crossDateWarningEnabled
+        settings.joystickMaxSpeedKilometresPerHour =
+            (try? container.decode(Int.self, forKey: .joystickMaxSpeedKilometresPerHour))
+            ?? settings.joystickMaxSpeedKilometresPerHour
+        self = settings.sanitized()
+    }
+
+    func sanitized() -> PlaybackSettings {
+        var copy = self
+        copy.dwellSeconds = min(max(dwellSeconds, Self.dwellRange.lowerBound), Self.dwellRange.upperBound)
+        copy.orbitRadiiMetres = orbitRadiiMetres
+            .prefix(Self.maxOrbitLaps)
+            .map { min(max($0, Self.orbitRadiusRange.lowerBound), Self.orbitRadiusRange.upperBound) }
+        if copy.orbitRadiiMetres.isEmpty { copy.orbitRadiiMetres = Self.defaultOrbitRadiiMetres }
+        // 非選項值（例如 Android 備份帶來的 15 分鐘）取最接近的選項而不是直接停用
+        copy.startDelaySeconds = Self.nearestOption(to: startDelaySeconds, in: Self.startDelayOptions)
+        copy.autoStopMinutes = Self.nearestOption(to: autoStopMinutes, in: Self.autoStopOptions)
+        copy.joystickMaxSpeedKilometresPerHour = min(
+            max(joystickMaxSpeedKilometresPerHour, Self.joystickMaxSpeedRange.lowerBound),
+            Self.joystickMaxSpeedRange.upperBound
+        )
+        return copy
+    }
+
+    private static func nearestOption(to value: Int, in options: [Int]) -> Int {
+        options.min(by: { abs($0 - value) < abs($1 - value) }) ?? 0
+    }
+}
+
+enum OrbitPlanner {
+    static func stepRadians(speedMetresPerSecond: Double, radiusMetres: Double, tickSeconds: Double) -> Double {
+        max(speedMetresPerSecond, 0.1) / max(radiusMetres, 1) * tickSeconds
+    }
+
+    static func stepsPerLap(stepRadians: Double) -> Int {
+        max(Int(ceil(2 * Double.pi / max(stepRadians, 1e-9))), 8)
+    }
+
+    static func stepsPerLap(speedMetresPerSecond: Double, radiusMetres: Double, tickSeconds: Double) -> Int {
+        stepsPerLap(
+            stepRadians: stepRadians(
+                speedMetresPerSecond: speedMetresPerSecond,
+                radiusMetres: radiusMetres,
+                tickSeconds: tickSeconds
+            )
+        )
+    }
 }
 
 struct QuickSpeedPreset: Codable, Equatable, Identifiable {
@@ -102,6 +207,10 @@ struct SimulationStatus: Equatable {
     var coordinate: GeoCoordinate?
     var mode: SimulationMode?
     var message = "預覽後端已就緒"
+    var countdownRemaining: Int?
+    var waitingManualAdvance = false
+    var isOrbiting = false
+    var autoStopAt: Date?
 }
 
 struct PlaceSearchResult: Equatable, Identifiable {
