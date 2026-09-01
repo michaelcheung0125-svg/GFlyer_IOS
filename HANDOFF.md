@@ -87,6 +87,12 @@ C:\Project\GFlyer
   - `0.4.0 (6)` 已發佈到公開的 `GFlyer-updates`（release `ios-v0.4.0`）並
     確認可以從 SideStore 來源安裝到實機。來源檔必須維持舊版 AltStore 扁平
     格式，細節見 `docs/ALTSTORE_DISTRIBUTION.md`
+- `0.4.2 (8)`：修正 App 內更新檢查永遠回報「已是最新版本」。**已在實機
+  確認**：SideStore 以免費 Apple ID 安裝後，執行時的 bundle identifier 確實
+  帶有 team id 後綴，與來源檔的 `com.geopilot.gflyer.ios` 不相等，原本的完全
+  相等比對因此永遠落空。`AltStoreSourceParser.matchingApp` 的三層比對
+  （相等 → 點號邊界前綴 → 單一 App 來源）不可以改回完全相等。設定頁
+  「關於」會顯示執行時的 Bundle ID，方便再次診斷這類問題。
 - `0.4.1 (7)`：加入 App 圖示。先前沒有 `AppIcon.appiconset`，主畫面只顯示
   空白預設圖示。圖示由 Android 版共用的 `gflyer_icon_art.png` 產生：取中央
   75%（對應 Android adaptive icon 遮罩後實際可見的範圍），放大到
