@@ -174,9 +174,11 @@ struct SetupView: View {
 
     // MARK: - 區段
 
+    // 版本放在設定頁第一列：使用者要確認裝到哪一版時，第一眼就看得到。
     private var backendSection: some View {
-        Section("定位後端") {
-            LabeledContent("目前後端", value: controller.backendName)
+        Section("關於") {
+            LabeledContent("App 版本", value: updateChecker.displayVersion)
+            LabeledContent("定位後端", value: controller.backendName)
             LabeledContent(
                 "原生程式庫",
                 value: controller.canControlDeviceLocation ? "已載入" : "尚未啟用"
@@ -361,7 +363,6 @@ struct SetupView: View {
 
     private var softwareUpdateSection: some View {
         Section("軟體更新") {
-            LabeledContent("目前版本", value: updateChecker.displayVersion)
             LabeledContent("更新狀態", value: updateChecker.statusMessage)
             Button {
                 updateChecker.checkNow()
