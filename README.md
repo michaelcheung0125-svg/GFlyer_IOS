@@ -50,6 +50,22 @@ passed both macOS CI jobs in
 archive and IPA. Personal signing, target-iPhone regression, and live
 Android/iOS backup interoperability remain separate validation gates.
 
+## Installing with AltStore / SideStore
+
+The unsigned CI IPA can be installed directly by AltStore or SideStore, which
+re-sign it with your own Apple ID. An AltStore source is published next to the
+Android update manifest so new versions appear inside the app:
+
+```text
+https://michaelcheung0125-svg.github.io/GFlyer-updates/altstore.json
+```
+
+This does not extend the signing period. A free Apple ID still expires after
+seven days; AltStore and SideStore only automate the refresh. See
+[docs/ALTSTORE_DISTRIBUTION.md](docs/ALTSTORE_DISTRIBUTION.md) for the install
+steps and the release process, including `scripts/update_altstore_source.py`,
+which regenerates the source entry from a built IPA.
+
 ## End-user guide
 
 The complete Traditional Chinese installation and usage guide is available in
