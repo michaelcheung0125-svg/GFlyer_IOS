@@ -105,6 +105,9 @@ SideStore 另有一個已知的畫面問題：進度轉圈凍住但安裝仍在�
 畫面可以讓它完成。判斷是否真的裝好，看 GFlyer 的**設定 → 關於 → App 版本**
 比看轉圈可靠。
 
+> 完整的案例紀錄（含試過但無效的做法）見
+> [TROUBLESHOOTING_CASES.md](TROUBLESHOOTING_CASES.md)。
+
 ## 配對與 UDID 問題（實測記錄）
 
 `SideStore could not determine this device's UDID`／Health Check 顯示

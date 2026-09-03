@@ -89,6 +89,11 @@ it as an `ios-v<version>` release in the public `GFlyer-updates` repository,
 regenerate `altstore.json` with `scripts/update_altstore_source.py`, verify
 the live source and download URL, then record the version in `HANDOFF.md`.
 
+Solved problems are logged case by case in
+[docs/TROUBLESHOOTING_CASES.md](docs/TROUBLESHOOTING_CASES.md), including the
+exact error strings, what actually fixed each one, and which attempts did not
+work — that last part is the time saver when the same symptom returns.
+
 The runbook also lists the decisions that must not be reverted (SideStore's
 flat source format, the resigned-bundle-identifier matching, the XcodeGen
 resources rule, the split SwiftUI view bodies, and the clear-simulation
