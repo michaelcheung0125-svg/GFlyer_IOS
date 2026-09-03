@@ -10,7 +10,8 @@ import UIKit
 @MainActor
 final class StepRecorderController: ObservableObject {
     @Published private(set) var entries: [StepRecordEntry] = []
-    @Published private(set) var lastMessage: String?
+    // 兩個提示都由畫面上的 alert 關閉時清空，所以要可寫
+    @Published var lastMessage: String?
     @Published var lastError: String?
     @Published var shortcutName: String {
         didSet {
