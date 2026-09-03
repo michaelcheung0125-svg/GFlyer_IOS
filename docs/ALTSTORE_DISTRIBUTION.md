@@ -105,6 +105,25 @@ SideStore 另有一個已知的畫面問題：進度轉圈凍住但安裝仍在�
 畫面可以讓它完成。判斷是否真的裝好，看 GFlyer 的**設定 → 關於 → App 版本**
 比看轉圈可靠。
 
+## 配對與 UDID 問題（實測記錄）
+
+`SideStore could not determine this device's UDID`／Health Check 顯示
+`InvalidPairing (protocol: rppairing, reason: RPPairing UDID not found)`：
+
+**SideStore 讀的是它自己容器裡的配對檔，不是使用者手動匯入的那一份。**
+用 iloader 重新配對之後，必須點 **Manage Pairing File → Place in All Apps**
+（或指定放到 SideStore 旁邊）把檔案寫進 App 容器；只按 Load／Install 不會
+更新容器裡的舊檔案。實測確認這一步才是解法——重開機、重新產生配對檔、
+重裝 SideStore、改 Tunnel IP 全部無效。
+
+相關但不同的另一個狀況：LocalDevVPN **1.3** 把 Tunnel IP 從 `10.7.0.0/32`
+改成 `10.7.1.1/32`，與 SideStore 對不上時 Health Check 會顯示
+`Loaded (Connection down)`。改回 `10.7.0.0/32` 或刪除 LocalDevVPN 重裝即可。
+
+診斷順序：Health Check 的訊息會區分這兩層——`Connection down` 指向 VPN／
+通道，`RPPairing UDID not found` 指向配對檔沒放進容器。不要看到 UDID 字樣
+就直接重新產生配對檔，那通常不是原因。
+
 ## 來源檔格式（不要簡化掉重複欄位）
 
 SideStore 讀的是舊版 AltStore 來源格式，**不是**只有 `versions` 陣列的新
