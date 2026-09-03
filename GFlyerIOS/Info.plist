@@ -15,9 +15,9 @@
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
-	<string>0.6.0</string>
+	<string>0.6.1</string>
 	<key>CFBundleVersion</key>
-	<string>13</string>
+	<string>14</string>
 	<key>GFlyerCoordinateLibraryURL</key>
 	<string>https://michaelcheung0125-svg.github.io/GFlyer-updates/coordinates/coordinates.json</string>
 	<key>GFlyerMessageBoardAPIURL</key>

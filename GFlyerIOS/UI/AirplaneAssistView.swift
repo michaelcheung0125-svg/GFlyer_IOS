@@ -193,15 +193,8 @@ struct AirplaneAssistView: View {
         Section {
             Toggle("用捷徑切換飛行模式", isOn: $assist.isAutomationEnabled)
             if assist.isAutomationEnabled {
-                HStack {
-                    Text("捷徑名稱")
-                    Spacer()
-                    TextField("捷徑名稱", text: $assist.shortcutName)
-                        .multilineTextAlignment(.trailing)
-                        .autocorrectionDisabled()
-                        .textInputAutocapitalization(.never)
-                        .frame(maxWidth: 190)
-                }
+                nameField("開啟用", text: $assist.turnOnShortcutName)
+                nameField("關閉用", text: $assist.turnOffShortcutName)
                 Toggle("模擬開始後自動關閉", isOn: $assist.autoDisableAfterStart)
                 if !assist.isShortcutsInstalled {
                     Label("找不到「捷徑」App", systemImage: "exclamationmark.triangle")
@@ -216,20 +209,36 @@ struct AirplaneAssistView: View {
         }
     }
 
+    private func nameField(_ title: String, text: Binding<String>) -> some View {
+        HStack {
+            Text(title)
+            Spacer()
+            TextField("捷徑名稱", text: text)
+                .multilineTextAlignment(.trailing)
+                .autocorrectionDisabled()
+                .textInputAutocapitalization(.never)
+                .frame(maxWidth: 190)
+        }
+    }
+
     // MARK: - 說明
 
     private var helpSection: some View {
-        Section("怎樣建立飛航切換捷徑") {
+        Section("怎樣建立這兩個捷徑") {
+            Text("要建兩個，各自只有一個動作，不需要「如果」也不需要選變數。")
+                .font(.caption)
+                .foregroundStyle(.secondary)
             VStack(alignment: .leading, spacing: 7) {
-                helpLine("1.", "開啟「捷徑」App，新增一個捷徑。")
-                helpLine("2.", "加入動作「如果」，條件設成：捷徑輸入　是　on。")
-                helpLine("3.", "在「如果」裡面加入動作「設定飛航模式」，選開啟。")
-                helpLine("4.", "在「否則」裡面再加一個「設定飛航模式」，選關閉。")
-                helpLine("5.", "把捷徑命名為「\(AirplaneAssistController.defaultShortcutName)」，或改上面的名稱欄位對應。")
-                helpLine("6.", "在捷徑詳細資料關閉「執行前先詢問」，否則每次都要多按一次確認。")
+                helpLine("1.", "開啟「捷徑」App，按右上角 + 新增捷徑。")
+                helpLine("2.", "搜尋並加入動作「設定飛航模式」。")
+                helpLine("3.", "確認它顯示的是「開啟」。")
+                helpLine("4.", "命名為「\(AirplaneAssistController.defaultTurnOnShortcutName)」。")
+                helpLine("5.", "再新增第二個捷徑，同樣加入「設定飛航模式」，這次改成「關閉」。")
+                helpLine("6.", "命名為「\(AirplaneAssistController.defaultTurnOffShortcutName)」。")
+                helpLine("7.", "兩個都在捷徑詳細資料關閉「執行前先詢問」，否則每次要多按一次。")
             }
             .padding(.vertical, 2)
-            Text("GFlyer 會把 on 或 off 當作文字輸入傳給捷徑。iOS 沒有讓 App 直接切換飛行模式的 API，這是唯一可行的做法。")
+            Text("iOS 沒有讓 App 直接切換飛行模式的 API，交給捷徑用它自己的權限執行是唯一可行的做法。")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }

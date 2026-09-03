@@ -10,8 +10,8 @@ import UIKit
 ///
 /// 1. 用 `NWPathMonitor` 判斷目前在 Wi-Fi、行動網絡還是已斷網，讓畫面上的步驟
 ///    自動推進——使用者不必猜「現在可以關掉飛行模式了嗎」。
-/// 2. 對願意多建一個捷徑的人，透過捷徑的「設定飛航模式」動作代為切換，把控制
-///    中心那幾下操作變成 App 內的一個按鈕。
+/// 2. 對願意建捷徑的人，透過捷徑的「設定飛航模式」動作代為切換，把控制中心
+///    那幾下操作變成 App 內的一個按鈕。開與關各一個捷徑，各只有一個動作。
 ///
 /// 沒有建捷徑的人也完全能用，只是第 1、3 步要自己去控制中心切。
 @MainActor
@@ -59,14 +59,25 @@ final class AirplaneAssistController: ObservableObject {
     @Published private(set) var connection: Connection = .unknown
     @Published var lastMessage: String?
     @Published var lastError: String?
-    @Published var shortcutName: String {
+    /// 開啟飛行模式的捷徑名稱。
+    ///
+    /// 開與關分成兩個捷徑，各自只有一個「設定飛航模式」動作。用單一捷徑加
+    /// 「如果」判斷輸入也做得到，但那需要在 If 動作裡先指定 Input 變數再選
+    /// 條件，實測是最容易卡住新手的一步。兩個各一行的捷徑沒有這個問題。
+    @Published var turnOnShortcutName: String {
         didSet {
-            defaults.set(shortcutName.trimmingCharacters(in: .whitespacesAndNewlines), forKey: shortcutNameKey)
+            defaults.set(turnOnShortcutName.trimmingCharacters(in: .whitespacesAndNewlines), forKey: Self.turnOnKey)
+        }
+    }
+    /// 關閉飛行模式的捷徑名稱。
+    @Published var turnOffShortcutName: String {
+        didSet {
+            defaults.set(turnOffShortcutName.trimmingCharacters(in: .whitespacesAndNewlines), forKey: Self.turnOffKey)
         }
     }
     /// 使用者已建立飛航切換捷徑並願意讓 App 呼叫它。
     @Published var isAutomationEnabled: Bool {
-        didSet { defaults.set(isAutomationEnabled, forKey: automationKey) }
+        didSet { defaults.set(isAutomationEnabled, forKey: Self.automationKey) }
     }
     /// 模擬成功開始後自動把飛行模式關回去。
     ///
@@ -74,15 +85,22 @@ final class AirplaneAssistController: ObservableObject {
     /// 現狀由使用者自己關；反過來自動開啟飛行模式若中途出錯，會把人留在斷網
     /// 狀態，所以那一步一律保持手動。
     @Published var autoDisableAfterStart: Bool {
-        didSet { defaults.set(autoDisableAfterStart, forKey: autoDisableKey) }
+        didSet { defaults.set(autoDisableAfterStart, forKey: Self.autoDisableKey) }
     }
 
-    static let defaultShortcutName = "GFlyer 飛航切換"
+    static let defaultTurnOnShortcutName = "GFlyer 飛航開"
+    static let defaultTurnOffShortcutName = "GFlyer 飛航關"
 
     private let defaults: UserDefaults
-    private let shortcutNameKey = "gflyer.airplane-shortcut-name"
-    private let automationKey = "gflyer.airplane-automation-enabled"
-    private let autoDisableKey = "gflyer.airplane-auto-disable"
+    // 這些鍵在 init 裡、其他屬性還沒賦值時就要用到。宣告成 static 就完全不
+    // 牽涉 self，省去初始化階段的取用限制。
+    private static let turnOnKey = "gflyer.airplane-shortcut-on"
+    private static let turnOffKey = "gflyer.airplane-shortcut-off"
+    // 0.6.0 用的是單一捷徑加「如果」判斷。已經建好那個捷徑的人把同一個名稱
+    // 填進兩個欄位仍然可用，所以舊值直接沿用為兩邊的預設。
+    private static let legacyShortcutNameKey = "gflyer.airplane-shortcut-name"
+    private static let automationKey = "gflyer.airplane-automation-enabled"
+    private static let autoDisableKey = "gflyer.airplane-auto-disable"
     // 使用者按過「開始模擬」之後才允許自動關閉，避免任何一次模擬開始都跳去捷徑
     private var isAwaitingAutoDisable = false
     // App 生命週期內都要持續監看，所以不做 cancel；沒有 deinit 是刻意的
@@ -90,11 +108,13 @@ final class AirplaneAssistController: ObservableObject {
 
     init(defaults: UserDefaults = .standard, startsMonitoring: Bool = true) {
         self.defaults = defaults
-        shortcutName = (defaults.string(forKey: shortcutNameKey)?
-            .trimmingCharacters(in: .whitespacesAndNewlines))
-            .flatMap { $0.isEmpty ? nil : $0 } ?? Self.defaultShortcutName
-        isAutomationEnabled = defaults.bool(forKey: automationKey)
-        autoDisableAfterStart = defaults.object(forKey: autoDisableKey) as? Bool ?? true
+        let legacy = Self.storedName(defaults, Self.legacyShortcutNameKey)
+        turnOnShortcutName = Self.storedName(defaults, Self.turnOnKey)
+            ?? legacy ?? Self.defaultTurnOnShortcutName
+        turnOffShortcutName = Self.storedName(defaults, Self.turnOffKey)
+            ?? legacy ?? Self.defaultTurnOffShortcutName
+        isAutomationEnabled = defaults.bool(forKey: Self.automationKey)
+        autoDisableAfterStart = defaults.object(forKey: Self.autoDisableKey) as? Bool ?? true
         guard startsMonitoring else { return }
         monitor.pathUpdateHandler = { [weak self] path in
             let connection = AirplaneAssistController.connection(
@@ -107,6 +127,17 @@ final class AirplaneAssistController: ObservableObject {
         monitor.start(queue: DispatchQueue(label: "com.geopilot.gflyer.airplane-assist"))
     }
 
+    private nonisolated static func storedName(_ defaults: UserDefaults, _ key: String) -> String? {
+        (defaults.string(forKey: key)?.trimmingCharacters(in: .whitespacesAndNewlines))
+            .flatMap { $0.isEmpty ? nil : $0 }
+    }
+
+    /// 這個方向要呼叫的捷徑名稱。
+    func shortcutName(turnOn: Bool) -> String {
+        (turnOn ? turnOnShortcutName : turnOffShortcutName)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
     /// 更新目前連線狀態。正式執行時由 `NWPathMonitor` 呼叫。
     func updateConnection(_ connection: Connection) {
         self.connection = connection
@@ -117,11 +148,12 @@ final class AirplaneAssistController: ObservableObject {
         return UIApplication.shared.canOpenURL(url)
     }
 
-    /// 是否可以用捷徑代切飛行模式。
+    /// 是否可以用捷徑代切飛行模式。兩個方向都要有名稱才算設定完成。
     var isAutomationReady: Bool {
         isAutomationEnabled
             && isShortcutsInstalled
-            && !shortcutName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && !shortcutName(turnOn: true).isEmpty
+            && !shortcutName(turnOn: false).isEmpty
     }
 
     func step(isSimulating: Bool) -> Step {
@@ -149,7 +181,11 @@ final class AirplaneAssistController: ObservableObject {
 
     // MARK: - 切換
 
-    /// 呼叫捷徑切換飛行模式。捷徑會收到 `on` 或 `off` 作為文字輸入。
+    /// 呼叫對應方向的捷徑。
+    ///
+    /// 仍然會把 `on` / `off` 當作文字輸入傳過去。單一動作的捷徑會忽略它，但
+    /// 這讓 0.6.0 那種用「如果」判斷輸入的單一捷徑繼續可用——把同一個名稱填
+    /// 進兩個欄位即可。
     func setAirplaneMode(_ turnOn: Bool, application: UIApplication = .shared) {
         lastError = nil
         lastMessage = nil
@@ -157,9 +193,11 @@ final class AirplaneAssistController: ObservableObject {
             lastError = "找不到「捷徑」App，請先從 App Store 安裝。"
             return
         }
-        let name = shortcutName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let name = shortcutName(turnOn: turnOn)
         guard !name.isEmpty else {
-            lastError = "請先填寫飛航切換捷徑的名稱。"
+            lastError = turnOn
+                ? "請先填寫「開啟飛行模式」捷徑的名稱。"
+                : "請先填寫「關閉飛行模式」捷徑的名稱。"
             return
         }
         guard let url = Self.airplaneShortcutURL(name: name, turnOn: turnOn) else {

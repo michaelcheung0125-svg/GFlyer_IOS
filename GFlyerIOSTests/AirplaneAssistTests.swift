@@ -151,17 +151,50 @@ final class AirplaneAssistTests: XCTestCase {
         let (defaults, suite) = makeDefaults()
         defer { defaults.removePersistentDomain(forName: suite) }
         let assist = makeController(defaults)
-        XCTAssertEqual(assist.shortcutName, AirplaneAssistController.defaultShortcutName)
+        XCTAssertEqual(assist.turnOnShortcutName, AirplaneAssistController.defaultTurnOnShortcutName)
+        XCTAssertEqual(assist.turnOffShortcutName, AirplaneAssistController.defaultTurnOffShortcutName)
         XCTAssertFalse(assist.isAutomationEnabled, "預設不啟用：使用者要先自己建好捷徑")
         XCTAssertTrue(assist.autoDisableAfterStart)
 
-        assist.shortcutName = "我的飛航切換"
+        assist.turnOnShortcutName = "我的飛航開"
+        assist.turnOffShortcutName = "我的飛航關"
         assist.isAutomationEnabled = true
         assist.autoDisableAfterStart = false
 
         let restored = makeController(defaults)
-        XCTAssertEqual(restored.shortcutName, "我的飛航切換")
+        XCTAssertEqual(restored.turnOnShortcutName, "我的飛航開")
+        XCTAssertEqual(restored.turnOffShortcutName, "我的飛航關")
+        XCTAssertEqual(restored.shortcutName(turnOn: true), "我的飛航開")
+        XCTAssertEqual(restored.shortcutName(turnOn: false), "我的飛航關")
         XCTAssertTrue(restored.isAutomationEnabled)
         XCTAssertFalse(restored.autoDisableAfterStart)
+    }
+
+    /// 0.6.0 用單一捷徑加「如果」判斷。已經建好的人升級後不該被要求重建：
+    /// 同一個名稱填進兩個方向，那個捷徑照樣能處理開與關。
+    func testLegacySingleShortcutNameMigratesToBothDirections() {
+        let (defaults, suite) = makeDefaults()
+        defer { defaults.removePersistentDomain(forName: suite) }
+        defaults.set("GFlyer 飛航切換", forKey: "gflyer.airplane-shortcut-name")
+
+        let assist = makeController(defaults)
+        XCTAssertEqual(assist.shortcutName(turnOn: true), "GFlyer 飛航切換")
+        XCTAssertEqual(assist.shortcutName(turnOn: false), "GFlyer 飛航切換")
+
+        // 之後個別改過的名稱要蓋過舊值
+        assist.turnOffShortcutName = "只改關閉"
+        let restored = makeController(defaults)
+        XCTAssertEqual(restored.shortcutName(turnOn: true), "GFlyer 飛航切換")
+        XCTAssertEqual(restored.shortcutName(turnOn: false), "只改關閉")
+    }
+
+    func testBlankNameIsNotTreatedAsConfigured() {
+        let (defaults, suite) = makeDefaults()
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let assist = makeController(defaults)
+        assist.isAutomationEnabled = true
+        assist.turnOffShortcutName = "   "
+        XCTAssertEqual(assist.shortcutName(turnOn: false), "")
+        XCTAssertFalse(assist.isAutomationReady, "少一個方向就不算設定完成")
     }
 }
