@@ -101,6 +101,10 @@ it as an `ios-v<version>` release in the public `GFlyer-updates` repository,
 regenerate `altstore.json` with `scripts/update_altstore_source.py`, verify
 the live source and download URL, then record the version in `HANDOFF.md`.
 
+The two optional Shortcuts (step logging and the airplane toggle) are
+documented in [docs/SHORTCUTS.md](docs/SHORTCUTS.md), including why each one
+has to be a Shortcut rather than app code.
+
 Solved problems are logged case by case in
 [docs/TROUBLESHOOTING_CASES.md](docs/TROUBLESHOOTING_CASES.md), including the
 exact error strings, what actually fixed each one, and which attempts did not

@@ -515,7 +515,7 @@ private struct MapToolBar: View {
         return mapButton(
             "figure.walk",
             label: isReady ? "補錄 \(stepRecorder.quickStepCount) 步" : "設定補錄步數",
-            tint: isReady ? nil : .secondary
+            tint: isReady ? nil : Color.secondary
         ) {
             guard isReady else {
                 showStepRecorder = true
@@ -532,7 +532,7 @@ private struct MapToolBar: View {
         mapButton(
             "airplane",
             label: "飛航模式輔助",
-            tint: airplaneAssist.connection.needsAssist ? .orange : nil
+            tint: airplaneAssist.connection.needsAssist ? Color.orange : nil
         ) {
             showAirplaneAssist = true
         }

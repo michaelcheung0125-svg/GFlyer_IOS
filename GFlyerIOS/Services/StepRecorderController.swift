@@ -20,10 +20,19 @@ final class StepRecorderController: ObservableObject {
         }
     }
     /// 地圖工具列上一鍵補錄要送出的步數。
+    ///
+    /// 夾住範圍時必須先比對再指派。一般儲存屬性在自己的 `didSet` 裡指派不會
+    /// 再次觸發觀察者，但 `@Published` 會把屬性轉成經過 property wrapper 的
+    /// 計算屬性，指派會重新進入 setter——少了這個相等判斷就是無限遞迴，測試
+    /// 會直接堆疊溢位崩潰而不是斷言失敗。
     @Published var quickStepCount: Int {
         didSet {
-            quickStepCount = StepRecordHistory.clampSteps(quickStepCount)
-            defaults.set(quickStepCount, forKey: quickStepKey)
+            let clamped = StepRecordHistory.clampSteps(quickStepCount)
+            guard clamped == quickStepCount else {
+                quickStepCount = clamped
+                return
+            }
+            defaults.set(clamped, forKey: quickStepKey)
         }
     }
     /// 捷徑是否曾經成功回報過一次。
