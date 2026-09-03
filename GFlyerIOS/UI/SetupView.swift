@@ -29,6 +29,7 @@ struct SetupView: View {
     @Environment(\.openURL) private var openURL
     @ObservedObject var controller: SimulationController
     @ObservedObject var updateChecker: AppUpdateChecker
+    @ObservedObject var stepRecorder: StepRecorderController
     @ObservedObject private var pairingStore: PairingFileStore
     @ObservedObject private var deviceLocation: DeviceLocationService
     @State private var showImporter = false
@@ -45,11 +46,17 @@ struct SetupView: View {
     @State private var pendingBackupData: Data?
     @State private var transferSummary: String?
     @State private var forceClearMessage: String?
+    @State private var showStepRecorder = false
     @State private var isForceClearing = false
 
-    init(controller: SimulationController, updateChecker: AppUpdateChecker) {
+    init(
+        controller: SimulationController,
+        updateChecker: AppUpdateChecker,
+        stepRecorder: StepRecorderController
+    ) {
         self.controller = controller
         self.updateChecker = updateChecker
+        self.stepRecorder = stepRecorder
         _pairingStore = ObservedObject(wrappedValue: controller.pairingStore)
         _deviceLocation = ObservedObject(wrappedValue: controller.deviceLocation)
     }
@@ -88,6 +95,9 @@ struct SetupView: View {
                     Button("確定", role: .cancel) { transferSummary = nil }
                 } message: {
                     Text(transferSummary ?? "")
+                }
+                .sheet(isPresented: $showStepRecorder) {
+                    StepRecorderView(recorder: stepRecorder)
                 }
                 .alert("清除結果", isPresented: binding(for: $forceClearMessage)) {
                     Button("確定", role: .cancel) { forceClearMessage = nil }
@@ -173,6 +183,7 @@ struct SetupView: View {
             playbackSection
             orbitRadiusSection
             softwareUpdateSection
+            stepRecorderSection
             transferSection
             instructionsSection
             if controller.canControlDeviceLocation { recoverySection }
@@ -408,6 +419,25 @@ struct SetupView: View {
                 }
             }
             Text("GFlyer 不能自行安裝 IPA，更新一律交給 SideStore 或 AltStore 下載並用你的 Apple ID 重新簽名。免費 Apple ID 的簽名仍然每 7 天到期。")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private var stepRecorderSection: some View {
+        Section("補錄步數") {
+            Button {
+                showStepRecorder = true
+            } label: {
+                LabeledContent {
+                    Text("今天 \(stepRecorder.todaySteps) 步")
+                        .font(.caption.monospacedDigit())
+                        .foregroundStyle(.secondary)
+                } label: {
+                    Label("補錄步數", systemImage: "figure.walk")
+                }
+            }
+            Text("透過你自建的「捷徑」把步數寫入健康 App，GFlyer 本身不需要健康權限。")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }

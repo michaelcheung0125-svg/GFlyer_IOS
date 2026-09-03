@@ -26,6 +26,10 @@ This is a separate SwiftUI prototype for personal sideloading. It does not modif
   with favorites, visit reminders, and anonymous stale-data reports; unlike
   Android there is no bundled seed, so the first load needs network access
 - Interrupted-session snapshots with a relaunch resume prompt (10-minute window)
+- Manual step logging through a user-supplied Shortcut, with 1000/3000/5000
+  presets, a custom amount, and a seven-day history. GFlyer never touches
+  HealthKit itself, because a free Apple ID cannot carry that entitlement, so
+  the feature works on free and paid signing alike
 - Private message board shared with GFlyer Android for coordinates, routes,
   announcements, replies, tags, pinning, expiry, and member administration
 - Pairing-file import and protected local storage

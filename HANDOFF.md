@@ -87,6 +87,18 @@ C:\Project\GFlyer
   - `0.4.0 (6)` 已發佈到公開的 `GFlyer-updates`（release `ios-v0.4.0`）並
     確認可以從 SideStore 來源安裝到實機。來源檔必須維持舊版 AltStore 扁平
     格式，細節見 `docs/ALTSTORE_DISTRIBUTION.md`
+- `0.5.0 (12)`：補錄步數（對應 Android 的 Health Connect 補錄）。
+  - **不使用 HealthKit**：免費 Apple ID 拿不到 HealthKit entitlement，
+    SideStore 重簽時會被剝離（已查證）。改為呼叫使用者自建的「捷徑」，由
+    捷徑用它自己的權限寫入健康 App，因此免費與付費帳號都能用。
+    **不要改成 App 直接寫 HealthKit**，那會讓免費使用者完全不能用。
+  - `shortcuts://x-callback-url/run-shortcut`，巢狀回呼網址必須逐字元編碼
+    （`?`、`&`、`=` 未編碼會被外層網址吃掉，有測試守著）。
+  - 回呼 `gflyer://steps/done|failed?id=` 由 `GFlyerIOSApp.onOpenURL` 接住，
+    需要 Info.plist 的 `CFBundleURLTypes` 宣告 `gflyer` scheme。
+  - 只保留最近七天紀錄；合計只計入捷徑回報成功者。GFlyer 讀不到健康資料，
+    所以介面明講這是「送出的補錄」而不是健康 App 的實際步數。
+  - 不做 Android 那套時間區間分配（使用者指定只需單次寫入）。
 - `0.4.5 (11)`：完整清除改為「驗證＋指引」設計。**實機確認**：清除並拆掉
   session 後，需要開關一次飛行模式，其他 App 才會回到真實位置——指引內容
   與實測相符。發佈流程自此統一寫在 `docs/RELEASE_PROCESS.md`。**實機發現**：即使拆掉模擬

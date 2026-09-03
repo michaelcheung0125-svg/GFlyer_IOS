@@ -7,6 +7,7 @@ struct MainView: View {
     @ObservedObject var messageBoard: MessageBoardController
     @ObservedObject var coordinateLibrary: CoordinateLibraryController
     @ObservedObject var updateChecker: AppUpdateChecker
+    @ObservedObject var stepRecorder: StepRecorderController
     @State private var position: MapCameraPosition = .region(
         MKCoordinateRegion(
             center: CLLocationCoordinate2D(latitude: 22.3193, longitude: 114.1694),
@@ -78,7 +79,11 @@ struct MainView: View {
     private var contentWithSheets: some View {
         contentWithChrome
             .sheet(isPresented: $showSetup) {
-                SetupView(controller: controller, updateChecker: updateChecker)
+                SetupView(
+                    controller: controller,
+                    updateChecker: updateChecker,
+                    stepRecorder: stepRecorder
+                )
             }
             .sheet(isPresented: $showFavorites) { SavedPlacesView(controller: controller) }
             .sheet(isPresented: $showRoutes) { SavedRoutesView(controller: controller) }
