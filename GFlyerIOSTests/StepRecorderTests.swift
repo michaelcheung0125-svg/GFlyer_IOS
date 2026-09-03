@@ -56,7 +56,7 @@ final class StepRecorderTests: XCTestCase {
         let failed = try XCTUnwrap(URL(string: "gflyer://steps/failed?id=\(failedEntry.id.uuidString)"))
         XCTAssertTrue(recorder.handleCallback(failed))
         XCTAssertEqual(recorder.entries.first?.status, .failed)
-        XCTAssertEqual(recorder.todaySteps, 0)
+        XCTAssertEqual(recorder.todaySteps, 1_000, "失敗的 500 步不計入，先前確認的 1000 步仍保留")
     }
 
     func testCallbackIgnoresUnrelatedURLs() throws {
