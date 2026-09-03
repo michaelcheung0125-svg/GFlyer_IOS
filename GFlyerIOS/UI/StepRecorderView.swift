@@ -5,12 +5,15 @@ struct StepRecorderView: View {
     @ObservedObject var recorder: StepRecorderController
     @State private var showCustomPrompt = false
     @State private var customSteps = "2000"
+    @State private var showQuickCustomPrompt = false
+    @State private var quickCustomSteps = ""
     @State private var showClearConfirm = false
 
     var body: some View {
         NavigationStack {
             Form {
                 recordSection
+                quickSection
                 historySection
                 shortcutSection
                 helpSection
@@ -33,6 +36,18 @@ struct StepRecorderView: View {
                 Button("取消", role: .cancel) { }
             } message: {
                 Text("可輸入 \(StepRecordHistory.minimumSteps) 至 \(StepRecordHistory.maximumSteps) 之間的步數。")
+            }
+            .alert("一鍵補錄步數", isPresented: $showQuickCustomPrompt) {
+                TextField("步數", text: $quickCustomSteps)
+                    .keyboardType(.numberPad)
+                Button("設定") {
+                    if let steps = Int(quickCustomSteps.trimmingCharacters(in: .whitespaces)) {
+                        recorder.quickStepCount = steps
+                    }
+                }
+                Button("取消", role: .cancel) { }
+            } message: {
+                Text("設定地圖工具列上那個按鈕每次補錄的步數。")
             }
             .alert("清除紀錄", isPresented: $showClearConfirm) {
                 Button("清除", role: .destructive) { recorder.clearHistory() }
@@ -92,6 +107,51 @@ struct StepRecorderView: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
+    }
+
+    // MARK: - 一鍵補錄
+
+    /// 地圖工具列那個按鈕的設定。
+    private var quickSection: some View {
+        Section {
+            Picker("每次補錄", selection: $recorder.quickStepCount) {
+                ForEach(quickChoices, id: \.self) { steps in
+                    Text("\(steps)").tag(steps)
+                }
+            }
+            .pickerStyle(.segmented)
+            Button {
+                quickCustomSteps = String(recorder.quickStepCount)
+                showQuickCustomPrompt = true
+            } label: {
+                Label("自訂步數", systemImage: "slider.horizontal.3")
+            }
+            LabeledContent("狀態") {
+                if recorder.isQuickRecordReady {
+                    Label("可用", systemImage: "checkmark.circle.fill")
+                        .foregroundStyle(.green)
+                } else {
+                    Label("尚未驗證", systemImage: "exclamationmark.circle")
+                        .foregroundStyle(.orange)
+                }
+            }
+        } header: {
+            Text("地圖上的一鍵補錄")
+        } footer: {
+            Text(recorder.isQuickRecordReady
+                 ? "地圖右側的步行圖示按鈕會直接補錄 \(recorder.quickStepCount) 步，不用再進來這一頁。"
+                 : "捷徑成功寫入一次之後，地圖右側的步行圖示按鈕就會變成一鍵補錄；在那之前按它會回到這一頁。")
+        }
+    }
+
+    /// 預設值加上目前的自訂值，避免自訂之後 Picker 找不到對應選項。
+    private var quickChoices: [Int] {
+        var choices = StepRecordHistory.presetStepCounts
+        if !choices.contains(recorder.quickStepCount) {
+            choices.append(recorder.quickStepCount)
+            choices.sort()
+        }
+        return choices
     }
 
     // MARK: - 七天紀錄

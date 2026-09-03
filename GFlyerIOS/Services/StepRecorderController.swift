@@ -19,26 +19,52 @@ final class StepRecorderController: ObservableObject {
             defaults.set(trimmed, forKey: shortcutNameKey)
         }
     }
+    /// 地圖工具列上一鍵補錄要送出的步數。
+    @Published var quickStepCount: Int {
+        didSet {
+            quickStepCount = StepRecordHistory.clampSteps(quickStepCount)
+            defaults.set(quickStepCount, forKey: quickStepKey)
+        }
+    }
+    /// 捷徑是否曾經成功回報過一次。
+    ///
+    /// 這是唯一能確定「捷徑名稱正確、捷徑內容可用、回呼有接上」的訊號，所以
+    /// 拿它當作設定完成的判準：在此之前工具列的按鈕改為帶使用者去設定頁。
+    /// 紀錄只留七天，這個旗標則要長期保存，因此獨立存放而非從 entries 推導。
+    @Published private(set) var isShortcutVerified: Bool
 
     static let defaultShortcutName = "GFlyer 補錄步數"
+    static let defaultQuickStepCount = 1_000
     /// x-callback-url 回呼用的自訂 scheme，需與 Info.plist 的 CFBundleURLTypes 一致。
-    static let callbackScheme = "gflyer"
+    static let callbackScheme = ShortcutBridge.callbackScheme
 
     private let defaults: UserDefaults
     private let entriesKey = "gflyer.step-records.v1"
     private let shortcutNameKey = "gflyer.step-shortcut-name"
+    private let quickStepKey = "gflyer.step-quick-count"
+    private let verifiedKey = "gflyer.step-shortcut-verified"
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
         shortcutName = (defaults.string(forKey: shortcutNameKey)?
             .trimmingCharacters(in: .whitespacesAndNewlines))
             .flatMap { $0.isEmpty ? nil : $0 } ?? Self.defaultShortcutName
+        let storedQuick = defaults.integer(forKey: quickStepKey)
+        quickStepCount = storedQuick > 0
+            ? StepRecordHistory.clampSteps(storedQuick)
+            : Self.defaultQuickStepCount
+        isShortcutVerified = defaults.bool(forKey: verifiedKey)
         entries = StepRecordHistory.pruned(loadEntries())
     }
 
     var isShortcutsInstalled: Bool {
         guard let url = URL(string: "shortcuts://") else { return false }
         return UIApplication.shared.canOpenURL(url)
+    }
+
+    /// 工具列的一鍵補錄是否可用。尚未驗證過時按鈕要引導去設定，不要直接送出。
+    var isQuickRecordReady: Bool {
+        isShortcutsInstalled && isShortcutVerified
     }
 
     var days: [StepRecordDay] {
@@ -109,6 +135,10 @@ final class StepRecorderController: ObservableObject {
         switch action {
         case "done":
             if let id { updateStatus(id: id, to: .confirmed) }
+            if !isShortcutVerified {
+                isShortcutVerified = true
+                defaults.set(true, forKey: verifiedKey)
+            }
             let steps = id.flatMap { target in entries.first(where: { $0.id == target })?.steps }
             lastMessage = steps.map { "已透過捷徑寫入 \($0) 步。" } ?? "捷徑已完成寫入。"
         case "failed":
@@ -151,23 +181,11 @@ final class StepRecorderController: ObservableObject {
 
     /// 用 x-callback-url 呼叫捷徑：捷徑跑完會回到 GFlyer，讓紀錄能標成已寫入。
     static func runShortcutURL(name: String, steps: Int, entryID: UUID) -> URL? {
-        let success = "\(callbackScheme)://steps/done?id=\(entryID.uuidString)"
-        let failure = "\(callbackScheme)://steps/failed?id=\(entryID.uuidString)"
-        let query = [
-            "name=\(escape(name))",
-            "input=text",
-            "text=\(steps)",
-            "x-success=\(escape(success))",
-            "x-error=\(escape(failure))",
-        ].joined(separator: "&")
-        return URL(string: "shortcuts://x-callback-url/run-shortcut?\(query)")
-    }
-
-    /// 逐字元編碼：巢狀網址裡的 `?`、`&`、`=` 一定要編碼，否則會被外層網址吃掉。
-    private static func escape(_ value: String) -> String {
-        let allowed = CharacterSet(
-            charactersIn: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~"
+        ShortcutBridge.runShortcutURL(
+            name: name,
+            text: String(steps),
+            success: "\(callbackScheme)://steps/done?id=\(entryID.uuidString)",
+            failure: "\(callbackScheme)://steps/failed?id=\(entryID.uuidString)"
         )
-        return value.addingPercentEncoding(withAllowedCharacters: allowed) ?? value
     }
 }

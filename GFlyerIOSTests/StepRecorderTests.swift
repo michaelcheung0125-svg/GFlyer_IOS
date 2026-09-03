@@ -119,6 +119,41 @@ final class StepRecorderTests: XCTestCase {
         XCTAssertEqual(StepRecordHistory.presetStepCounts, [1_000, 3_000, 5_000])
     }
 
+    // MARK: - 一鍵補錄
+
+    func testShortcutIsVerifiedOnlyAfterASuccessfulCallback() throws {
+        let (defaults, suite) = makeDefaults()
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let recorder = StepRecorderController(defaults: defaults)
+        XCTAssertFalse(recorder.isShortcutVerified, "還沒跑過捷徑時工具列不該直接送出")
+
+        let failedEntry = try XCTUnwrap(recorder.prepareRecord(steps: 1_000)).entry
+        let failed = try XCTUnwrap(URL(string: "gflyer://steps/failed?id=\(failedEntry.id.uuidString)"))
+        recorder.handleCallback(failed)
+        XCTAssertFalse(recorder.isShortcutVerified, "捷徑回報失敗不算設定完成")
+
+        let entry = try XCTUnwrap(recorder.prepareRecord(steps: 1_000)).entry
+        let done = try XCTUnwrap(URL(string: "gflyer://steps/done?id=\(entry.id.uuidString)"))
+        recorder.handleCallback(done)
+        XCTAssertTrue(recorder.isShortcutVerified)
+
+        // 紀錄只留七天，但驗證旗標不該跟著過期
+        XCTAssertTrue(StepRecorderController(defaults: defaults).isShortcutVerified)
+    }
+
+    func testQuickStepCountDefaultsClampsAndPersists() {
+        let (defaults, suite) = makeDefaults()
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let recorder = StepRecorderController(defaults: defaults)
+        XCTAssertEqual(recorder.quickStepCount, StepRecorderController.defaultQuickStepCount)
+
+        recorder.quickStepCount = 999_999
+        XCTAssertEqual(recorder.quickStepCount, StepRecordHistory.maximumSteps, "超出上限要夾住")
+
+        recorder.quickStepCount = 2_500
+        XCTAssertEqual(StepRecorderController(defaults: defaults).quickStepCount, 2_500)
+    }
+
     // MARK: - 保存
 
     func testEntriesAndShortcutNameSurviveRelaunch() throws {

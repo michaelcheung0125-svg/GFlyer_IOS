@@ -8,6 +8,7 @@ struct MainView: View {
     @ObservedObject var coordinateLibrary: CoordinateLibraryController
     @ObservedObject var updateChecker: AppUpdateChecker
     @ObservedObject var stepRecorder: StepRecorderController
+    @ObservedObject var airplaneAssist: AirplaneAssistController
     @State private var position: MapCameraPosition = .region(
         MKCoordinateRegion(
             center: CLLocationCoordinate2D(latitude: 22.3193, longitude: 114.1694),
@@ -21,6 +22,8 @@ struct MainView: View {
     @State private var showMessageBoard = false
     @State private var showBoardShare = false
     @State private var showLibrary = false
+    @State private var showStepRecorder = false
+    @State private var showAirplaneAssist = false
     @State private var isPanelExpanded = true
     @State private var suppressNextRecenter = false
     @State private var feedbackMessage: String?
@@ -96,6 +99,10 @@ struct MainView: View {
             .sheet(isPresented: $showLibrary) {
                 CoordinateLibraryView(library: coordinateLibrary, simulation: controller)
             }
+            .sheet(isPresented: $showStepRecorder) { StepRecorderView(recorder: stepRecorder) }
+            .sheet(isPresented: $showAirplaneAssist) {
+                AirplaneAssistView(assist: airplaneAssist, simulation: controller)
+            }
     }
 
     private var contentWithChrome: some View {
@@ -121,6 +128,18 @@ struct MainView: View {
             }
             .onChange(of: isPanelExpanded) { _, expanded in
                 if expanded { showJoystick = false }
+            }
+            // 工具列的一鍵補錄不會開啟補錄畫面，結果要在主畫面回報。開著補錄
+            // 畫面時交給它自己的 alert，這裡不重複顯示。
+            .onChange(of: stepRecorder.lastMessage) { _, message in
+                guard let message, !showStepRecorder else { return }
+                announce(message)
+                stepRecorder.lastMessage = nil
+            }
+            .onChange(of: stepRecorder.lastError) { _, error in
+                guard let error, !showStepRecorder else { return }
+                controller.lastError = error
+                stepRecorder.lastError = nil
             }
             .overlay(alignment: .top) { feedbackOverlay }
     }
@@ -199,12 +218,16 @@ struct MainView: View {
                     Spacer()
                     MapToolBar(
                         controller: controller,
+                        stepRecorder: stepRecorder,
+                        airplaneAssist: airplaneAssist,
                         showJoystick: $showJoystick,
                         isPanelExpanded: $isPanelExpanded,
                         showFavorites: $showFavorites,
                         showRoutes: $showRoutes,
                         showBoardShare: $showBoardShare,
                         showLibrary: $showLibrary,
+                        showStepRecorder: $showStepRecorder,
+                        showAirplaneAssist: $showAirplaneAssist,
                         position: $position,
                         cameraDistance: $cameraDistance,
                         onLocate: locateCurrentPosition,
@@ -429,12 +452,16 @@ private struct SearchBar: View {
 
 private struct MapToolBar: View {
     @ObservedObject var controller: SimulationController
+    @ObservedObject var stepRecorder: StepRecorderController
+    @ObservedObject var airplaneAssist: AirplaneAssistController
     @Binding var showJoystick: Bool
     @Binding var isPanelExpanded: Bool
     @Binding var showFavorites: Bool
     @Binding var showRoutes: Bool
     @Binding var showBoardShare: Bool
     @Binding var showLibrary: Bool
+    @Binding var showStepRecorder: Bool
+    @Binding var showAirplaneAssist: Bool
     @Binding var position: MapCameraPosition
     @Binding var cameraDistance: CLLocationDistance
     let onLocate: () -> Void
@@ -467,6 +494,10 @@ private struct MapToolBar: View {
             }
             HStack(spacing: 4) {
                 mapButton("books.vertical", label: "座標圖鑑") { showLibrary = true }
+                stepRecordButton
+            }
+            HStack(spacing: 4) {
+                airplaneAssistButton
             }
         }
         .padding(6)
@@ -477,9 +508,46 @@ private struct MapToolBar: View {
         .contentShape(RoundedRectangle(cornerRadius: 8))
     }
 
-    private func mapButton(_ icon: String, label: String, action: @escaping () -> Void) -> some View {
+    /// 一鍵補錄。捷徑還沒成功跑過一次時不直接送出，改為帶使用者去設定頁——
+    /// 在那之前送出只會開啟一個找不到的捷徑，使用者也不知道要去哪裡修。
+    private var stepRecordButton: some View {
+        let isReady = stepRecorder.isQuickRecordReady
+        return mapButton(
+            "figure.walk",
+            label: isReady ? "補錄 \(stepRecorder.quickStepCount) 步" : "設定補錄步數",
+            tint: isReady ? nil : .secondary
+        ) {
+            guard isReady else {
+                showStepRecorder = true
+                return
+            }
+            let steps = stepRecorder.quickStepCount
+            stepRecorder.record(steps: steps)
+            onFeedback("正在用捷徑補錄 \(steps) 步")
+        }
+    }
+
+    /// 行動網絡下才需要飛航模式那串操作，所以只在偵測到行動網絡時強調它。
+    private var airplaneAssistButton: some View {
+        mapButton(
+            "airplane",
+            label: "飛航模式輔助",
+            tint: airplaneAssist.connection.needsAssist ? .orange : nil
+        ) {
+            showAirplaneAssist = true
+        }
+    }
+
+    private func mapButton(
+        _ icon: String,
+        label: String,
+        tint: Color? = nil,
+        action: @escaping () -> Void
+    ) -> some View {
         Button(action: action) {
             Image(systemName: icon)
+                // .plain 的按鈕不會自動上 accent 色，所以未指定時維持原本的 primary
+                .foregroundStyle(tint ?? Color.primary)
                 .frame(width: 40, height: 40)
                 // 沒有這行時，可點區域只有圖示筆畫本身而不是整個方框
                 .contentShape(Rectangle())

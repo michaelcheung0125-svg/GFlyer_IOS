@@ -29,7 +29,16 @@ This is a separate SwiftUI prototype for personal sideloading. It does not modif
 - Manual step logging through a user-supplied Shortcut, with 1000/3000/5000
   presets, a custom amount, and a seven-day history. GFlyer never touches
   HealthKit itself, because a free Apple ID cannot carry that entitlement, so
-  the feature works on free and paid signing alike
+  the feature works on free and paid signing alike. A map-toolbar button logs
+  a configurable amount in one tap once the Shortcut has succeeded at least
+  once; before that it opens the setup screen instead of firing a Shortcut
+  that may not exist
+- Airplane-mode assistant for cellular users. Simulation is more reliable when
+  the tunnel is built with the radio off, so the app watches `NWPathMonitor`,
+  tells the user which of the three steps they are on, and advances by itself
+  when airplane mode is toggled from Control Center. iOS exposes no API for an
+  app to toggle airplane mode, so an optional user-supplied Shortcut does the
+  switching; only turning it back **off** is ever automatic
 - Private message board shared with GFlyer Android for coordinates, routes,
   announcements, replies, tags, pinning, expiry, and member administration
 - Pairing-file import and protected local storage
@@ -55,6 +64,9 @@ passed both macOS CI jobs in
 38 simulator unit tests with 0 failures, plus the unsigned arm64 device
 archive and IPA. Personal signing, target-iPhone regression, and live
 Android/iOS backup interoperability remain separate validation gates.
+
+Version `0.6.0 (13)` adds the one-tap step button and the airplane-mode
+assistant described above.
 
 Version `0.4.0 (6)` added the in-app update check, and `0.4.1`-`0.4.5` were
 verified on the target iPhone through the SideStore source: install, in-app
