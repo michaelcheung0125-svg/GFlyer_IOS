@@ -55,7 +55,25 @@ gh run watch <run-id> --repo michaelcheung0125-svg/GFlyer_IOS --exit-status
 
 CI 是唯一的編譯驗證。兩個 job：`Preview scheme tests`（Simulator 單元測試）
 與 `Idevice unsigned archive`（arm64 IPA）。失敗時先修編譯錯誤，不要改測試
-遷就。純文件改動在 commit 訊息加 `[skip ci]`。
+遷就。純文件改動在 commit 訊息加 `[skip ci]`（workflow 也設了 `paths-ignore`，
+只動 `**/*.md`、`docs/**` 的 commit 會自動跳過）。
+
+#### CI 成本（改任何觸發條件前先讀）
+
+這兩個 job 跑在 `macos-15`，而**私有 repo 的 macOS runner 是 10 倍計費**：實測
+每次 push 約 8.6 分鐘實際執行時間，會扣掉 60–80 分鐘的 included 額度（超額後
+約 US$0.5）。2026-09 那個週期 21 次 push 就用掉 1,810 / 2,000 分鐘。
+
+已做的優化：`libidevice_ffi.a` 依釘死的 commit 與 iOS SDK 版本快取（省掉每次
+96 秒的 Rust 編譯）、`COMPILER_INDEX_STORE_ENABLE=NO`、文件改動不觸發。
+
+刻意沒做的兩件事：
+
+- **不快取 DerivedData。** 每次 push 的原始碼都不同，用精確的 key 必定 miss；
+  用更粗的 key 則有拿到舊物的風險，而這個專案已經被「編譯成功但產物不完整」
+  咬過一次（0.4.0 之前缺整個資產目錄）。
+- **不合併兩個 job。** 加了快取之後 archive 只剩約 1.4 分鐘，合併省下的重複
+  setup 剛好被小 job 的分鐘進位抵銷，卻要損失並行與較快的測試回饋。
 
 ### 3. 下載 artifact 並「拆開驗證」（必做）
 

@@ -1,7 +1,18 @@
 name: macOS Xcode validation
 
+# 這個 workflow 跑在 macos-15 上，而私有 repo 的 macOS runner 是 10 倍計費：
+# 每次 push 大約吃掉 60-80 分鐘的 included 額度。所以每一步都要問「這一分鐘
+# 買到什麼」。目前的取捨記在 docs/RELEASE_PROCESS.md 的 CI 段落。
 on:
   push:
+    # 純文件改動不需要編譯。commit 訊息的 [skip ci] 仍然有效，這裡是自動化
+    # 的第二道防線，免得忘記加。只要 commit 有動到任何一個非文件檔案，
+    # paths-ignore 就不會生效，CI 照跑。
+    paths-ignore:
+      - '**/*.md'
+      - 'docs/**'
+      - '.gitignore'
+      - 'LICENSE'
   pull_request:
   workflow_dispatch:
 
@@ -57,7 +68,8 @@ jobs:
             -scheme GFlyerIOS \
             -destination "platform=iOS Simulator,id=${{ steps.simulator.outputs.id }}" \
             -derivedDataPath "$RUNNER_TEMP/GFlyerIOS-DerivedData" \
-            CODE_SIGNING_ALLOWED=NO
+            CODE_SIGNING_ALLOWED=NO \
+            COMPILER_INDEX_STORE_ENABLE=NO
 
   idevice-archive:
     name: Idevice unsigned archive
@@ -70,12 +82,34 @@ jobs:
       - name: Install build tools
         run: brew install xcodegen
 
+      # build_idevice.sh 用 --sysroot=$(xcrun --sdk iphoneos --show-sdk-path) 產生
+      # bindgen 綁定，所以編出來的 .a 綁在某個 iOS SDK 版本上。把 SDK 版本放進
+      # 快取 key，runner image 換 Xcode 時就會自動重建，不會拿到對不上的舊檔。
+      - name: Read the iOS SDK version for the cache key
+        id: toolchain
+        run: echo "sdk=$(xcrun --sdk iphoneos --show-sdk-version)" >> "$GITHUB_OUTPUT"
+
+      # idevice 的 commit 在 scripts/build_idevice.sh 裡是釘死的，所以只要腳本
+      # 和 SDK 都沒變，libidevice_ffi.a 就是同一份，可以直接重用——這一步原本
+      # 每次固定燒 96 秒的 Rust 編譯。
+      #
+      # 要強制重建：改 build_idevice.sh（例如換 IDEVICE_REVISION），或在下面的
+      # key 前面加一個版本號（例如 idevice-v2-）。
+      - name: Restore the prebuilt idevice library
+        id: idevice-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: GFlyerIOS/Vendor/idevice
+          key: idevice-ios${{ steps.toolchain.outputs.sdk }}-${{ hashFiles('scripts/build_idevice.sh') }}
+
       - name: Install Rust
+        if: steps.idevice-cache.outputs.cache-hit != 'true'
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: aarch64-apple-ios
 
       - name: Cache Rust dependencies
+        if: steps.idevice-cache.outputs.cache-hit != 'true'
         uses: actions/cache@v4
         with:
           path: |
@@ -84,9 +118,36 @@ jobs:
           key: ${{ runner.os }}-idevice-${{ hashFiles('scripts/build_idevice.sh') }}
 
       - name: Build pinned idevice library
+        if: steps.idevice-cache.outputs.cache-hit != 'true'
         run: |
           chmod +x scripts/build_idevice.sh
           ./scripts/build_idevice.sh
+
+      # 兩條路徑都要驗：快取命中時檢查還原出來的內容，重新建置時擋住不完整的
+      # 產物進快取。少了任何一個檔案，archive 會以難懂的連結錯誤失敗。
+      # 這一步一定要在存檔之前，否則壞的產物會被快取起來，之後每次都中毒。
+      - name: Verify the idevice library is complete
+        run: |
+          for required in \
+            GFlyerIOS/Vendor/idevice/lib/libidevice_ffi.a \
+            GFlyerIOS/Vendor/idevice/include/idevice.h \
+            GFlyerIOS/Vendor/idevice/include/module.modulemap
+          do
+            if [ ! -f "$required" ]; then
+              echo "Missing $required. The idevice build or cache is incomplete;" >&2
+              echo "bump the cache key in this workflow to force a rebuild." >&2
+              exit 1
+            fi
+          done
+
+      # 存檔緊接在驗證之後，不等整個 job 結束。這樣就算後面的 Swift 編譯失敗，
+      # 這份 .a 仍然留給下一次用——修編譯錯誤那種來回 push 最需要這一點。
+      - name: Save the idevice library for the next run
+        if: steps.idevice-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: GFlyerIOS/Vendor/idevice
+          key: ${{ steps.idevice-cache.outputs.cache-primary-key }}
 
       - name: Generate Xcode project
         run: xcodegen generate
@@ -99,7 +160,8 @@ jobs:
             -destination "generic/platform=iOS" \
             -archivePath "$RUNNER_TEMP/GFlyerIOS-Idevice.xcarchive" \
             CODE_SIGNING_ALLOWED=NO \
-            CODE_SIGNING_REQUIRED=NO
+            CODE_SIGNING_REQUIRED=NO \
+            COMPILER_INDEX_STORE_ENABLE=NO
 
       - name: Package unsigned IPA
         run: |
