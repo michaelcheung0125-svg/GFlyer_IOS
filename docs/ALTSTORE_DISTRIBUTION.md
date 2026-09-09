@@ -29,17 +29,28 @@ GFlyer 的裝置模式本來就需要 pairing file 與 LocalDevVPN，所以 Side
 SideStore 目前的官方安裝流程用 **iloader** 與 **LocalDevVPN**，正好是 GFlyer
 裝置模式已經需要的兩樣工具，所以不會多裝新東西。
 
-1. iPhone 用 USB 接上電腦，開啟 iloader。
-2. 在 iloader 登入 Apple ID，選擇這部裝置，選 **Install SideStore (Stable)**。
-3. iPhone 上到**設定 → 一般 → VPN 與裝置管理**，信任「開發者 App」下的
-   Apple ID。
-4. iOS 16.1 以上需要開啟**設定 → 隱私權與安全性 → 開發者模式**。
-5. 開啟 LocalDevVPN 並連線。
-6. 開啟 SideStore 登入 Apple ID，點畫面上的 **7 DAYS** 計數器做一次重簽，
+1. iPhone 用 USB 接上電腦並解鎖，開啟 iloader。
+2. 在 iloader 登入 Apple ID，按「重新整理裝置」（`Refresh Devices`）後選擇這部裝置。
+3. 在「安裝程式」（`Installers`）的「揀版本」（`Choose a build`）選
+   **SideStore（夜晚版）**（`SideStore (Nightly)`）。新 iOS 需要的修正通常先進
+   夜晚版，穩定版有時落後幾個月；代價是官方不受理夜晚版的問題回報。四個選項中
+   帶 LiveContainer 的兩個 GFlyer 用不到。iloader 會依序跑「下載 SideStore」→
+   「簽署同安裝 SideStore」→「放入配對檔案」，最後一步會自動把配對檔寫進
+   SideStore 容器，預防下面那個 UDID 故障。
+4. iPhone 上到**設定 → 一般 → VPN 與裝置管理**，信任「開發者 App」下的
+   Apple ID。iOS 18 以上確認時會順帶重新啟動裝置。
+5. iOS 16.1 以上需要開啟**設定 → 隱私權與安全性 → 開發者模式**。
+6. 開啟 LocalDevVPN 並連線。
+7. 開啟 SideStore 登入 Apple ID，點畫面上的 **7 DAYS** 計數器做一次重簽，
    確認流程正常。
 
 之後 SideStore 就能在 iPhone 上自行重簽，不需要再接電腦。若登入時出現
 anisette 相關錯誤，到 SideStore 的設定換一個 Anisette 伺服器再試。
+
+裝了夜晚版之後，在 SideStore 設定開啟 beta 更新並選 `nightly`，新的夜晚版就會
+直接在 SideStore 內出現，不用再接電腦。夜晚版不穩時，用同一個 iloader 改揀
+**SideStore（穩定版）** 重裝即可；資料一般會保留，但官方不保證，改之前先在
+GFlyer 匯出備份檔。
 
 ## 安裝 GFlyer
 
@@ -114,7 +125,7 @@ SideStore 另有一個已知的畫面問題：進度轉圈凍住但安裝仍在�
 `InvalidPairing (protocol: rppairing, reason: RPPairing UDID not found)`：
 
 **SideStore 讀的是它自己容器裡的配對檔，不是使用者手動匯入的那一份。**
-用 iloader 重新配對之後，必須點 **Manage Pairing File → Place in All Apps**
+用 iloader 重新配對之後，必須點 **Manage Pairing File（管理配對檔案）→ Place In All Apps**
 （或指定放到 SideStore 旁邊）把檔案寫進 App 容器；只按 Load／Install 不會
 更新容器裡的舊檔案。實測確認這一步才是解法——重開機、重新產生配對檔、
 重裝 SideStore、改 Tunnel IP 全部無效。

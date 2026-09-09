@@ -119,11 +119,19 @@ verification rule). Read that section before touching related code.
 
 The Traditional Chinese usage guide is published at
 https://michaelcheung0125-svg.github.io/GFlyer-updates/USER_GUIDE_ZH_HK.html
-(hosted in the public `GFlyer-updates` repository). The 2026-09-02 edition is a
-full rewrite for the SideStore flow, written for complete beginners: glossary,
-animated overview diagram, per-stage checkpoints, the device-confirmed
-full-clear + airplane-mode recovery, and a troubleshooting table. The
-maintainer-facing install notes stay in
+(hosted in the public `GFlyer-updates` repository) and linked from the app's
+**Settings -> About -> Usage guide**. The 2026-09-04 edition covers install and
+full daily use in twelve parts, written for complete beginners: glossary,
+animated overview diagram, per-stage checkpoints, the four simulation modes,
+favourites/routes/GPX/backup, both optional Shortcuts, the device-confirmed
+full-clear + airplane-mode recovery, and troubleshooting split into install /
+location / Shortcuts tables.
+
+It recommends **SideStore (Nightly)** over Stable, because the fixes new iOS
+releases need land there first. Every iloader step quotes the on-screen label in
+both Traditional Chinese and English (`揀版本` / `Choose a build`,
+`SideStore（夜晚版）` / `SideStore (Nightly)`), since the installer's own UI
+language varies. The maintainer-facing install notes stay in
 [docs/ALTSTORE_DISTRIBUTION.md](docs/ALTSTORE_DISTRIBUTION.md).
 
 ## Why the backend is separate
