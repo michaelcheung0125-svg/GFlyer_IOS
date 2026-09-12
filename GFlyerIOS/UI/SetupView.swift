@@ -25,6 +25,46 @@ struct ExportedDataDocument: FileDocument {
 /// Swift 型別檢查器會在 body 上放棄（unable to type-check in reasonable
 /// time），新增 Section 時請沿用這個分層。
 struct SetupView: View {
+    /// SwiftUI 同一個 view 上只會有一個 .fileImporter 真的生效，串接多個時其餘
+    /// 會靜默失效——按下去沒有任何反應，也不會報錯。所以三種匯入共用一個
+    /// modifier，由 pendingImport 決定接受哪些型別、結果交給誰處理。
+    /// 詳見 https://developer.apple.com/forums/thread/781186
+    private enum ImportTarget {
+        case pairingFile
+        case gpxRoutes
+        case backup
+
+        var contentTypes: [UTType] {
+            switch self {
+            case .pairingFile: return PairingFileStore.supportedTypes
+            case .gpxRoutes: return [.gpx, .xml]
+            case .backup: return [.json]
+            }
+        }
+
+        var allowsMultipleSelection: Bool { self == .gpxRoutes }
+    }
+
+    /// .fileExporter 有同樣的限制，同樣併成一個。
+    private enum ExportTarget {
+        case gpxRoutes
+        case backup
+
+        var contentType: UTType {
+            switch self {
+            case .gpxRoutes: return .gpx
+            case .backup: return .json
+            }
+        }
+
+        var defaultFilename: String {
+            switch self {
+            case .gpxRoutes: return "gflyer-routes.gpx"
+            case .backup: return "gflyer-backup.json"
+            }
+        }
+    }
+
     @Environment(\.dismiss) private var dismiss
     @Environment(\.openURL) private var openURL
     @ObservedObject var controller: SimulationController
@@ -33,16 +73,14 @@ struct SetupView: View {
     @ObservedObject private var pairingStore: PairingFileStore
     @ObservedObject private var deviceLocation: DeviceLocationService
     @State private var showImporter = false
+    @State private var pendingImport: ImportTarget?
+    @State private var showExporter = false
+    @State private var pendingExport: ExportTarget?
+    @State private var exportDocument = ExportedDataDocument()
     @State private var importError: String?
     @State private var showPresetPrompt = false
     @State private var presetName = ""
     @State private var presetSpeed = "50"
-    @State private var showGpxImporter = false
-    @State private var showGpxExporter = false
-    @State private var gpxDocument = ExportedDataDocument()
-    @State private var showBackupImporter = false
-    @State private var showBackupExporter = false
-    @State private var backupDocument = ExportedDataDocument()
     @State private var pendingBackupData: Data?
     @State private var transferSummary: String?
     @State private var forceClearMessage: String?
@@ -119,46 +157,27 @@ struct SetupView: View {
             }
             .fileImporter(
                 isPresented: $showImporter,
-                allowedContentTypes: PairingFileStore.supportedTypes
+                allowedContentTypes: pendingImport?.contentTypes ?? [],
+                allowsMultipleSelection: pendingImport?.allowsMultipleSelection ?? false
             ) { result in
-                do {
-                    try pairingStore.importFile(from: result.get())
-                } catch {
-                    importError = error.localizedDescription
-                }
-            }
-            .fileImporter(
-                isPresented: $showGpxImporter,
-                allowedContentTypes: [.gpx, .xml],
-                allowsMultipleSelection: true
-            ) { result in
-                importGpx(result)
-            }
-            .fileExporter(
-                isPresented: $showGpxExporter,
-                document: gpxDocument,
-                contentType: .gpx,
-                defaultFilename: "gflyer-routes.gpx"
-            ) { result in
-                if case let .failure(error) = result { importError = error.localizedDescription }
-            }
-            .fileImporter(
-                isPresented: $showBackupImporter,
-                allowedContentTypes: [.json]
-            ) { result in
-                do {
-                    pendingBackupData = try readSecurityScopedFile(at: result.get())
-                } catch {
-                    importError = error.localizedDescription
+                // 先取出再清掉，否則下一次呼叫會沿用上一次的目標。
+                let target = pendingImport
+                pendingImport = nil
+                switch target {
+                case .pairingFile: importPairingFile(result)
+                case .gpxRoutes: importGpx(result)
+                case .backup: loadBackup(result)
+                case nil: break
                 }
             }
             .fileExporter(
-                isPresented: $showBackupExporter,
-                document: backupDocument,
-                contentType: .json,
-                defaultFilename: "gflyer-backup.json"
+                isPresented: $showExporter,
+                document: exportDocument,
+                contentType: pendingExport?.contentType ?? .data,
+                defaultFilename: pendingExport?.defaultFilename
             ) { result in
-                if case let .failure(error) = result { importError = error.localizedDescription }
+                pendingExport = nil
+                if case let .failure(error) = result { importError = describe(error) }
             }
             .alert(
                 "還原備份",
@@ -217,6 +236,7 @@ struct SetupView: View {
         Section("首次設定") {
             LabeledContent("Pairing File", value: pairingStore.isImported ? "已匯入" : "未匯入")
             Button {
+                pendingImport = .pairingFile
                 showImporter = true
             } label: {
                 Label("匯入 Pairing File", systemImage: "doc.badge.plus")
@@ -226,7 +246,7 @@ struct SetupView: View {
                     do {
                         try pairingStore.remove()
                     } catch {
-                        importError = error.localizedDescription
+                        importError = describe(error)
                     }
                 }
             }
@@ -445,14 +465,18 @@ struct SetupView: View {
 
     private var transferSection: some View {
         Section("資料匯入與匯出") {
-            Button { showGpxImporter = true } label: {
+            Button {
+                pendingImport = .gpxRoutes
+                showImporter = true
+            } label: {
                 Label("匯入 GPX 路線", systemImage: "square.and.arrow.down")
             }
             .disabled(controller.isMotionActive)
             Button {
                 if let data = controller.exportAllRoutesAsGpx() {
-                    gpxDocument = ExportedDataDocument(data: data)
-                    showGpxExporter = true
+                    exportDocument = ExportedDataDocument(data: data)
+                    pendingExport = .gpxRoutes
+                    showExporter = true
                 }
             } label: {
                 Label("匯出全部路線（GPX）", systemImage: "square.and.arrow.up")
@@ -460,13 +484,17 @@ struct SetupView: View {
             .disabled(controller.savedRoutes.isEmpty)
             Button {
                 if let data = controller.exportBackupData() {
-                    backupDocument = ExportedDataDocument(data: data)
-                    showBackupExporter = true
+                    exportDocument = ExportedDataDocument(data: data)
+                    pendingExport = .backup
+                    showExporter = true
                 }
             } label: {
                 Label("匯出備份檔", systemImage: "externaldrive.badge.timemachine")
             }
-            Button { showBackupImporter = true } label: {
+            Button {
+                pendingImport = .backup
+                showImporter = true
+            } label: {
                 Label("還原備份檔", systemImage: "arrow.counterclockwise")
             }
             .disabled(controller.isMotionActive)
@@ -531,6 +559,34 @@ struct SetupView: View {
         }
     }
 
+    /// 使用者按「取消」時 fileImporter 一樣會回 failure，那不是匯入失敗，
+    /// 不該跳警告。回 nil 代表沒有東西要顯示。
+    private func describe(_ error: Error) -> String? {
+        let nsError = error as NSError
+        if nsError.domain == NSCocoaErrorDomain, nsError.code == NSUserCancelledError {
+            return nil
+        }
+        return error.localizedDescription
+    }
+
+    private func importPairingFile(_ result: Result<[URL], Error>) {
+        do {
+            guard let url = try result.get().first else { return }
+            try pairingStore.importFile(from: url)
+        } catch {
+            importError = describe(error)
+        }
+    }
+
+    private func loadBackup(_ result: Result<[URL], Error>) {
+        do {
+            guard let url = try result.get().first else { return }
+            pendingBackupData = try readSecurityScopedFile(at: url)
+        } catch {
+            importError = describe(error)
+        }
+    }
+
     private func importGpx(_ result: Result<[URL], Error>) {
         do {
             var importedRoutes = 0
@@ -542,7 +598,7 @@ struct SetupView: View {
                 transferSummary = "已匯入 \(importedRoutes) 條 GPX 路線。"
             }
         } catch {
-            importError = error.localizedDescription
+            importError = describe(error)
         }
     }
 
