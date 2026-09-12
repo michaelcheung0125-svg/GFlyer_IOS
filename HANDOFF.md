@@ -87,6 +87,24 @@ C:\Project\GFlyer
   - `0.4.0 (6)` 已發佈到公開的 `GFlyer-updates`（release `ios-v0.4.0`）並
     確認可以從 SideStore 來源安裝到實機。來源檔必須維持舊版 AltStore 扁平
     格式，細節見 `docs/ALTSTORE_DISTRIBUTION.md`
+- `0.6.2 (15)`：修好「匯入 Pairing File」按了沒反應。
+  - 使用者實測回報：按下去沒有任何反應，也不報錯，等於**裝置模式的首次
+    設定完全做不了**。而且沒有繞道：App 沒有宣告 `CFBundleDocumentTypes`，
+    所以「檔案 App → 分享 → 開啟於 GFlyer」也看不到 GFlyer。
+  - 原因是 **SwiftUI 同一個 view 上只會有一個 `.fileImporter` 生效**，串接多個
+    時其餘會靜默失效。這沒有寫進 Apple 文件，見
+    https://developer.apple.com/forums/thread/781186 。`SetupView` 串了三個
+    匯入、兩個匯出，配對檔那個在最內層，正是被吃掉的那一個。
+  - 三個匯入改成共用一個 `.fileImporter`、兩個匯出共用一個 `.fileExporter`，
+    由 `ImportTarget` / `ExportTarget` 兩個 enum 決定接受哪些型別與交給誰處理。
+    **不要為了「看起來清楚」再拆回多個 modifier**，那會讓 bug 重現。
+  - 目標在 completion 裡先讀出再清掉，否則下一次呼叫會沿用上一次的目標。
+  - 順帶：按「取消」時 `fileImporter` 也會回 failure，舊程式會誤跳「匯入失敗」，
+    現在用 `describe(_:)` 把 `NSUserCancelledError` 濾掉。
+  - 已發佈 `ios-v0.6.2`；IPA 拆檢通過（`Assets.car` 3.9 MB、AppIcon、
+    版本號 0.6.2 (15) 皆正確）。**尚待實機驗證**五條路徑：配對檔匯入、
+    GPX 匯入、GPX 匯出、備份匯出、備份還原。
+
 - `0.6.1 (14)`：飛航切換捷徑由一個拆成兩個。
   - 0.6.0 用單一捷徑加「如果」判斷輸入是 on 還是 off。**使用者實測卡住**：
     「如果」動作有 Input 與 Condition 兩個參數，前面沒有動作時 Input 欄位
