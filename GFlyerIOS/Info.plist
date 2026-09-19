@@ -44,6 +44,7 @@
 		<string>sidestore</string>
 		<string>altstore</string>
 		<string>shortcuts</string>
+		<string>localdevvpn</string>
 	</array>
 	<key>LSSupportsOpeningDocumentsInPlace</key>
 	<true/>

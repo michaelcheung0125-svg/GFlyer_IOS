@@ -176,6 +176,10 @@ Exit criterion: a 30-minute route continues while another App is in the foregrou
 | No pairing file | Start is blocked with an import instruction |
 | Invalid/expired pairing file | Existing file remains private and user is told to replace it |
 | LocalDevVPN off | Tunnel-stage error; no false active state |
+| LocalDevVPN off, Start pressed, LocalDevVPN installed | GFlyer switches to LocalDevVPN, which connects and returns within about a second; simulation then starts without a second tap |
+| LocalDevVPN does not return by itself | After the user taps Connect and switches back manually, the pending Start continues; if the VPN is still off after ~10 s, an error names the 「連線」 button |
+| Full clear with "also switch off LocalDevVPN" | VPN is switched off only after the clear succeeded; a failed clear keeps the VPN for a retry |
+| Manual VPN off while simulating | Blocked with a "press Stop first" message |
 | Static teleport | Apple Maps reports the selected coordinate |
 | Route update every 250 ms | Active connection is reused |
 | Current-location button, simulation inactive | Permission is requested if needed and the map moves to the iPhone's reported location without adding a route point |

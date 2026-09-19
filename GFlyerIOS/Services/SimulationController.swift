@@ -9,7 +9,9 @@ final class SimulationController: ObservableObject {
     @Published var speedKilometresPerHour = SpeedScale.walkKilometresPerHour
     @Published var loopRoute = false
     @Published var loopTransitionMode: LoopTransitionMode = .walkBack
-    @Published var deviceIP = "10.7.0.1"
+    @Published var deviceIP = "10.7.0.1" {
+        didSet { vpn.deviceIP = deviceIP }
+    }
     @Published var searchQuery = ""
     @Published private(set) var searchResults: [PlaceSearchResult] = []
     @Published private(set) var isSearching = false
@@ -29,6 +31,7 @@ final class SimulationController: ObservableObject {
     let pairingStore = PairingFileStore()
     let backend: any LocationSimulationBackend
     let deviceLocation = DeviceLocationService()
+    let vpn: LocalDevVPNBridge
 
     private let dataStore: LocalDataStore
     private let sessionStore: ActiveSessionStore
@@ -55,9 +58,11 @@ final class SimulationController: ObservableObject {
     init(
         backend: (any LocationSimulationBackend)? = nil,
         dataStore: LocalDataStore = LocalDataStore(),
-        sessionStore: ActiveSessionStore = ActiveSessionStore()
+        sessionStore: ActiveSessionStore = ActiveSessionStore(),
+        vpn: LocalDevVPNBridge? = nil
     ) {
         self.backend = backend ?? LocationSimulationBackendFactory.makeDefault()
+        self.vpn = vpn ?? LocalDevVPNBridge()
         self.dataStore = dataStore
         self.sessionStore = sessionStore
         pendingResumeSession = sessionStore.load()
@@ -179,6 +184,14 @@ final class SimulationController: ObservableObject {
         deviceLocation.stopBackgroundRouteActivity()
 
         guard pairingIsReady else { return }
+        // 先檢查路線，才決定要不要跳去 LocalDevVPN：否則使用者切過去又回來，
+        // 才看到「路線至少需要兩個點」
+        if mode.isRoute, routePoints.count < 2 {
+            lastError = SimulationError.routeNeedsTwoPoints.localizedDescription
+            return
+        }
+        // 走到這裡跨日提醒已經確認過，回來後不必再問一次
+        if deferUntilTunnelIsUp({ [weak self] in self?.start(bypassCrossDateCheck: true) }) { return }
         lastSessionSnapshotAt = .distantPast
         currentLapPoints = []
         currentLapNextIndex = 0
@@ -194,10 +207,6 @@ final class SimulationController: ObservableObject {
             }
             scheduleAutoStop()
         case .singleRoute, .multiRoute:
-            guard routePoints.count >= 2 else {
-                lastError = SimulationError.routeNeedsTwoPoints.localizedDescription
-                return
-            }
             guard deviceLocation.startBackgroundRouteActivity() else {
                 lastError = deviceLocation.backgroundPermissionMessage
                 return
@@ -235,6 +244,9 @@ final class SimulationController: ObservableObject {
         guard let snapshot = snapshotOverride ?? pendingResumeSession else { return }
         pendingResumeSession = nil
         guard pairingIsReady else { return }
+        // App 被系統結束後 VPN 多半也斷了。pendingResumeSession 已經清掉，
+        // 所以從 LocalDevVPN 回來時要把快照直接帶回來
+        if deferUntilTunnelIsUp({ [weak self] in self?.resumeInterruptedSession(snapshot) }) { return }
         speedKilometresPerHour = SpeedScale.clamped(snapshot.speedKilometresPerHour)
         lastSessionSnapshotAt = .distantPast
         switch snapshot.mode {
@@ -362,20 +374,81 @@ final class SimulationController: ObservableObject {
             return message
         }
         let cleared = await performClear(motionTasks: motionTasks, reason: nil, tearDownSession: true)
+        // 清除失敗時絕不能關 VPN：之後重試清除還要靠這條通道
         guard lastError == nil else { return cleared }
 
-        // 驗證：等一筆「清除之後」產生的新定位
+        // 驗證：等一筆「清除之後」產生的新定位。要在關 VPN 之前做，因為關 VPN
+        // 會跳去 LocalDevVPN，App 不在前景時未必取得到定位
+        let result = await verifyRealLocation()
+        let vpnClosed = await disconnectVPNAfterClearIfWanted()
         let verification: String
-        switch await verifyRealLocation() {
+        switch result {
         case .real:
             verification = "已完整清除，目前回報的是真實位置。"
         case .simulated:
-            verification = "模擬 session 已關閉，但 iOS 仍回報模擬座標。請關閉 LocalDevVPN，開關一次飛行模式後再確認；必要時重新開機。"
+            verification = vpnClosed == true
+                ? "模擬 session 已關閉，但 iOS 仍回報模擬座標。請開關一次飛行模式後再確認；必要時重新開機。"
+                : "模擬 session 已關閉，但 iOS 仍回報模擬座標。請關閉 LocalDevVPN，開關一次飛行模式後再確認；必要時重新開機。"
         case .unavailable:
             verification = "模擬 session 已關閉，但暫時取不到新的定位。請到收訊較好的位置，或開關一次飛行模式後再試。"
         }
-        status.message = verification
-        return verification
+        let message: String
+        switch vpnClosed {
+        case true?: message = "\(verification)\nLocalDevVPN 已關閉。"
+        case false?: message = "\(verification)\n\(LocalDevVPNBridge.disconnectFailureMessage)"
+        case nil: message = verification
+        }
+        status.message = message
+        return message
+    }
+
+    /// 使用者開了「清除後同時關閉 LocalDevVPN」而且 VPN 目前開著才會動作。
+    /// 回傳 nil 代表沒有嘗試關閉。
+    private func disconnectVPNAfterClearIfWanted() async -> Bool? {
+        vpn.refreshStatus()
+        guard vpn.disconnectAfterFullClear, vpn.isTunnelUp, vpn.isInstalled else { return nil }
+        return await vpn.perform(.disconnect)
+    }
+
+    // MARK: - LocalDevVPN
+
+    /// 裝置模式下 VPN 沒開，就先請 LocalDevVPN 開啟，回到 GFlyer 且確認
+    /// VPN 已連線後才執行 `resume`。回傳 true 代表已跳走，呼叫端這次不要繼續。
+    private func deferUntilTunnelIsUp(_ resume: @escaping @MainActor () -> Void) -> Bool {
+        guard backend.canControlDeviceLocation, vpn.needsConnectBeforeStart() else { return false }
+        status.message = "正在開啟 LocalDevVPN…"
+        Task { [weak self] in
+            guard let self else { return }
+            if await vpn.perform(.connect) {
+                resume()
+            } else {
+                status.message = "LocalDevVPN 尚未連線"
+                lastError = LocalDevVPNBridge.connectFailureMessage
+            }
+        }
+        return true
+    }
+
+    /// 設定頁的手動開關。模擬進行中不准關：之後的清除指令要靠這條通道送出。
+    func switchLocalDevVPN(on: Bool) {
+        lastError = nil
+        guard on || !status.isActive else {
+            lastError = "請先按停止結束模擬，再關閉 LocalDevVPN。"
+            return
+        }
+        guard vpn.isInstalled else {
+            lastError = "找不到 LocalDevVPN，請先從 App Store 安裝。"
+            return
+        }
+        Task { [weak self] in
+            guard let self else { return }
+            let reached = await vpn.perform(on ? .connect : .disconnect)
+            if !reached {
+                lastError = on
+                    ? LocalDevVPNBridge.connectFailureMessage
+                    : LocalDevVPNBridge.disconnectFailureMessage
+            }
+        }
     }
 
     private enum LocationVerification { case real, simulated, unavailable }

@@ -39,6 +39,14 @@ This is a separate SwiftUI prototype for personal sideloading. It does not modif
   when airplane mode is toggled from Control Center. iOS exposes no API for an
   app to toggle airplane mode, so an optional user-supplied Shortcut does the
   switching; only turning it back **off** is ever automatic
+- LocalDevVPN hand-off. A free Apple ID cannot sign a Network Extension, so
+  GFlyer cannot carry its own VPN; instead it drives LocalDevVPN through
+  `localdevvpn://enable?scheme=gflyer` (and `disable`), which switches the VPN
+  and returns to GFlyer after about a second. Start opens it automatically
+  when the route to the target IP does not go through a VPN interface; the
+  full-clear action can optionally switch it off afterwards, but only once the
+  clear itself has succeeded. The result is confirmed by a routing-table check
+  on return, not by the callback, so a manual return works too
 - Private message board shared with GFlyer Android for coordinates, routes,
   announcements, replies, tags, pinning, expiry, and member administration
 - Pairing-file import and protected local storage
@@ -244,7 +252,7 @@ These generated files are ignored by Git.
 2. Generate a pairing file for this iPhone using a trusted computer workflow such as iLoader/StikDebug's pairing guide.
 3. Send the file directly to the iPhone Files app. Avoid workflows that remove the extension.
 4. In GFlyer, open Settings and import the pairing file.
-5. Install and connect LocalDevVPN. Keep its default device address `10.7.0.1` unless your setup uses another address. In GFlyer's device settings, use **Test LocalDevVPN tunnel** before starting simulation; the current raw RPPairing path connects on port `49152`.
+5. Install LocalDevVPN. Keep its default device address `10.7.0.1` unless your setup uses another address. Start switches to LocalDevVPN and back by itself when the VPN is off; the Settings screen shows the VPN state, has a manual on/off button, and can still **Test LocalDevVPN tunnel**. The current raw RPPairing path connects on port `49152`.
 6. Return to GFlyer, choose a point or route, and start simulation. On first device-mode use, allow the app to download and verify the pinned Personalized DDI (about 16 MB).
 7. The first time you use the current-location button or start a route, grant GFlyer **While Using the App** location access. Route playback uses a visible iOS background-location activity and ends it when the route stops.
 8. Press Stop before disabling LocalDevVPN so the app can call `location_simulation_clear()`. A successful Stop restores real GPS but keeps the CoreDevice transport ready for the next simulation. Changing the target IP or importing a different pairing file rebuilds that transport.

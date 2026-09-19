@@ -87,6 +87,31 @@ C:\Project\GFlyer
   - `0.4.0 (6)` 已發佈到公開的 `GFlyer-updates`（release `ios-v0.4.0`）並
     確認可以從 SideStore 來源安裝到實機。來源檔必須維持舊版 AltStore 扁平
     格式，細節見 `docs/ALTSTORE_DISTRIBUTION.md`
+- **未發佈（下一版）**：GFlyer 代使用者開關 LocalDevVPN。
+  - 為何不內建 VPN：Apple 的權限表中 Network Extensions／Personal VPN 只開放
+    給付費帳號，免費 Apple ID 經 SideStore 重簽拿不到；而且 SideStore 每 7 天
+    重簽本身就要 LocalDevVPN，內建了用戶仍然要裝它，兩個 VPN 還會互相踢。
+  - 做法：LocalDevVPN 原始碼（jkcoxson/LocalDevVPN，`LocalDevVPNApp.swift`）
+    支援 `localdevvpn://enable?scheme=gflyer` 與 `disable`，開關後約 1 秒打開
+    `gflyer://` 回來。新檔 `Services/LocalDevVPNBridge.swift`。
+  - 結果**不看回呼**，回到前景後用 UDP `connect()` + `getsockname()` 查送往
+    目標 IP 的路由是否走 `utun`／`ipsec` 介面，最多等約 10 秒。LocalDevVPN
+    只導這一條路由進 VPN，所以這等於「LocalDevVPN 已連線」。這個檢查不送
+    封包，不會觸發 LocalDevVPN 的隨選連線規則。
+  - 按開始（及中斷恢復）時 VPN 沒開就自動跳去開，確認後才繼續；路線點數
+    檢查提前到跳轉之前。設定頁可關掉自動開啟。
+  - 完整清除可選「清除後同時關閉 LocalDevVPN」（預設關）：**清除成功才關**，
+    而且在定位驗證之後才關（跳走後 App 不在前景，未必取得到定位）。
+  - 設定頁新增 VPN 狀態、手動開／關按鈕；模擬中不准關。
+  - `Info.plist` 的 `LSApplicationQueriesSchemes` 加了 `localdevvpn`。
+  - 已確認：使用者在 iPhone 的 Safari 輸入 `localdevvpn://enable`，會跳到
+    App Store 版 LocalDevVPN，所以它有登記這個網址。Safari 先問「是否打開」
+    是 Safari 自己的確認；GFlyer 用 `UIApplication.open` 跳轉時不應出現。
+  - **尚待驗證**：macOS CI 編譯與 `LocalDevVPNBridgeTests`；從 GFlyer 跳轉時
+    VPN 是否真的連上、是否自動跳回 GFlyer；路由檢查在 Wi-Fi、行動網絡、飛行
+    模式三種情況下是否都正確；第一次使用 LocalDevVPN（系統要求允許 VPN
+    設定）時的流程。
+
 - `0.6.2 (15)`：修好「匯入 Pairing File」按了沒反應。
   - 使用者實測回報：按下去沒有任何反應，也不報錯，等於**裝置模式的首次
     設定完全做不了**。而且沒有繞道：App 沒有宣告 `CFBundleDocumentTypes`，

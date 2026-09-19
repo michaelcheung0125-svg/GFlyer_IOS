@@ -20,7 +20,9 @@ struct GFlyerIOSApp: App {
                 airplaneAssist: airplaneAssist
             )
             // 兩種捷徑回呼：gflyer://steps/... 把補錄標成已寫入，
-            // gflyer://airplane/... 回報飛行模式有沒有切換成功
+            // gflyer://airplane/... 回報飛行模式有沒有切換成功。
+            // LocalDevVPN 開關 VPN 後打開的是沒有路徑的 gflyer://，刻意不處理：
+            // 結果由 LocalDevVPNBridge 在回到前景時查路由確認
             .onOpenURL { url in
                 guard !stepRecorder.handleCallback(url) else { return }
                 airplaneAssist.handleCallback(url)

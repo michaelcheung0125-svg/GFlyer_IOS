@@ -72,6 +72,7 @@ struct SetupView: View {
     @ObservedObject var stepRecorder: StepRecorderController
     @ObservedObject private var pairingStore: PairingFileStore
     @ObservedObject private var deviceLocation: DeviceLocationService
+    @ObservedObject private var vpn: LocalDevVPNBridge
     @State private var showImporter = false
     @State private var pendingImport: ImportTarget?
     @State private var showExporter = false
@@ -97,6 +98,7 @@ struct SetupView: View {
         self.stepRecorder = stepRecorder
         _pairingStore = ObservedObject(wrappedValue: controller.pairingStore)
         _deviceLocation = ObservedObject(wrappedValue: controller.deviceLocation)
+        _vpn = ObservedObject(wrappedValue: controller.vpn)
     }
 
     var body: some View {
@@ -207,6 +209,8 @@ struct SetupView: View {
             instructionsSection
             if controller.canControlDeviceLocation { recoverySection }
         }
+        // VPN 狀態沒有系統通知可以訂閱，打開設定頁時重新查一次
+        .onAppear { vpn.refreshStatus() }
     }
 
     // MARK: - 區段
@@ -255,6 +259,12 @@ struct SetupView: View {
 
     private var localDevVPNSection: some View {
         Section("LocalDevVPN") {
+            LabeledContent("VPN 狀態", value: vpnStatusLabel)
+            vpnSwitchButton
+            Toggle("按開始時自動開啟", isOn: $vpn.autoConnectOnStart)
+            Text("VPN 未開時按開始，GFlyer 會切換到 LocalDevVPN 開啟 VPN，約 1 秒後自動回來繼續。模擬進行中不能關閉 VPN，請先按停止。")
+                .font(.caption)
+                .foregroundStyle(.secondary)
             TextField("目標 IP", text: $controller.deviceIP)
                 .textInputAutocapitalization(.never)
                 .keyboardType(.numbersAndPunctuation)
@@ -277,10 +287,29 @@ struct SetupView: View {
                     || controller.isTestingTunnel
                     || controller.isMotionActive
             )
-            Text("預設為 10.7.0.1，Remote Pairing port 為 49152。開始全機定位模擬前，請先在 LocalDevVPN 開啟 VPN。")
+            Text("目標 IP 預設為 10.7.0.1，須與 LocalDevVPN 設定內的「裝置IP」相同；Remote Pairing port 為 49152。")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
+    }
+
+    private var vpnStatusLabel: String {
+        if vpn.isSwitching { return "等待 LocalDevVPN…" }
+        if vpn.isTunnelUp { return "已連線" }
+        return vpn.isInstalled ? "未連線" : "未安裝 LocalDevVPN"
+    }
+
+    private var vpnSwitchButton: some View {
+        Button {
+            controller.switchLocalDevVPN(on: !vpn.isTunnelUp)
+        } label: {
+            if vpn.isTunnelUp {
+                Label("關閉 LocalDevVPN", systemImage: "bolt.horizontal.circle")
+            } else {
+                Label("開啟 LocalDevVPN", systemImage: "bolt.horizontal.circle.fill")
+            }
+        }
+        .disabled(vpn.isSwitching || (vpn.isTunnelUp && controller.isMotionActive))
     }
 
     private var locationSection: some View {
@@ -508,8 +537,8 @@ struct SetupView: View {
         Section("操作順序") {
             Text("1. 用電腦產生這部 iPhone 的 pairing file。")
             Text("2. 將檔案傳到 iPhone 並在此匯入。")
-            Text("3. 開啟 LocalDevVPN。")
-            Text("4. 回到地圖選點並按開始。")
+            Text("3. 確認已安裝 LocalDevVPN。")
+            Text("4. 回到地圖選點並按開始；VPN 未開時 GFlyer 會自動切換到 LocalDevVPN 開啟，再自動回來。")
         }
     }
 
@@ -536,7 +565,12 @@ struct SetupView: View {
                 }
             }
             .disabled(isForceClearing)
+            Toggle("清除後同時關閉 LocalDevVPN", isOn: $vpn.disconnectAfterFullClear)
+                .disabled(isForceClearing)
             Text("想讓其他 App 回到真實位置時使用：清除模擬、關閉模擬 session，並驗證目前回報的定位。iOS 可能要取得新的真實定位後才會更新；若驗證顯示仍是模擬座標，關閉 LocalDevVPN 並開關一次飛行模式通常可解決。")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            Text("開啟上面的選項後，清除成功才會切換到 LocalDevVPN 關閉 VPN，再自動回來；清除失敗時會保留 VPN，方便重試。")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
