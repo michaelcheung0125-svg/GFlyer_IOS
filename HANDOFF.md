@@ -87,7 +87,11 @@ C:\Project\GFlyer
   - `0.4.0 (6)` 已發佈到公開的 `GFlyer-updates`（release `ios-v0.4.0`）並
     確認可以從 SideStore 來源安裝到實機。來源檔必須維持舊版 AltStore 扁平
     格式，細節見 `docs/ALTSTORE_DISTRIBUTION.md`
-- **未發佈（下一版）**：搜尋列不再被鍵盤頂起、地圖工具列可以收起。
+- `0.6.5 (18)`：搜尋列不再被鍵盤頂起、地圖工具列可以收起。
+  - 已發佈 `ios-v0.6.5`；CI 兩個 job 通過，IPA 拆檢通過（`Assets.car`、
+    AppIcon、版本號 0.6.5 (18)），線上 `altstore.json` 為 0.6.5，下載網址
+    HTTP 200 且大小 9,912,265 bytes 與來源檔一致。線上使用教學已同步
+    （工具列表格新增收起／展開兩個箭咀）。
   - 鍵盤彈出時搜尋列與右側工具列會向上跳一下。原本的
     `.ignoresSafeArea(.keyboard, edges: .bottom)` 只加在 NavigationStack
     **裡面**的 ZStack，擋不住 SwiftUI 把整個畫面推上去；改為同時加在
