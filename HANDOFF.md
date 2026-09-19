@@ -87,7 +87,12 @@ C:\Project\GFlyer
   - `0.4.0 (6)` 已發佈到公開的 `GFlyer-updates`（release `ios-v0.4.0`）並
     確認可以從 SideStore 來源安裝到實機。來源檔必須維持舊版 AltStore 扁平
     格式，細節見 `docs/ALTSTORE_DISTRIBUTION.md`
-- **未發佈（下一版）**：GFlyer 代使用者開關 LocalDevVPN。
+- `0.6.3 (16)`：GFlyer 代使用者開關 LocalDevVPN。
+  - 已發佈 `ios-v0.6.3`；CI 兩個 job 通過（79 個測試，含新的 11 個
+    `LocalDevVPNBridgeTests`），IPA 拆檢通過（`Assets.car` 3.9 MB、AppIcon、
+    版本號 0.6.3 (16)、`LSApplicationQueriesSchemes` 含 `localdevvpn`），
+    線上 `altstore.json` 為 0.6.3，下載網址 HTTP 200 且大小 9,881,280 bytes
+    與來源檔一致。
   - 為何不內建 VPN：Apple 的權限表中 Network Extensions／Personal VPN 只開放
     給付費帳號，免費 Apple ID 經 SideStore 重簽拿不到；而且 SideStore 每 7 天
     重簽本身就要 LocalDevVPN，內建了用戶仍然要裝它，兩個 VPN 還會互相踢。
