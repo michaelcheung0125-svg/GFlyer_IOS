@@ -25,6 +25,8 @@ struct MainView: View {
     @State private var showStepRecorder = false
     @State private var showAirplaneAssist = false
     @State private var isPanelExpanded = true
+    /// 右側工具列收起後只剩一個貼在畫面右邊的箭咀，關掉 App 也記住
+    @AppStorage("gflyer.map-toolbar-expanded") private var isToolBarExpanded = true
     @State private var suppressNextRecenter = false
     @State private var feedbackMessage: String?
     @State private var feedbackTask: Task<Void, Never>?
@@ -77,6 +79,9 @@ struct MainView: View {
                     Text(Self.resumeMessage(for: snapshot))
                 }
         }
+        // 鍵盤彈出時整個畫面都不要被推上去。這一行要加在 NavigationStack
+        // 外面：只加在裡面的 ZStack 上，搜尋列與右側工具列仍會被頂一下
+        .ignoresSafeArea(.keyboard, edges: .bottom)
     }
 
     private var contentWithSheets: some View {
@@ -226,6 +231,7 @@ struct MainView: View {
                         controller: controller,
                         stepRecorder: stepRecorder,
                         airplaneAssist: airplaneAssist,
+                        isExpanded: $isToolBarExpanded,
                         showJoystick: $showJoystick,
                         isPanelExpanded: $isPanelExpanded,
                         showFavorites: $showFavorites,
@@ -460,6 +466,7 @@ private struct MapToolBar: View {
     @ObservedObject var controller: SimulationController
     @ObservedObject var stepRecorder: StepRecorderController
     @ObservedObject var airplaneAssist: AirplaneAssistController
+    @Binding var isExpanded: Bool
     @Binding var showJoystick: Bool
     @Binding var isPanelExpanded: Bool
     @Binding var showFavorites: Bool
@@ -474,6 +481,33 @@ private struct MapToolBar: View {
     let onFeedback: (String) -> Void
 
     var body: some View {
+        if isExpanded {
+            expandedToolBar
+        } else {
+            collapsedTab
+        }
+    }
+
+    /// 收起後貼在畫面右邊的小箭咀，按一下把整列叫回來。
+    private var collapsedTab: some View {
+        Button { withAnimation(.snappy) { isExpanded = true } } label: {
+            Image(systemName: "chevron.left")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(Color.primary)
+                .frame(width: 28, height: 46)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .background(
+            .regularMaterial,
+            in: UnevenRoundedRectangle(topLeadingRadius: 8, bottomLeadingRadius: 8)
+        )
+        // 抵銷外層的水平內距，讓它真的貼住畫面右邊
+        .padding(.trailing, -12)
+        .accessibilityLabel("展開地圖工具列")
+    }
+
+    private var expandedToolBar: some View {
         VStack(spacing: 4) {
             HStack(spacing: 4) {
                 mapButton("plus", label: "放大") { zoom(0.5) }
@@ -504,6 +538,9 @@ private struct MapToolBar: View {
             }
             HStack(spacing: 4) {
                 airplaneAssistButton
+                mapButton("chevron.right", label: "收起地圖工具列") {
+                    withAnimation(.snappy) { isExpanded = false }
+                }
             }
         }
         .padding(6)
