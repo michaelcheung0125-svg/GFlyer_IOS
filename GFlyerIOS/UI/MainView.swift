@@ -152,7 +152,6 @@ struct MainView: View {
     private var contentStack: some View {
         ZStack(alignment: .bottom) {
             mapLayer
-            searchAndToolsLayer
             if showJoystick {
                 JoystickPad(controller: controller)
                     .frame(width: 132, height: 132)
@@ -164,6 +163,8 @@ struct MainView: View {
                 .padding(.horizontal, 12)
                 .padding(.bottom, 8)
         }
+        // 用 overlay 把搜尋列與工具列釘在最上面，不參與 ZStack 的底部對齊
+        .overlay(alignment: .top) { searchAndToolsLayer }
     }
 
     private var mapLayer: some View {
@@ -248,11 +249,12 @@ struct MainView: View {
                 }
                 .padding(.top, 8)
             }
-            Spacer()
         }
         .padding(.horizontal, 12)
         .padding(.top, 8)
-        .padding(.bottom, 112)
+        // 這一塊只佔自己的高度。之前用 Spacer 撐到畫面底再留 112 的底部內距，
+        // 工具列展開時整塊比鍵盤讓出的空間還高，SwiftUI 放不下就把它往上推，
+        // 搜尋列因此跳動；工具列收起時高度夠小，所以看起來沒事。
     }
 
     @ViewBuilder
