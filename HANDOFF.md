@@ -87,7 +87,12 @@ C:\Project\GFlyer
   - `0.4.0 (6)` 已發佈到公開的 `GFlyer-updates`（release `ios-v0.4.0`）並
     確認可以從 SideStore 來源安裝到實機。來源檔必須維持舊版 AltStore 扁平
     格式，細節見 `docs/ALTSTORE_DISTRIBUTION.md`
-- **未發佈（下一版）**：使用者實測 0.6.3 後回報的三個問題。
+- `0.6.4 (17)`：使用者實測 0.6.3 後回報的三個問題。
+  - 已發佈 `ios-v0.6.4`；CI 兩個 job 通過（85 個測試），IPA 拆檢通過
+    （`Assets.car`、AppIcon、版本號 0.6.4 (17)），線上 `altstore.json` 為
+    0.6.4，下載網址 HTTP 200 且大小 9,900,258 bytes 與來源檔一致。線上使用
+    教學已同步（完整清除步驟、多點模式說明、版本標示）。
+  - 0.6.3 的 LocalDevVPN 自動跳轉已由使用者實機確認正常。
   - 完整清除後取不到目前位置、其他 App 停在模擬位置：清除前先用同一條連線
     把位置設到最後一次已知的真實位置，等 2 秒再清除。理由與來源見
     `docs/TROUBLESHOOTING_CASES.md` 案例 4 的「後續」。真實位置由
