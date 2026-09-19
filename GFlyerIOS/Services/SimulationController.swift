@@ -76,7 +76,8 @@ final class SimulationController: ObservableObject {
         if let draft = stored.draft {
             routePoints = draft.points
             loopRoute = draft.loop
-            mode = draft.points.count > 2 ? .multiRoute : .singleRoute
+            let isMultiPoint = draft.isMultiPoint ?? (draft.points.count > 2)
+            mode = isMultiPoint ? .multiRoute : .singleRoute
         }
         status.message = self.backend.canControlDeviceLocation
             ? "裝置後端已載入；通道尚未測試"
@@ -102,9 +103,15 @@ final class SimulationController: ObservableObject {
         case .teleport:
             routePoints = []
             dataStore.clearDraft()
-        case .singleRoute, .multiRoute:
+        case .singleRoute:
+            // 單點路線是「從目前位置走到點選的地方」，起點一定要有
             routePoints = [anchor]
-            dataStore.saveDraft(points: routePoints, loop: loopRoute)
+            persistDraft()
+        case .multiRoute:
+            // 多點路線只放使用者自己點的點：自動帶入的起點多半只是上一次
+            // 選取的位置，使用者看到它被連進路線會以為是誤點
+            routePoints = []
+            persistDraft()
         case .explore:
             routePoints = []
             spiralCenter = selectedCoordinate
@@ -125,7 +132,6 @@ final class SimulationController: ObservableObject {
             routePoints = [origin, coordinate]
             persistDraft()
         case .multiRoute:
-            if routePoints.isEmpty { routePoints = [status.coordinate ?? previous] }
             routePoints.append(coordinate)
             persistDraft()
         case .explore:
@@ -137,14 +143,15 @@ final class SimulationController: ObservableObject {
     }
 
     func removeLastRoutePoint() {
-        guard routePoints.count > 1 else { return }
+        // 單點路線保留起點；多點路線可以一路刪到空
+        guard routePoints.count > (mode == .multiRoute ? 0 : 1) else { return }
         routePoints.removeLast()
         persistDraft()
     }
 
     func clearRoute() {
         routePoints.removeAll()
-        dataStore.clearDraft()
+        persistDraft()
     }
 
     func setLoopRoute(_ enabled: Bool) {
@@ -170,6 +177,8 @@ final class SimulationController: ObservableObject {
 
     func start(bypassCrossDateCheck: Bool = false) {
         lastError = nil
+        // 模擬開始前留住真實位置，完整清除時要用（模擬中的快取定位會被略過）
+        deviceLocation.recordCachedRealLocation()
         if mode == .teleport,
            !bypassCrossDateCheck,
            playbackSettings.crossDateWarningEnabled,
@@ -265,7 +274,7 @@ final class SimulationController: ObservableObject {
             loopRoute = snapshot.loop
             loopTransitionMode = snapshot.transition
             selectedCoordinate = snapshot.coordinate
-            dataStore.saveDraft(points: routePoints, loop: loopRoute)
+            persistDraft()
             guard deviceLocation.startBackgroundRouteActivity() else {
                 lastError = deviceLocation.backgroundPermissionMessage
                 return
@@ -373,7 +382,10 @@ final class SimulationController: ObservableObject {
             status = SimulationStatus(message: message)
             return message
         }
-        let cleared = await performClear(motionTasks: motionTasks, reason: nil, tearDownSession: true)
+        // 先等進行中的傳送落地，否則它可能蓋掉下面移回真實位置那一筆
+        for task in motionTasks { _ = await task.value }
+        await moveNearRealLocationBeforeClear()
+        let cleared = await performClear(motionTasks: [], reason: nil, tearDownSession: true)
         // 清除失敗時絕不能關 VPN：之後重試清除還要靠這條通道
         guard lastError == nil else { return cleared }
 
@@ -400,6 +412,35 @@ final class SimulationController: ObservableObject {
         }
         status.message = message
         return message
+    }
+
+    /// 清除前先在同一條連線上把模擬位置設到最後一次已知的真實位置。
+    ///
+    /// 兩個原因（pymobiledevice3 issue #572 的回報，GFlyer 實機也遇到第一種）：
+    /// 1. 模擬位置離真實位置很遠時，清除後 iOS 常常長時間取不到定位，其他
+    ///    App 顯示灰色圓圈停在模擬位置。先移到真實位置附近再清除，恢復快得多。
+    /// 2. 從「不是設定模擬位置的那條連線」送出清除，有時完全無效——App 重開
+    ///    後重建 session 就是這種情況。先在目前連線設定一次，清除就一定由它負責。
+    ///
+    /// 不知道真實位置時退而求其次，只做第 2 點：設回目前的模擬座標。
+    private func moveNearRealLocationBeforeClear() async {
+        let realAnchor = deviceLocation.lastRealCoordinate
+        guard let anchor = realAnchor ?? status.coordinate else { return }
+        do {
+            try await backend.setLocation(
+                anchor,
+                pairingFileURL: pairingStore.url,
+                pairingFileRevision: pairingStore.revision,
+                deviceIP: deviceIP
+            )
+        } catch {
+            // 設不過去也照樣清除；清除本身的錯誤由 performClear 回報
+            return
+        }
+        guard realAnchor != nil else { return }
+        status.message = "已移回真實位置附近，準備清除…"
+        // 讓其他 App 先收到這個位置，清除後殘留的就是真實位置附近
+        try? await Task.sleep(nanoseconds: 2_000_000_000)
     }
 
     /// 使用者開了「清除後同時關閉 LocalDevVPN」而且 VPN 目前開著才會動作。
@@ -697,7 +738,7 @@ final class SimulationController: ObservableObject {
         routePoints = route.points
         loopRoute = route.loop
         selectedCoordinate = route.points.last ?? selectedCoordinate
-        dataStore.saveDraft(points: routePoints, loop: loopRoute)
+        persistDraft()
     }
 
     func removeSavedRoute(_ id: UUID) { dataStore.removeRoute(id); refreshStoredData() }
@@ -739,7 +780,7 @@ final class SimulationController: ObservableObject {
         routePoints = route.points
         loopRoute = route.loop
         selectedCoordinate = route.points.last ?? selectedCoordinate
-        dataStore.saveDraft(points: route.points, loop: route.loop)
+        persistDraft()
         lastError = nil
         if startImmediately { start() }
         return true
@@ -1141,14 +1182,11 @@ final class SimulationController: ObservableObject {
         }
     }
 
+    /// 路線模式一律存草稿，連空路線也存：多點模式剛切換時是空的，
+    /// 不存的話重開 App 會掉回傳送模式。
     private func persistDraft() {
-        if mode == .singleRoute || mode == .multiRoute {
-            if routePoints.isEmpty {
-                dataStore.clearDraft()
-            } else {
-                dataStore.saveDraft(points: routePoints, loop: loopRoute)
-            }
-        }
+        guard mode.isRoute else { return }
+        dataStore.saveDraft(points: routePoints, loop: loopRoute, isMultiPoint: mode == .multiRoute)
     }
 
     private func refreshStoredData() {

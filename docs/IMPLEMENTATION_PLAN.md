@@ -201,6 +201,9 @@ Exit criterion: a 30-minute route continues while another App is in the foregrou
 | Multi-point route with teleport travel mode | Each point is jumped to, dwell/arrival actions run, and manual advance waits for the user |
 | Auto-stop timer elapses | Simulation clears with the auto-stop message; the session is kept like a normal Stop |
 | Full clear from Settings | Session torn down, then the app requests a fresh fix and reports real / still-simulated (with recovery guidance) / unavailable |
+| Full clear after simulating far away | The location is first set to the last known real position on the same connection, then cleared; Google Maps shows the real position again without airplane mode |
+| Multi-point mode, first tap | The tapped point is route point 1; the previous selection is not added; removing points can empty the route |
+| Tap the map, then immediately drag vertically | The map pans instead of zooming; pinch and double-tap zoom still work |
 | GPX file with tracks, routes, and loose waypoints | Tracks/routes with two or more points import as saved routes with unique names |
 | Android `gflyer-backup.json` imported on iOS | Folders, favorites, history, routes, and presets restore with folder links preserved |
 | App killed during route playback | Relaunch within 10 minutes offers to resume from the interrupted position |

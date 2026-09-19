@@ -166,12 +166,16 @@ struct MainView: View {
             Map(position: $position, interactionModes: .all) {
                 UserAnnotation()
 
-                Annotation("選取位置", coordinate: controller.selectedCoordinate.clLocationCoordinate) {
-                    Image("GFlyerMarker")
-                        .resizable()
-                        .scaledToFit()
-                        .frame(width: 36, height: 36)
-                        .shadow(radius: 2)
+                // 多點模式的點都畫成路線點；再畫選取位置只會多一個看似
+                // 屬於路線、其實不在路線上的標記
+                if controller.mode != .multiRoute {
+                    Annotation("選取位置", coordinate: controller.selectedCoordinate.clLocationCoordinate) {
+                        Image("GFlyerMarker")
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: 36, height: 36)
+                            .shadow(radius: 2)
+                    }
                 }
 
                 if let active = controller.status.coordinate {
@@ -198,6 +202,8 @@ struct MainView: View {
                 }
             }
             .mapStyle(.standard(elevation: .realistic))
+            // 點地圖選點後立刻拖動，不要變成單指縮放
+            .background(OneHandedZoomDisabler())
             .onTapGesture { point in
                 // 點地圖同時收鍵盤，避免鍵盤佔住畫面又沒有明顯的關閉方式
                 searchFieldFocused = false

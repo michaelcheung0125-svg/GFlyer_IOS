@@ -199,6 +199,9 @@ struct SavedRoute: Codable, Equatable, Identifiable, Sendable {
 struct RouteDraft: Codable, Equatable {
     var points: [GeoCoordinate]
     var loop: Bool
+    /// 草稿屬於多點還是單點模式。0.6.4 起多點路線不再自動帶入起點，兩個點的
+    /// 多點草稿不能再靠點數判斷。舊草稿沒有這個欄位（nil），照舊用點數判斷。
+    var isMultiPoint: Bool?
 }
 
 struct SimulationStatus: Equatable {

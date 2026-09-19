@@ -87,6 +87,23 @@ C:\Project\GFlyer
   - `0.4.0 (6)` 已發佈到公開的 `GFlyer-updates`（release `ios-v0.4.0`）並
     確認可以從 SideStore 來源安裝到實機。來源檔必須維持舊版 AltStore 扁平
     格式，細節見 `docs/ALTSTORE_DISTRIBUTION.md`
+- **未發佈（下一版）**：使用者實測 0.6.3 後回報的三個問題。
+  - 完整清除後取不到目前位置、其他 App 停在模擬位置：清除前先用同一條連線
+    把位置設到最後一次已知的真實位置，等 2 秒再清除。理由與來源見
+    `docs/TROUBLESHOOTING_CASES.md` 案例 4 的「後續」。真實位置由
+    `DeviceLocationService.lastRealCoordinate` 記錄（只收
+    `isSimulatedBySoftware == false` 且精確度有效的定位，存 UserDefaults）。
+  - 多點模式會自動把「選取位置」連成第一點，刪光後再點也一樣：多點模式改成
+    只放使用者點的點，可以刪到空；地圖上不再畫「選取位置」標記。單點模式
+    不變（起點是目前位置）。因為兩點的多點路線不能再靠點數判斷模式，
+    `RouteDraft` 新增選填的 `isMultiPoint`，舊草稿仍按點數判斷。
+  - 點地圖後立即上下拖會變成縮放：這是 MapKit 的單指縮放
+    （`_MKOneHandedZoomGestureRecognizer`）。沒有公開 API 能單獨關掉，
+    `UI/OneHandedZoomDisabler.swift` 照類別名稱找出並停用；找不到時什麼都
+    不做。雙指縮放、雙擊放大不受影響。
+  - **尚待驗證**：CI；實機上三個問題是否都消失，特別是清除後 Google 地圖
+    多快回到真實位置。
+
 - `0.6.3 (16)`：GFlyer 代使用者開關 LocalDevVPN。
   - 已發佈 `ios-v0.6.3`；CI 兩個 job 通過（79 個測試，含新的 11 個
     `LocalDevVPNBridgeTests`），IPA 拆檢通過（`Assets.car` 3.9 MB、AppIcon、

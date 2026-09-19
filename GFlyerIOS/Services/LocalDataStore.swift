@@ -144,8 +144,8 @@ final class LocalDataStore {
         persist()
     }
 
-    func saveDraft(points: [GeoCoordinate], loop: Bool) {
-        snapshot.draft = RouteDraft(points: points, loop: loop)
+    func saveDraft(points: [GeoCoordinate], loop: Bool, isMultiPoint: Bool? = nil) {
+        snapshot.draft = RouteDraft(points: points, loop: loop, isMultiPoint: isMultiPoint)
         persist()
     }
 

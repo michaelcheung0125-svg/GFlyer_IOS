@@ -38,11 +38,52 @@ final class DeviceLocationService: NSObject, ObservableObject {
     private var locationTimeoutTask: Task<Void, Never>?
     private var backgroundActivitySession: CLBackgroundActivitySession?
 
-    override init() {
+    /// 最後一次確認不是模擬的定位。完整清除時先把模擬位置移回這裡再清除：
+    /// 模擬位置離真實位置很遠時，清除後 iOS 常常長時間取不到定位，其他 App
+    /// 就一直停在模擬位置。
+    private(set) var lastRealCoordinate: GeoCoordinate?
+    private let defaults: UserDefaults
+    private static let lastRealCoordinateKey = "gflyer.last-real-coordinate"
+
+    init(defaults: UserDefaults = .standard) {
         authorizationStatus = manager.authorizationStatus
+        self.defaults = defaults
+        lastRealCoordinate = defaults.data(forKey: Self.lastRealCoordinateKey)
+            .flatMap { try? JSONDecoder().decode(GeoCoordinate.self, from: $0) }
         super.init()
         manager.delegate = self
         manager.desiredAccuracy = kCLLocationAccuracyBest
+        recordCachedRealLocation()
+    }
+
+    /// 讀系統快取的最後定位；是真實定位就記下來。開始模擬前呼叫，
+    /// 把「模擬前的真實位置」留住。
+    func recordCachedRealLocation() {
+        if let location = manager.location { recordIfReal(location) }
+    }
+
+    private func recordIfReal(_ location: CLLocation) {
+        guard let coordinate = Self.realCoordinate(
+            latitude: location.coordinate.latitude,
+            longitude: location.coordinate.longitude,
+            horizontalAccuracy: location.horizontalAccuracy,
+            isSimulatedBySoftware: location.sourceInformation?.isSimulatedBySoftware ?? false
+        ), coordinate != lastRealCoordinate else { return }
+        lastRealCoordinate = coordinate
+        if let data = try? JSONEncoder().encode(coordinate) {
+            defaults.set(data, forKey: Self.lastRealCoordinateKey)
+        }
+    }
+
+    /// 模擬的、精確度無效（負值）或超出範圍的定位都不算真實位置。
+    nonisolated static func realCoordinate(
+        latitude: Double,
+        longitude: Double,
+        horizontalAccuracy: Double,
+        isSimulatedBySoftware: Bool
+    ) -> GeoCoordinate? {
+        guard !isSimulatedBySoftware, horizontalAccuracy >= 0 else { return nil }
+        return GeoCoordinate.validated(latitude: latitude, longitude: longitude)
     }
 
     func requestCurrentLocation(
@@ -209,7 +250,10 @@ extension DeviceLocationService: CLLocationManagerDelegate {
     }
 
     func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
-        guard locationCompletion != nil, let location = locations.last else { return }
+        guard let location = locations.last else { return }
+        // 任何流程收到的定位都順便檢查；模擬中的定位帶模擬旗標，不會被記下
+        recordIfReal(location)
+        guard locationCompletion != nil else { return }
         if Self.isFreshFix(timestamp: location.timestamp, requestStartedAt: locationRequestStartedAt) {
             if let fix = Self.fix(from: location) {
                 finishLocationRequest(.success(fix))
