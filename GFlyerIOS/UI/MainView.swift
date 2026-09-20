@@ -498,7 +498,9 @@ private struct MapToolBar: View {
             Image(systemName: "chevron.left")
                 .font(.labelEmphasis)
                 .foregroundStyle(Color.primary)
-                .frame(width: 28, height: 46)
+                // 高度留 46 不動：這是一個直立的拉出式頁籤，正方形會失去它的樣子。
+                // 寬度原本 28，遠低於下限，那是整個 App 最難按中的一個目標。
+                .frame(width: Metrics.tapTarget, height: 46)
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -597,7 +599,7 @@ private struct MapToolBar: View {
             Image(systemName: icon)
                 // .plain 的按鈕不會自動上 accent 色，所以未指定時維持原本的 primary
                 .foregroundStyle(tint ?? Color.primary)
-                .frame(width: 40, height: 40)
+                .frame(width: Metrics.tapTarget, height: Metrics.tapTarget)
                 // 沒有這行時，可點區域只有圖示筆畫本身而不是整個方框
                 .contentShape(Rectangle())
         }
