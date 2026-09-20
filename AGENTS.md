@@ -14,7 +14,7 @@
 
 ## 開發規則
 
-- 寫、審或修改任何 Swift 程式碼前，先讀 `.claude/skills/write-swift/SKILL.md` 開頭的「本專案版本護欄」。那一節寫明本專案的 toolchain（Swift 5 語言模式、CI 預設 Xcode 16.4、最低 iOS 17.4）與因此不能使用的語言特性，並且優先於該 skill 其餘內容。
+- 寫、審或修改任何 Swift 程式碼前，先讀 `.claude/skills/write-swift/SKILL.md` 開頭的「本專案版本護欄」。那一節寫明本專案的 toolchain（Swift 5 語言模式、CI 釘在 Xcode 16.4、最低 iOS 17.4）與因此不能使用的語言特性，並且優先於該 skill 其餘內容。
 - 不要複製 StikDebug 的 AGPL UI 或應用程式碼。
 - 可使用 MIT 授權的 `idevice`，並保留 `THIRD_PARTY_NOTICES.md`。
 - 不要提交 Pairing File、Apple 私密金鑰、provisioning profile、DDI 二進位檔或 `libidevice_ffi.a`。

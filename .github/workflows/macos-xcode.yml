@@ -19,6 +19,23 @@ on:
 permissions:
   contents: read
 
+# CI 的 Xcode 版本就是「哪些 Swift 語言特性可以用」的判準：
+# .claude/skills/write-swift/SKILL.md 開頭的護欄、以及 AGENTS.md 的開發規則，
+# 都把「Xcode 16.4 / Swift 6.1」當成硬性前提寫進文件。runner image 的預設
+# Xcode 會隨 GitHub 更新漂移，一漂移那兩份文件就無聲地變成錯的——所以這裡
+# 釘死，不吃預設值。
+#
+# 要換版本：改下面的路徑，然後同步更新 SKILL.md 的 toolchain 表格和
+# AGENTS.md 那一行。升到 26.x 會解鎖 write-swift 第 3 節的 approachable
+# concurrency（@concurrent、nonisolated(nonsending)），那是一次獨立的遷移，
+# 不要順手做。
+#
+# 這個變數也決定下面 idevice-archive 讀到的 iOS SDK 版本，而 SDK 版本是
+# libidevice_ffi.a 快取 key 的一部分：換 Xcode 會讓那份快取自動失效重建，
+# 這是刻意的。
+env:
+  DEVELOPER_DIR: /Applications/Xcode_16.4.app/Contents/Developer
+
 concurrency:
   group: macos-xcode-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -29,6 +46,18 @@ jobs:
     runs-on: macos-15
     timeout-minutes: 30
     steps:
+      # 釘死的版本萬一從 runner image 上消失，要在這裡紅燈，而不是讓後面的
+      # xcodebuild 吐一段看不懂的錯。順便把版本印進 log，出問題時不必猜。
+      - name: Verify the pinned Xcode
+        run: |
+          if [ ! -d "$DEVELOPER_DIR" ]; then
+            echo "Xcode 16.4 is no longer on this runner image." >&2
+            echo "Repin DEVELOPER_DIR in this workflow, then update the toolchain" >&2
+            echo "table in .claude/skills/write-swift/SKILL.md and the rule in AGENTS.md." >&2
+            exit 1
+          fi
+          xcodebuild -version
+
       - name: Check out source
         uses: actions/checkout@v4
 
@@ -76,6 +105,18 @@ jobs:
     runs-on: macos-15
     timeout-minutes: 60
     steps:
+      # 釘死的版本萬一從 runner image 上消失，要在這裡紅燈，而不是讓後面的
+      # xcodebuild 吐一段看不懂的錯。順便把版本印進 log，出問題時不必猜。
+      - name: Verify the pinned Xcode
+        run: |
+          if [ ! -d "$DEVELOPER_DIR" ]; then
+            echo "Xcode 16.4 is no longer on this runner image." >&2
+            echo "Repin DEVELOPER_DIR in this workflow, then update the toolchain" >&2
+            echo "table in .claude/skills/write-swift/SKILL.md and the rule in AGENTS.md." >&2
+            exit 1
+          fi
+          xcodebuild -version
+
       - name: Check out source
         uses: actions/checkout@v4
 

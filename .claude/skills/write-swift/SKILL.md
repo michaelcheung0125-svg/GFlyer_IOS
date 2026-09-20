@@ -13,7 +13,7 @@ description: 在本專案寫、審或修改任何 Swift / SwiftUI 程式碼時�
 | 項目 | 本專案的值 | 來源 |
 | --- | --- | --- |
 | 語言模式 | **Swift 5** | `project.yml` 的 `SWIFT_VERSION: "5.0"` |
-| CI 編譯器 | **Xcode 16.4（Swift 6.1）** | `.github/workflows/macos-xcode.yml` 跑在 `macos-15`，且沒有 pin Xcode，吃 runner image 預設值 |
+| CI 編譯器 | **Xcode 16.4（Swift 6.1）** | `.github/workflows/macos-xcode.yml` 用 workflow 層級的 `DEVELOPER_DIR` 釘死；版本不在 runner image 上時 CI 直接失敗 |
 | 最低 iOS | **17.4** | `project.yml` 的 `deploymentTarget` |
 
 CI 是交付的閘門（見 `docs/RELEASE_PROCESS.md`）。**即使本機 Xcode 比較新，「能不能用」的判準是 CI 的 Xcode 16.4。**
