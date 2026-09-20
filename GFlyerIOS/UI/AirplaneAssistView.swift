@@ -68,10 +68,10 @@ struct AirplaneAssistView: View {
                 Image(systemName: assist.connection.iconName)
                     .font(.title3)
                     .frame(width: 28)
-                    .foregroundStyle(assist.connection == .offline ? Color.orange : Color.blue)
+                    .foregroundStyle(assist.connection == .offline ? Color.statusAttention : Color.statusActive)
                 VStack(alignment: .leading, spacing: Spacing.xs) {
                     Text(assist.connection.label)
-                        .font(.subheadline.weight(.semibold))
+                        .font(.labelEmphasis)
                     Text(simulation.status.isActive ? "模擬進行中" : "尚未開始模擬")
                         .font(.caption)
                         .foregroundStyle(.secondary)
@@ -153,7 +153,7 @@ struct AirplaneAssistView: View {
             HStack(alignment: .top, spacing: Spacing.md) {
                 Image(systemName: isDone ? "checkmark.circle.fill" : "\(number).circle")
                     .font(.title3)
-                    .foregroundStyle(isDone ? Color.green : (isCurrent ? Color.blue : Color.secondary))
+                    .foregroundStyle(isDone ? Color.statusOK : (isCurrent ? Color.statusActive : Color.secondary))
                 VStack(alignment: .leading, spacing: Spacing.xs) {
                     Text(title)
                         .font(.subheadline.weight(isCurrent ? .semibold : .regular))
@@ -199,7 +199,7 @@ struct AirplaneAssistView: View {
                 if !assist.isShortcutsInstalled {
                     Label("找不到「捷徑」App", systemImage: "exclamationmark.triangle")
                         .font(.caption)
-                        .foregroundStyle(.orange)
+                        .foregroundStyle(Color.statusAttention)
                 }
             }
         } header: {

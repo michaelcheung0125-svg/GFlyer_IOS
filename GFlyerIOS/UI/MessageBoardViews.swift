@@ -248,7 +248,7 @@ private struct MessageBoardPostRow: View {
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: Spacing.xs) {
                     HStack(spacing: Spacing.sm) {
-                        if post.pinned { Image(systemName: "pin.fill").foregroundStyle(.orange) }
+                        if post.pinned { Image(systemName: "pin.fill").foregroundStyle(Color.statusAttention) }
                         Text(post.authorName).font(.headline)
                         Text(post.kind.label)
                             .font(.caption2.weight(.semibold))
@@ -578,11 +578,11 @@ private struct MessageBoardAdminView: View {
                     ForEach(board.invitations) { invitation in
                         VStack(alignment: .leading, spacing: Spacing.xs) {
                             HStack {
-                                Text(invitation.label).font(.subheadline.weight(.semibold))
+                                Text(invitation.label).font(.labelEmphasis)
                                 Spacer()
                                 Text(invitation.revokedAt == nil ? "使用中" : "已停用")
                                     .font(.caption)
-                                    .foregroundStyle(invitation.revokedAt == nil ? .green : .secondary)
+                                    .foregroundStyle(invitation.revokedAt == nil ? Color.statusOK : Color.secondary)
                             }
                             Text("已使用 \(invitation.useCount) 次")
                                 .font(.caption).foregroundStyle(.secondary)
@@ -602,7 +602,7 @@ private struct MessageBoardAdminView: View {
                                 Text(managed.role.label).font(.caption).foregroundStyle(.secondary)
                                 Spacer()
                                 if managed.revokedAt != nil {
-                                    Text("已撤銷").font(.caption).foregroundStyle(.red)
+                                    Text("已撤銷").font(.caption).foregroundStyle(Color.statusDanger)
                                 } else if managed.id != board.member?.id {
                                     Menu {
                                         if managed.role == .member {

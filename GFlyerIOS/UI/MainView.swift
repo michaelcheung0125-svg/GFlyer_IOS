@@ -189,22 +189,22 @@ struct MainView: View {
                         Image(systemName: "location.fill")
                             .foregroundStyle(.white)
                             .padding(Spacing.sm)
-                            .background(.blue, in: Circle())
+                            .background(Color.statusActive, in: Circle())
                     }
                 }
 
                 ForEach(Array(controller.routePoints.enumerated()), id: \.offset) { index, point in
                     Marker("路線點 \(index + 1)", coordinate: point.clLocationCoordinate)
-                        .tint(.orange)
+                        .tint(Color.routeStroke)
                 }
 
                 if controller.routePoints.count >= 2 {
                     MapPolyline(coordinates: controller.routePoints.map(\.clLocationCoordinate))
-                        .stroke(.orange, lineWidth: 4)
+                        .stroke(Color.routeStroke, lineWidth: 4)
                 }
                 if controller.explorationPreview.count >= 2 {
                     MapPolyline(coordinates: controller.explorationPreview.map(\.clLocationCoordinate))
-                        .stroke(.purple.opacity(0.75), style: StrokeStyle(lineWidth: 3, dash: [7, 5]))
+                        .stroke(Color.routeAlternate.opacity(0.75), style: StrokeStyle(lineWidth: 3, dash: [7, 5]))
                 }
             }
             .mapStyle(.standard(elevation: .realistic))
@@ -261,7 +261,7 @@ struct MainView: View {
     private var feedbackOverlay: some View {
         if let feedbackMessage {
             Text(feedbackMessage)
-                .font(.subheadline.weight(.semibold))
+                .font(.labelEmphasis)
                 .foregroundStyle(.primary)
                 .padding(.horizontal, Spacing.lg)
                 .padding(.vertical, Spacing.md)
@@ -307,6 +307,8 @@ struct MainView: View {
                 .foregroundStyle(.white)
                 .padding(.horizontal, Spacing.xs)
                 .frame(minWidth: 14, minHeight: 14)
+                // 這個紅色是 iOS 未讀徽章的慣例，不是 statusDanger。綁上狀態色的話，
+                // 哪天調整「危險」的顏色，徽章會跟著變成一個不再像徽章的東西。
                 .background(.red, in: Capsule())
                 .offset(x: 8, y: -8)
         }
@@ -494,7 +496,7 @@ private struct MapToolBar: View {
     private var collapsedTab: some View {
         Button { withAnimation(.snappy) { isExpanded = true } } label: {
             Image(systemName: "chevron.left")
-                .font(.subheadline.weight(.semibold))
+                .font(.labelEmphasis)
                 .foregroundStyle(Color.primary)
                 .frame(width: 28, height: 46)
                 .contentShape(Rectangle())
@@ -577,7 +579,7 @@ private struct MapToolBar: View {
         mapButton(
             "airplane",
             label: "飛航模式輔助",
-            tint: airplaneAssist.connection.needsAssist ? Color.orange : nil
+            tint: airplaneAssist.connection.needsAssist ? Color.statusAttention : nil
         ) {
             showAirplaneAssist = true
         }
@@ -620,9 +622,9 @@ private struct ControlPanel: View {
         VStack(spacing: Spacing.md) {
             HStack {
                 VStack(alignment: .leading, spacing: Spacing.xs) {
-                    Text(controller.status.message).font(.subheadline.weight(.semibold))
+                    Text(controller.status.message).font(.labelEmphasis)
                     Text(controller.status.coordinate?.display ?? controller.selectedCoordinate.display)
-                        .font(.caption.monospacedDigit()).foregroundStyle(.secondary)
+                        .font(.numericCaption).foregroundStyle(.secondary)
                     if controller.status.isActive, let stopAt = controller.status.autoStopAt {
                         Text("將於 \(stopAt.formatted(date: .omitted, time: .shortened)) 自動停止")
                             .font(.caption2).foregroundStyle(.secondary)
@@ -630,7 +632,7 @@ private struct ControlPanel: View {
                 }
                 Spacer()
                 if controller.status.isActive {
-                    Circle().fill(controller.status.isPaused ? .orange : .green).frame(width: 10, height: 10)
+                    Circle().fill(controller.status.isPaused ? Color.statusAttention : Color.statusOK).frame(width: Metrics.statusDot, height: Metrics.statusDot)
                 }
                 Button { withAnimation(.snappy) { isExpanded.toggle() } } label: {
                     Image(systemName: isExpanded ? "chevron.down" : "chevron.up")
@@ -781,7 +783,7 @@ private struct ControlPanel: View {
                     SpeedScale.toSliderPosition(controller.speedKilometresPerHour)
                 }, set: controller.setSpeedFromSlider), in: 0...1)
                 Text(String(format: "%.1f km/h", controller.speedKilometresPerHour))
-                    .font(.caption.monospacedDigit()).frame(width: 78, alignment: .trailing)
+                    .font(.numericCaption).frame(width: 78, alignment: .trailing)
             }
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: Spacing.sm) {
@@ -793,7 +795,7 @@ private struct ControlPanel: View {
             }
             if SpeedScale.exceedsFlowerLimit(controller.speedKilometresPerHour) {
                 Label("速度高於 20 km/h，部分遊戲可能忽略定位更新", systemImage: "exclamationmark.triangle.fill")
-                    .font(.caption2).foregroundStyle(.orange)
+                    .font(.caption2).foregroundStyle(Color.statusAttention)
             }
         }
     }
@@ -808,7 +810,7 @@ private struct JoystickPad: View {
             let radius = min(geometry.size.width, geometry.size.height) / 2
             ZStack {
                 Circle().fill(.regularMaterial).overlay(Circle().stroke(.secondary.opacity(0.35), lineWidth: 1))
-                Circle().fill(.blue.opacity(0.72)).frame(width: radius * 0.72, height: radius * 0.72)
+                Circle().fill(Color.statusActive.opacity(0.72)).frame(width: radius * 0.72, height: radius * 0.72)
                     .offset(knob)
             }
             .contentShape(Circle())

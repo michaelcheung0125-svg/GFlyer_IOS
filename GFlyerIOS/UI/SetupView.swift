@@ -340,7 +340,7 @@ struct SetupView: View {
                     Text(preset.name)
                     Spacer()
                     Text(String(format: "%.1f km/h", preset.kilometresPerHour))
-                        .font(.caption.monospacedDigit())
+                        .font(.numericCaption)
                         .foregroundStyle(.secondary)
                     if !isDefaultPreset(preset) {
                         Button(role: .destructive) {
@@ -480,7 +480,7 @@ struct SetupView: View {
             } label: {
                 LabeledContent {
                     Text("今天 \(stepRecorder.todaySteps) 步")
-                        .font(.caption.monospacedDigit())
+                        .font(.numericCaption)
                         .foregroundStyle(.secondary)
                 } label: {
                     Label("補錄步數", systemImage: "figure.walk")

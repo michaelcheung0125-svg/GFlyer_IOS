@@ -176,7 +176,7 @@ struct CoordinateLibraryView: View {
         VStack(spacing: Spacing.md) {
             Spacer()
             Image(systemName: icon).font(.largeTitle).foregroundStyle(.secondary)
-            Text(title).font(.subheadline.weight(.semibold))
+            Text(title).font(.labelEmphasis)
             Text(caption)
                 .font(.caption)
                 .foregroundStyle(.secondary)
@@ -255,7 +255,7 @@ private struct LibraryCoordinateRow: View {
                 library.toggleFavorite(coordinate.id)
             } label: {
                 Image(systemName: library.favorites.contains(coordinate.id) ? "star.fill" : "star")
-                    .foregroundStyle(.yellow)
+                    .foregroundStyle(Color.statusFavorite)
             }
             .buttonStyle(.borderless)
             .accessibilityLabel("最愛")
@@ -287,13 +287,13 @@ private struct LibraryCoordinateRow: View {
             switch state {
             case .ready:
                 Label("可以再去了", systemImage: "checkmark.seal.fill")
-                    .font(.caption2).foregroundStyle(.green)
+                    .font(.caption2).foregroundStyle(Color.statusOK)
             case let .waiting(nextAvailableAt, daysLeft, hoursLeft):
                 Label(
                     "還要等 \(daysLeft) 天 \(hoursLeft) 小時（\(VisitReminder.format(nextAvailableAt))）",
                     systemImage: "clock"
                 )
-                .font(.caption2).foregroundStyle(.orange)
+                .font(.caption2).foregroundStyle(Color.statusAttention)
             }
         }
     }

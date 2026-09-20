@@ -90,7 +90,7 @@ struct StepRecorderView: View {
                         recorder.record(steps: steps)
                     } label: {
                         Text("\(steps)")
-                            .font(.subheadline.weight(.semibold))
+                            .font(.labelEmphasis)
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, Spacing.md)
                     }
@@ -129,10 +129,10 @@ struct StepRecorderView: View {
             LabeledContent("狀態") {
                 if recorder.isQuickRecordReady {
                     Label("可用", systemImage: "checkmark.circle.fill")
-                        .foregroundStyle(.green)
+                        .foregroundStyle(Color.statusOK)
                 } else {
                     Label("尚未驗證", systemImage: "exclamationmark.circle")
-                        .foregroundStyle(.orange)
+                        .foregroundStyle(Color.statusAttention)
                 }
             }
         } header: {
@@ -173,7 +173,7 @@ struct StepRecorderView: View {
                                     .font(.subheadline)
                                 Spacer()
                                 Text(entry.requestedAt.formatted(date: .omitted, time: .shortened))
-                                    .font(.caption.monospacedDigit())
+                                    .font(.numericCaption)
                                     .foregroundStyle(.secondary)
                                 statusBadge(entry.status)
                             }
@@ -183,12 +183,12 @@ struct StepRecorderView: View {
                             Text(Self.dayLabel(day.date))
                             Spacer()
                             Text("\(day.confirmedSteps) 步")
-                                .font(.subheadline.monospacedDigit())
+                                .font(.numericLabel)
                                 .foregroundStyle(.secondary)
                             if day.hasUnconfirmed {
                                 Image(systemName: "exclamationmark.circle")
                                     .font(.caption)
-                                    .foregroundStyle(.orange)
+                                    .foregroundStyle(Color.statusAttention)
                             }
                         }
                     }
@@ -211,17 +211,17 @@ struct StepRecorderView: View {
         case .confirmed:
             Image(systemName: "checkmark.circle.fill")
                 .font(.caption)
-                .foregroundStyle(.green)
+                .foregroundStyle(Color.statusOK)
                 .accessibilityLabel(status.label)
         case .pending:
             Image(systemName: "questionmark.circle")
                 .font(.caption)
-                .foregroundStyle(.orange)
+                .foregroundStyle(Color.statusAttention)
                 .accessibilityLabel(status.label)
         case .failed:
             Image(systemName: "xmark.circle")
                 .font(.caption)
-                .foregroundStyle(.red)
+                .foregroundStyle(Color.statusDanger)
                 .accessibilityLabel(status.label)
         }
     }

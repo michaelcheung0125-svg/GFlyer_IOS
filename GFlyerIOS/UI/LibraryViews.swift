@@ -75,7 +75,7 @@ struct SavedPlacesView: View {
             } label: {
                 VStack(alignment: .leading, spacing: Spacing.xs) {
                     Text(place.name).foregroundStyle(.primary)
-                    Text(place.coordinate.display).font(.caption.monospacedDigit()).foregroundStyle(.secondary)
+                    Text(place.coordinate.display).font(.numericCaption).foregroundStyle(.secondary)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
@@ -106,7 +106,7 @@ struct SavedPlacesView: View {
         } label: {
             VStack(alignment: .leading, spacing: Spacing.xs) {
                 Text(place.name).foregroundStyle(.primary)
-                Text(place.coordinate.display).font(.caption.monospacedDigit()).foregroundStyle(.secondary)
+                Text(place.coordinate.display).font(.numericCaption).foregroundStyle(.secondary)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
