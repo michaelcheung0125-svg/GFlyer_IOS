@@ -87,6 +87,41 @@ C:\Project\GFlyer
   - `0.4.0 (6)` 已發佈到公開的 `GFlyer-updates`（release `ios-v0.4.0`）並
     確認可以從 SideStore 來源安裝到實機。來源檔必須維持舊版 AltStore 扁平
     格式，細節見 `docs/ALTSTORE_DISTRIBUTION.md`
+- `0.6.8 (21)`：0.6.7 實機回報的四件事。
+  - 已發佈 `ios-v0.6.8`；CI 兩個 job 通過（97 個測試），IPA 拆檢通過
+    （`Assets.car`、AppIcon、版本號 0.6.8 (21)），線上 `altstore.json` 為
+    0.6.8，下載網址 HTTP 200 且大小 9,949,118 bytes 與來源檔一致。
+  - **按鈕沒有按壓回饋**：`mapButton` 用的 `.buttonStyle(.plain)` 會連系統
+    預設的按壓高亮一起拿掉，所以按下去畫面完全不變。新增
+    `PressFeedbackButtonStyle`，同時給視覺（變暗、縮到 0.93）與觸覺
+    （`.sensoryFeedback(.impact(flexibility: .soft))`）。震動只在按下的邊緣
+    觸發，放開再震一次會讓單次點擊感覺像兩次。視覺回饋單獨不夠用，因為手指
+    通常正好蓋住剛按下的那顆。
+  - **定位按鈕看起來像沒反應**：等 CoreLocation 要數秒，期間沒有任何指示。
+    改為顯示轉圈並忽略重複點擊。收掉轉圈需要在 `requestCurrentLocation` 加
+    `onFinish`——原本的 `onSuccess` 失敗時不會被呼叫，只靠它轉圈會卡住。
+    另加 20 秒保險絲：權限尚未決定時完成回呼會被收起來等系統對話框，使用者
+    不回答就永遠不會回來。
+  - **控制面板收合箭頭難按**：可點範圍只有約 20pt 的字形，`.borderless`
+    不把周圍空白算進去。改成整條 header 列都是按鈕（標題、座標、狀態點、
+    箭頭與其間空隙），箭頭本身補到 44pt。整列寬的按鈕傳
+    `scalesOnPress: false`——一整條狀態列縮起來看起來像跑版而不像回饋。
+    不覆寫 accessibilityLabel，狀態訊息仍是 VoiceOver 讀出的內容，動作放在
+    hint。
+  - **深淺色外觀設定**：新增 `Model/AppAppearance.swift`（system／light／dark，
+    存在 `gflyer.appearance`），設定頁「關於」下方新增「外觀」一節。
+    `preferredColorScheme` 套在 `GFlyerIOSApp` 的 WindowGroup 根層而不是
+    MainView——sheet 是另一個呈現層，套在 MainView 上設定頁自己不會變色。
+    `.system` 對應 `nil`（不覆寫），值缺失或損壞都退回 `.system`，兩點都有
+    測試。模擬器深色截圖仍跟隨系統，等於驗證了這條預設路徑。
+  - **一次 CI 紅燈**：`Section("外觀") { } footer: { }` 這個多載不存在，帶字串
+    標題的 `Section` 沒有 footer 參數，要用 content／header／footer 那一組
+    （`StepRecorderView` 已經是這樣寫）。本機的括號平衡檢查擋不掉這種型別
+    錯誤，只有 CI 會。
+  - **尚待驗證**：實機上震動強度是否合適；關閉定位權限後轉圈是否會自己收掉；
+    整條 header 可按之後會不會誤觸；設定頁開著時切換外觀是否跟著變色；
+    重開 App 後外觀設定是否保留。
+
 - `0.6.7 (20)`：地圖工具列的可點目標放大到 44pt；底下換上一組設計 token。
   - 已發佈 `ios-v0.6.7`；CI 兩個 job 通過（92 個測試），IPA 拆檢通過
     （`Assets.car`、AppIcon、版本號 0.6.7 (20)），線上 `altstore.json` 為
