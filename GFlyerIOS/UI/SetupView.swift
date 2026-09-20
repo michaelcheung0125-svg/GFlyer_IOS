@@ -240,13 +240,17 @@ struct SetupView: View {
     }
 
     private var appearanceSection: some View {
-        Section("外觀") {
+        // 帶字串標題的 Section 沒有 footer 參數，要 footer 就得用
+        // header:／footer: 這一組，兩邊都寫成 Text。
+        Section {
             Picker("深淺色", selection: $appearanceRawValue) {
                 ForEach(AppAppearance.allCases) { appearance in
                     Text(appearance.label).tag(appearance.rawValue)
                 }
             }
             .pickerStyle(.segmented)
+        } header: {
+            Text("外觀")
         } footer: {
             Text("只影響 GFlyer，不會改到其他 App。選「跟隨系統」就是原本的行為。")
         }
