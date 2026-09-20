@@ -154,14 +154,14 @@ struct MainView: View {
             mapLayer
             if showJoystick {
                 JoystickPad(controller: controller)
-                    .frame(width: 132, height: 132)
-                    .padding(.leading, 18)
-                    .padding(.bottom, isPanelExpanded ? 258 : 120)
+                    .frame(width: Layout.joystickDiameter, height: Layout.joystickDiameter)
+                    .padding(.leading, Layout.joystickLeadingInset)
+                    .padding(.bottom, isPanelExpanded ? Layout.joystickBottomInsetPanelExpanded : Layout.joystickBottomInsetPanelCollapsed)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
             ControlPanel(controller: controller, isExpanded: $isPanelExpanded)
-                .padding(.horizontal, 12)
-                .padding(.bottom, 8)
+                .padding(.horizontal, Spacing.md)
+                .padding(.bottom, Spacing.sm)
         }
         // 用 overlay 把搜尋列與工具列釘在最上面，不參與 ZStack 的底部對齊
         .overlay(alignment: .top) { searchAndToolsLayer }
@@ -188,7 +188,7 @@ struct MainView: View {
                     Annotation("模擬位置", coordinate: active.clLocationCoordinate) {
                         Image(systemName: "location.fill")
                             .foregroundStyle(.white)
-                            .padding(8)
+                            .padding(Spacing.sm)
                             .background(.blue, in: Circle())
                     }
                 }
@@ -247,11 +247,11 @@ struct MainView: View {
                         onFeedback: announce
                     )
                 }
-                .padding(.top, 8)
+                .padding(.top, Spacing.sm)
             }
         }
-        .padding(.horizontal, 12)
-        .padding(.top, 8)
+        .padding(.horizontal, Spacing.md)
+        .padding(.top, Spacing.sm)
         // 這一塊只佔自己的高度。之前用 Spacer 撐到畫面底再留 112 的底部內距，
         // 工具列展開時整塊比鍵盤讓出的空間還高，SwiftUI 放不下就把它往上推，
         // 搜尋列因此跳動；工具列收起時高度夠小，所以看起來沒事。
@@ -263,11 +263,11 @@ struct MainView: View {
             Text(feedbackMessage)
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(.primary)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 9)
+                .padding(.horizontal, Spacing.lg)
+                .padding(.vertical, Spacing.md)
                 .background(.regularMaterial, in: Capsule())
                 .shadow(radius: 4, y: 2)
-                .padding(.top, 84)
+                .padding(.top, Layout.feedbackToastTopInset)
                 .transition(.move(edge: .top).combined(with: .opacity))
         }
     }
@@ -282,7 +282,7 @@ struct MainView: View {
             .font(.caption)
         }
         ToolbarItem(placement: .principal) {
-            HStack(spacing: 7) {
+            HStack(spacing: Spacing.sm) {
                 Image("GFlyerIcon").resizable().scaledToFill().frame(width: 26, height: 26)
                     .clipShape(RoundedRectangle(cornerRadius: 5))
                 Text("GFlyer").font(.headline)
@@ -305,7 +305,7 @@ struct MainView: View {
             Text(messageBoard.unreadCount > 99 ? "99+" : "\(messageBoard.unreadCount)")
                 .font(.system(size: 8, weight: .bold))
                 .foregroundStyle(.white)
-                .padding(.horizontal, 3)
+                .padding(.horizontal, Spacing.xs)
                 .frame(minWidth: 14, minHeight: 14)
                 .background(.red, in: Capsule())
                 .offset(x: 8, y: -8)
@@ -392,7 +392,7 @@ private struct SearchBar: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            HStack(spacing: 8) {
+            HStack(spacing: Spacing.sm) {
                 Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
                 TextField("搜尋地點或輸入座標", text: $controller.searchQuery)
                     .textInputAutocapitalization(.never)
@@ -422,8 +422,8 @@ private struct SearchBar: View {
                         .accessibilityLabel("搜尋")
                 }
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 10)
+            .padding(.horizontal, Spacing.md)
+            .padding(.vertical, Spacing.md)
             .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
             .contentShape(RoundedRectangle(cornerRadius: 8))
             .toolbar {
@@ -442,13 +442,13 @@ private struct SearchBar: View {
                                 controller.chooseSearchResult(result)
                                 onChoose(result.coordinate)
                             } label: {
-                                VStack(alignment: .leading, spacing: 2) {
+                                VStack(alignment: .leading, spacing: Spacing.xs) {
                                     Text(result.title).font(.subheadline.weight(.medium))
                                     Text(result.subtitle).font(.caption).foregroundStyle(.secondary)
                                 }
                                 .frame(maxWidth: .infinity, alignment: .leading)
-                                .padding(.horizontal, 12)
-                                .padding(.vertical, 9)
+                                .padding(.horizontal, Spacing.md)
+                                .padding(.vertical, Spacing.md)
                             }
                             .buttonStyle(.plain)
                             Divider()
@@ -456,9 +456,9 @@ private struct SearchBar: View {
                     }
                 }
                 .scrollDismissesKeyboard(.immediately)
-                .frame(maxHeight: 240)
+                .frame(maxHeight: Layout.searchResultsMaxHeight)
                 .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
-                .padding(.top, 4)
+                .padding(.top, Spacing.xs)
             }
         }
     }
@@ -510,19 +510,19 @@ private struct MapToolBar: View {
     }
 
     private var expandedToolBar: some View {
-        VStack(spacing: 4) {
-            HStack(spacing: 4) {
+        VStack(spacing: Spacing.xs) {
+            HStack(spacing: Spacing.xs) {
                 mapButton("plus", label: "放大") { zoom(0.5) }
                 mapButton("minus", label: "縮小") { zoom(2) }
             }
-            HStack(spacing: 4) {
+            HStack(spacing: Spacing.xs) {
                 mapButton("location.fill", label: "前往目前位置", action: onLocate)
                 mapButton(showJoystick ? "gamecontroller.fill" : "gamecontroller", label: "搖桿") {
                     showJoystick.toggle()
                     if showJoystick { isPanelExpanded = false }
                 }
             }
-            HStack(spacing: 4) {
+            HStack(spacing: Spacing.xs) {
                 let isFavorite = controller.favorites.contains { $0.coordinate == controller.selectedCoordinate }
                 mapButton(isFavorite ? "star.fill" : "star", label: "收藏目前位置") {
                     controller.addFavorite()
@@ -530,22 +530,22 @@ private struct MapToolBar: View {
                 }
                 mapButton("star.circle", label: "收藏與歷史") { showFavorites = true }
             }
-            HStack(spacing: 4) {
+            HStack(spacing: Spacing.xs) {
                 mapButton("point.3.filled.connected.trianglepath.dotted", label: "已儲存路線") { showRoutes = true }
                 mapButton("square.and.arrow.up", label: "分享到留言板") { showBoardShare = true }
             }
-            HStack(spacing: 4) {
+            HStack(spacing: Spacing.xs) {
                 mapButton("books.vertical", label: "座標圖鑑") { showLibrary = true }
                 stepRecordButton
             }
-            HStack(spacing: 4) {
+            HStack(spacing: Spacing.xs) {
                 airplaneAssistButton
                 mapButton("chevron.right", label: "收起地圖工具列") {
                     withAnimation(.snappy) { isExpanded = false }
                 }
             }
         }
-        .padding(6)
+        .padding(Spacing.sm)
         .fixedSize()
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
         // 讓整塊工具列（含按鈕之間的空隙與內距）吃掉點擊，
@@ -617,9 +617,9 @@ private struct ControlPanel: View {
     @State private var routeName = ""
 
     var body: some View {
-        VStack(spacing: 10) {
+        VStack(spacing: Spacing.md) {
             HStack {
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: Spacing.xs) {
                     Text(controller.status.message).font(.subheadline.weight(.semibold))
                     Text(controller.status.coordinate?.display ?? controller.selectedCoordinate.display)
                         .font(.caption.monospacedDigit()).foregroundStyle(.secondary)
@@ -650,7 +650,7 @@ private struct ControlPanel: View {
 
                 if controller.status.isActive { playbackActionButtons }
 
-                HStack(spacing: 10) {
+                HStack(spacing: Spacing.md) {
                     Button { controller.start() } label: {
                         Label(controller.status.isActive ? "重新開始" : "開始", systemImage: "play.fill")
                             .frame(maxWidth: .infinity)
@@ -666,7 +666,7 @@ private struct ControlPanel: View {
                 }
             }
         }
-        .padding(14)
+        .padding(Spacing.lg)
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
         .contentShape(RoundedRectangle(cornerRadius: 8))
         .alert("儲存路線", isPresented: $showSaveRoute) {
@@ -677,7 +677,7 @@ private struct ControlPanel: View {
     }
 
     private var routeControls: some View {
-        VStack(spacing: 9) {
+        VStack(spacing: Spacing.md) {
             HStack {
                 Label("\(controller.routePoints.count) 個路線點", systemImage: "point.3.connected.trianglepath.dotted")
                     .font(.caption)
@@ -705,7 +705,7 @@ private struct ControlPanel: View {
 
     private var advancedPlaybackOptions: some View {
         DisclosureGroup {
-            VStack(spacing: 8) {
+            VStack(spacing: Spacing.sm) {
                 Picker("移動方式", selection: Binding(
                     get: { controller.playbackSettings.travelMode },
                     set: { value in controller.updatePlayback { $0.travelMode = value } }
@@ -733,14 +733,14 @@ private struct ControlPanel: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
             }
-            .padding(.top, 6)
+            .padding(.top, Spacing.sm)
         } label: {
             Label("進階播放選項", systemImage: "slider.horizontal.3").font(.caption)
         }
     }
 
     private var playbackActionButtons: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: Spacing.sm) {
             if let remaining = controller.status.countdownRemaining {
                 Button { controller.skipStartCountdown() } label: {
                     Label("跳過倒數（\(remaining) 秒）", systemImage: "forward.end")
@@ -766,7 +766,7 @@ private struct ControlPanel: View {
     }
 
     private var exploreControls: some View {
-        VStack(alignment: .leading, spacing: 7) {
+        VStack(alignment: .leading, spacing: Spacing.sm) {
             Label("以選取位置為中心持續螺旋探索", systemImage: "arrow.triangle.2.circlepath")
                 .font(.caption).foregroundStyle(.secondary)
             speedControls
@@ -774,7 +774,7 @@ private struct ControlPanel: View {
     }
 
     private var speedControls: some View {
-        VStack(spacing: 6) {
+        VStack(spacing: Spacing.sm) {
             HStack {
                 Text("速度")
                 Slider(value: Binding(get: {
@@ -784,7 +784,7 @@ private struct ControlPanel: View {
                     .font(.caption.monospacedDigit()).frame(width: 78, alignment: .trailing)
             }
             ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 6) {
+                HStack(spacing: Spacing.sm) {
                     ForEach(controller.quickSpeedPresets) { preset in
                         Button(preset.name) { controller.applySpeedPreset(preset) }
                             .buttonStyle(.bordered).controlSize(.small)

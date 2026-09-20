@@ -64,12 +64,12 @@ struct AirplaneAssistView: View {
 
     private var statusSection: some View {
         Section {
-            HStack(spacing: 12) {
+            HStack(spacing: Spacing.md) {
                 Image(systemName: assist.connection.iconName)
                     .font(.title3)
                     .frame(width: 28)
                     .foregroundStyle(assist.connection == .offline ? Color.orange : Color.blue)
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: Spacing.xs) {
                     Text(assist.connection.label)
                         .font(.subheadline.weight(.semibold))
                     Text(simulation.status.isActive ? "模擬進行中" : "尚未開始模擬")
@@ -78,7 +78,7 @@ struct AirplaneAssistView: View {
                 }
                 Spacer()
             }
-            .padding(.vertical, 2)
+            .padding(.vertical, Spacing.xs)
             if assist.connection == .wifi {
                 Text("目前是 Wi-Fi，一般不需要這串操作，直接開始模擬即可。")
                     .font(.caption)
@@ -149,12 +149,12 @@ struct AirplaneAssistView: View {
     ) -> some View {
         let isCurrent = currentStep == step
         let isDone = isStepDone(step)
-        return VStack(alignment: .leading, spacing: 8) {
-            HStack(alignment: .top, spacing: 10) {
+        return VStack(alignment: .leading, spacing: Spacing.sm) {
+            HStack(alignment: .top, spacing: Spacing.md) {
                 Image(systemName: isDone ? "checkmark.circle.fill" : "\(number).circle")
                     .font(.title3)
                     .foregroundStyle(isDone ? Color.green : (isCurrent ? Color.blue : Color.secondary))
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: Spacing.xs) {
                     Text(title)
                         .font(.subheadline.weight(isCurrent ? .semibold : .regular))
                         .foregroundStyle(isCurrent || isDone ? Color.primary : Color.secondary)
@@ -169,7 +169,7 @@ struct AirplaneAssistView: View {
                     .frame(maxWidth: .infinity)
             }
         }
-        .padding(.vertical, 3)
+        .padding(.vertical, Spacing.xs)
     }
 
     /// 走到後面的步驟，代表前面的已經完成。
@@ -228,7 +228,7 @@ struct AirplaneAssistView: View {
             Text("要建兩個，各自只有一個動作，不需要「如果」也不需要選變數。")
                 .font(.caption)
                 .foregroundStyle(.secondary)
-            VStack(alignment: .leading, spacing: 7) {
+            VStack(alignment: .leading, spacing: Spacing.sm) {
                 helpLine("1.", "開啟「捷徑」App，按右上角 + 新增捷徑。")
                 helpLine("2.", "搜尋並加入動作「設定飛航模式」。")
                 helpLine("3.", "確認它顯示的是「開啟」。")
@@ -237,7 +237,7 @@ struct AirplaneAssistView: View {
                 helpLine("6.", "命名為「\(AirplaneAssistController.defaultTurnOffShortcutName)」。")
                 helpLine("7.", "兩個都在捷徑詳細資料關閉「執行前先詢問」，否則每次要多按一次。")
             }
-            .padding(.vertical, 2)
+            .padding(.vertical, Spacing.xs)
             Text("iOS 沒有讓 App 直接切換飛行模式的 API，交給捷徑用它自己的權限執行是唯一可行的做法。")
                 .font(.caption)
                 .foregroundStyle(.secondary)
@@ -245,7 +245,7 @@ struct AirplaneAssistView: View {
     }
 
     private func helpLine(_ number: String, _ text: String) -> some View {
-        HStack(alignment: .top, spacing: 6) {
+        HStack(alignment: .top, spacing: Spacing.sm) {
             Text(number)
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(.secondary)

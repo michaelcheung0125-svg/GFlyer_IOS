@@ -68,12 +68,12 @@ struct SavedPlacesView: View {
     }
 
     private func placeRow(_ place: SavedPlace) -> some View {
-        HStack(spacing: 10) {
+        HStack(spacing: Spacing.md) {
             Button {
                 controller.useSavedPlace(place)
                 dismiss()
             } label: {
-                VStack(alignment: .leading, spacing: 3) {
+                VStack(alignment: .leading, spacing: Spacing.xs) {
                     Text(place.name).foregroundStyle(.primary)
                     Text(place.coordinate.display).font(.caption.monospacedDigit()).foregroundStyle(.secondary)
                 }
@@ -104,7 +104,7 @@ struct SavedPlacesView: View {
             controller.useSavedPlace(place)
             dismiss()
         } label: {
-            VStack(alignment: .leading, spacing: 3) {
+            VStack(alignment: .leading, spacing: Spacing.xs) {
                 Text(place.name).foregroundStyle(.primary)
                 Text(place.coordinate.display).font(.caption.monospacedDigit()).foregroundStyle(.secondary)
             }
@@ -128,7 +128,7 @@ struct SavedRoutesView: View {
                             controller.loadSavedRoute(route)
                             dismiss()
                         } label: {
-                            VStack(alignment: .leading, spacing: 4) {
+                            VStack(alignment: .leading, spacing: Spacing.xs) {
                                 Text(route.name).foregroundStyle(.primary)
                                 Text("\(route.points.count) 點 · \(route.loop ? "循環" : "單程")")
                                     .font(.caption).foregroundStyle(.secondary)

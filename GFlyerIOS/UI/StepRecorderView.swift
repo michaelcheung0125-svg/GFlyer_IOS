@@ -84,7 +84,7 @@ struct StepRecorderView: View {
 
     private var recordSection: some View {
         Section("補錄步數") {
-            HStack(spacing: 10) {
+            HStack(spacing: Spacing.md) {
                 ForEach(StepRecordHistory.presetStepCounts, id: \.self) { steps in
                     Button {
                         recorder.record(steps: steps)
@@ -92,7 +92,7 @@ struct StepRecorderView: View {
                         Text("\(steps)")
                             .font(.subheadline.weight(.semibold))
                             .frame(maxWidth: .infinity)
-                            .padding(.vertical, 9)
+                            .padding(.vertical, Spacing.md)
                     }
                     .buttonStyle(.bordered)
                 }

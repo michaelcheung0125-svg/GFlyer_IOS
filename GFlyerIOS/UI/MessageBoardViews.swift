@@ -76,7 +76,7 @@ struct MessageBoardView: View {
         List {
             Section {
                 HStack {
-                    VStack(alignment: .leading, spacing: 2) {
+                    VStack(alignment: .leading, spacing: Spacing.xs) {
                         Text(board.member?.username ?? "")
                             .font(.headline)
                         Text(board.member?.role.label ?? "")
@@ -103,7 +103,7 @@ struct MessageBoardView: View {
                 }
                 if !tags.isEmpty {
                     ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 8) {
+                        HStack(spacing: Spacing.sm) {
                             tagButton("全部", tag: nil)
                             ForEach(tags, id: \.self) { tag in tagButton("#\(tag)", tag: tag) }
                         }
@@ -134,7 +134,7 @@ struct MessageBoardView: View {
         .refreshable { board.refresh() }
         .overlay {
             if board.isLoading && board.member != nil {
-                ProgressView().padding(12).background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
+                ProgressView().padding(Spacing.md).background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
             }
         }
     }
@@ -244,15 +244,15 @@ private struct MessageBoardPostRow: View {
     @State private var savedFeedback = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: Spacing.md) {
             HStack(alignment: .top) {
-                VStack(alignment: .leading, spacing: 3) {
-                    HStack(spacing: 5) {
+                VStack(alignment: .leading, spacing: Spacing.xs) {
+                    HStack(spacing: Spacing.sm) {
                         if post.pinned { Image(systemName: "pin.fill").foregroundStyle(.orange) }
                         Text(post.authorName).font(.headline)
                         Text(post.kind.label)
                             .font(.caption2.weight(.semibold))
-                            .padding(.horizontal, 6).padding(.vertical, 2)
+                            .padding(.horizontal, Spacing.sm).padding(.vertical, Spacing.xs)
                             .background(.quaternary, in: RoundedRectangle(cornerRadius: 4))
                     }
                     Text(expiryLabel)
@@ -288,7 +288,7 @@ private struct MessageBoardPostRow: View {
 
             if !post.tags.isEmpty {
                 ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 6) {
+                    HStack(spacing: Spacing.sm) {
                         ForEach(post.tags, id: \.self) { tag in
                             Text("#\(tag)").font(.caption).foregroundStyle(.secondary)
                         }
@@ -297,7 +297,7 @@ private struct MessageBoardPostRow: View {
             }
 
             if post.kind != .announcement {
-                HStack(spacing: 8) {
+                HStack(spacing: Spacing.sm) {
                     Button(action: onPreview) {
                         Label(post.kind == .coordinate ? "查看" : "載入", systemImage: "map")
                     }
@@ -318,10 +318,10 @@ private struct MessageBoardPostRow: View {
             }
 
             DisclosureGroup(isExpanded: $repliesExpanded) {
-                VStack(alignment: .leading, spacing: 9) {
+                VStack(alignment: .leading, spacing: Spacing.md) {
                     ForEach(post.replies) { reply in
                         HStack(alignment: .top) {
-                            VStack(alignment: .leading, spacing: 2) {
+                            VStack(alignment: .leading, spacing: Spacing.xs) {
                                 Text(reply.authorName).font(.caption.weight(.semibold))
                                 Text(reply.message).font(.subheadline)
                                 Text(reply.createdAt.formatted(date: .abbreviated, time: .shortened))
@@ -353,13 +353,13 @@ private struct MessageBoardPostRow: View {
                             .accessibilityLabel("送出回覆")
                     }
                 }
-                .padding(.top, 8)
+                .padding(.top, Spacing.sm)
             } label: {
                 Label("\(post.replies.count) 個回覆", systemImage: "bubble.left")
                     .font(.subheadline)
             }
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, Spacing.xs)
         .confirmationDialog("確定刪除這個分享？", isPresented: $showDeleteConfirmation, titleVisibility: .visible) {
             Button("刪除", role: .destructive, action: onDelete)
             Button("取消", role: .cancel) { }
@@ -576,7 +576,7 @@ private struct MessageBoardAdminView: View {
                         .disabled(inviteCode.count < 4 || board.isSubmitting)
 
                     ForEach(board.invitations) { invitation in
-                        VStack(alignment: .leading, spacing: 4) {
+                        VStack(alignment: .leading, spacing: Spacing.xs) {
                             HStack {
                                 Text(invitation.label).font(.subheadline.weight(.semibold))
                                 Spacer()
@@ -596,7 +596,7 @@ private struct MessageBoardAdminView: View {
 
                 Section("已加入裝置") {
                     ForEach(board.managedMembers) { managed in
-                        VStack(alignment: .leading, spacing: 5) {
+                        VStack(alignment: .leading, spacing: Spacing.sm) {
                             HStack {
                                 Text(managed.username).font(.headline)
                                 Text(managed.role.label).font(.caption).foregroundStyle(.secondary)

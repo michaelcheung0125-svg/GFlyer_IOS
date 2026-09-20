@@ -60,7 +60,7 @@ struct CoordinateLibraryView: View {
 
     private var tabChips: some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 6) {
+            HStack(spacing: Spacing.sm) {
                 ForEach(library.tabs, id: \.self) { tab in
                     Button {
                         library.selectedTab = tab
@@ -68,8 +68,8 @@ struct CoordinateLibraryView: View {
                     } label: {
                         Text(library.title(for: tab))
                             .font(.subheadline)
-                            .padding(.horizontal, 11)
-                            .padding(.vertical, 6)
+                            .padding(.horizontal, Spacing.md)
+                            .padding(.vertical, Spacing.sm)
                             .background(
                                 library.selectedTab == tab
                                     ? Color.accentColor.opacity(0.18)
@@ -80,14 +80,14 @@ struct CoordinateLibraryView: View {
                     .buttonStyle(.plain)
                 }
             }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 8)
+            .padding(.horizontal, Spacing.lg)
+            .padding(.vertical, Spacing.sm)
         }
     }
 
     private var subcategoryChips: some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 6) {
+            HStack(spacing: Spacing.sm) {
                 chip("全部", selected: library.selectedSubcategoryID == nil) {
                     library.selectedSubcategoryID = nil
                 }
@@ -97,8 +97,8 @@ struct CoordinateLibraryView: View {
                     }
                 }
             }
-            .padding(.horizontal, 14)
-            .padding(.bottom, 6)
+            .padding(.horizontal, Spacing.lg)
+            .padding(.bottom, Spacing.sm)
         }
     }
 
@@ -106,8 +106,8 @@ struct CoordinateLibraryView: View {
         Button(action: action) {
             Text(title)
                 .font(.caption)
-                .padding(.horizontal, 9)
-                .padding(.vertical, 5)
+                .padding(.horizontal, Spacing.md)
+                .padding(.vertical, Spacing.sm)
                 .background(
                     selected ? Color.accentColor.opacity(0.18) : Color(uiColor: .secondarySystemBackground),
                     in: Capsule()
@@ -117,7 +117,7 @@ struct CoordinateLibraryView: View {
     }
 
     private var searchField: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: Spacing.sm) {
             Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
             TextField("搜尋名稱或說明", text: $library.searchText)
                 .textInputAutocapitalization(.never)
@@ -129,11 +129,11 @@ struct CoordinateLibraryView: View {
                 .accessibilityLabel("清除搜尋")
             }
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
+        .padding(.horizontal, Spacing.md)
+        .padding(.vertical, Spacing.sm)
         .background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: 8))
-        .padding(.horizontal, 14)
-        .padding(.bottom, 6)
+        .padding(.horizontal, Spacing.lg)
+        .padding(.bottom, Spacing.sm)
     }
 
     @ViewBuilder
@@ -173,7 +173,7 @@ struct CoordinateLibraryView: View {
     }
 
     private func emptyState(icon: String, title: String, caption: String) -> some View {
-        VStack(spacing: 9) {
+        VStack(spacing: Spacing.md) {
             Spacer()
             Image(systemName: icon).font(.largeTitle).foregroundStyle(.secondary)
             Text(title).font(.subheadline.weight(.semibold))
@@ -208,10 +208,10 @@ private struct LibraryCoordinateRow: View {
     let onReport: () -> Void
 
     var body: some View {
-        HStack(alignment: .top, spacing: 10) {
+        HStack(alignment: .top, spacing: Spacing.md) {
             thumbnail
-            VStack(alignment: .leading, spacing: 3) {
-                HStack(spacing: 4) {
+            VStack(alignment: .leading, spacing: Spacing.xs) {
+                HStack(spacing: Spacing.xs) {
                     if let icon = coordinate.icon { Text(icon) }
                     Text(coordinate.name).font(.subheadline.weight(.medium)).lineLimit(1)
                 }
@@ -222,7 +222,7 @@ private struct LibraryCoordinateRow: View {
                     Text(coordinate.period).font(.caption2).foregroundStyle(.secondary)
                 }
                 reminderBadge
-                HStack(spacing: 12) {
+                HStack(spacing: Spacing.md) {
                     Button("預覽") { onUse(false) }
                     Button("傳送") { onUse(true) }
                     Menu {
@@ -260,7 +260,7 @@ private struct LibraryCoordinateRow: View {
             .buttonStyle(.borderless)
             .accessibilityLabel("最愛")
         }
-        .padding(.vertical, 3)
+        .padding(.vertical, Spacing.xs)
     }
 
     @ViewBuilder
