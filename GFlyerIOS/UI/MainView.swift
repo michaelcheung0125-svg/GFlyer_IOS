@@ -506,8 +506,10 @@ private struct MapToolBar: View {
             .regularMaterial,
             in: UnevenRoundedRectangle(topLeadingRadius: 8, bottomLeadingRadius: 8)
         )
-        // 抵銷外層的水平內距，讓它真的貼住畫面右邊
-        .padding(.trailing, -12)
+        // 抵銷外層的水平內距，讓它真的貼住畫面右邊。這個值沒有自己的意義，
+        // 它必須永遠等於外層那個內距，所以直接寫同一個 token——先前外層換成
+        // Spacing.md 之後這裡還留著 -12，箭咀就多突出去了 2pt。
+        .padding(.trailing, -Spacing.md)
         .accessibilityLabel("展開地圖工具列")
     }
 
