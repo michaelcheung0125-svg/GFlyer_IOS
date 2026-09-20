@@ -8,11 +8,17 @@ on:
     # 純文件改動不需要編譯。commit 訊息的 [skip ci] 仍然有效，這裡是自動化
     # 的第二道防線，免得忘記加。只要 commit 有動到任何一個非文件檔案，
     # paths-ignore 就不會生效，CI 照跑。
+    #
+    # 這些樣式要用 '**/' 開頭，不要寫成 'LICENSE' 這種只匹配 repo 根目錄的
+    # 形式：新增 .claude/skills/write-swift/LICENSE 時就是這樣漏掉，整輪 CI
+    # 白跑了一次。
     paths-ignore:
       - '**/*.md'
       - 'docs/**'
       - '.gitignore'
-      - 'LICENSE'
+      - '**/LICENSE'
+      # .claude/ 是給編輯器和 agent 看的設定，不參與 iOS 編譯。
+      - '.claude/**'
   pull_request:
   workflow_dispatch:
 
