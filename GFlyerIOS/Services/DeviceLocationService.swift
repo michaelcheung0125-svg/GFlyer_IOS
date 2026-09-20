@@ -226,49 +226,64 @@ final class DeviceLocationService: NSObject, ObservableObject {
     }
 }
 
+// CLLocationManager 的回呼送到「建立它的那條執行緒」的 run loop。這個類別是
+// @MainActor，manager 在 init 裡建立，所以回呼本來就落在主執行緒上——但
+// CLLocationManagerDelegate 的要求是 nonisolated 的，拿主執行緒隔離的方法去
+// 滿足它在 Swift 6 語言模式會變成錯誤。
+//
+// 所以方法標 nonisolated，body 用 MainActor.assumeIsolated 同步地把原本的主
+// 執行緒狀態存取包起來。不要改成 Task { @MainActor in }：那會把 body 推遲到
+// 下一個主執行緒回合，逾時的 Task 可能搶在前面跑完 finishLocationRequest，
+// 或是兩筆回呼同時去完成同一個請求。
 extension DeviceLocationService: CLLocationManagerDelegate {
-    func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
-        authorizationStatus = manager.authorizationStatus
-        if isBackgroundActivityActive,
-           manager.authorizationStatus == .denied || manager.authorizationStatus == .restricted
-        {
-            stopBackgroundRouteActivity()
-        }
-        guard locationCompletion != nil else { return }
-        switch manager.authorizationStatus {
-        case .authorizedAlways, .authorizedWhenInUse:
-            beginCurrentLocationRequest()
-        case .denied:
-            finishLocationRequest(.failure(LocationError.permissionDenied))
-        case .restricted:
-            finishLocationRequest(.failure(LocationError.permissionRestricted))
-        case .notDetermined:
-            break
-        @unknown default:
-            finishLocationRequest(.failure(LocationError.unavailable("未知的定位權限狀態")))
-        }
-    }
-
-    func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
-        guard let location = locations.last else { return }
-        // 任何流程收到的定位都順便檢查；模擬中的定位帶模擬旗標，不會被記下
-        recordIfReal(location)
-        guard locationCompletion != nil else { return }
-        if Self.isFreshFix(timestamp: location.timestamp, requestStartedAt: locationRequestStartedAt) {
-            if let fix = Self.fix(from: location) {
-                finishLocationRequest(.success(fix))
+    nonisolated func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
+        MainActor.assumeIsolated {
+            authorizationStatus = manager.authorizationStatus
+            if isBackgroundActivityActive,
+               manager.authorizationStatus == .denied || manager.authorizationStatus == .restricted
+            {
+                stopBackgroundRouteActivity()
             }
-        } else if staleFallbackLocation.map({ location.timestamp > $0.timestamp }) ?? true {
-            // 舊快取先留著當逾時保底，繼續等新的
-            staleFallbackLocation = location
+            guard locationCompletion != nil else { return }
+            switch manager.authorizationStatus {
+            case .authorizedAlways, .authorizedWhenInUse:
+                beginCurrentLocationRequest()
+            case .denied:
+                finishLocationRequest(.failure(LocationError.permissionDenied))
+            case .restricted:
+                finishLocationRequest(.failure(LocationError.permissionRestricted))
+            case .notDetermined:
+                break
+            @unknown default:
+                finishLocationRequest(.failure(LocationError.unavailable("未知的定位權限狀態")))
+            }
         }
     }
 
-    func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
-        guard locationCompletion != nil else { return }
-        if let clError = error as? CLError, clError.code == .locationUnknown {
-            return // 暫時取不到定位，等下一筆或逾時
+    nonisolated func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
+        MainActor.assumeIsolated {
+            guard let location = locations.last else { return }
+            // 任何流程收到的定位都順便檢查；模擬中的定位帶模擬旗標，不會被記下
+            recordIfReal(location)
+            guard locationCompletion != nil else { return }
+            if Self.isFreshFix(timestamp: location.timestamp, requestStartedAt: locationRequestStartedAt) {
+                if let fix = Self.fix(from: location) {
+                    finishLocationRequest(.success(fix))
+                }
+            } else if staleFallbackLocation.map({ location.timestamp > $0.timestamp }) ?? true {
+                // 舊快取先留著當逾時保底，繼續等新的
+                staleFallbackLocation = location
+            }
         }
-        finishLocationRequest(.failure(LocationError.unavailable(error.localizedDescription)))
+    }
+
+    nonisolated func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
+        MainActor.assumeIsolated {
+            guard locationCompletion != nil else { return }
+            if let clError = error as? CLError, clError.code == .locationUnknown {
+                return // 暫時取不到定位，等下一筆或逾時
+            }
+            finishLocationRequest(.failure(LocationError.unavailable(error.localizedDescription)))
+        }
     }
 }
