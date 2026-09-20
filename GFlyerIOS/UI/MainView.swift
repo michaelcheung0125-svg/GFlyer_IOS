@@ -376,11 +376,11 @@ struct MainView: View {
 
     private func announce(_ message: String) {
         feedbackTask?.cancel()
-        withAnimation(.easeOut(duration: 0.18)) { feedbackMessage = message }
+        withAnimation(Motion.feedbackIn) { feedbackMessage = message }
         feedbackTask = Task { @MainActor in
             try? await Task.sleep(nanoseconds: 1_600_000_000)
             guard !Task.isCancelled else { return }
-            withAnimation(.easeIn(duration: 0.18)) {
+            withAnimation(Motion.feedbackOut) {
                 if feedbackMessage == message { feedbackMessage = nil }
             }
         }
@@ -426,8 +426,8 @@ private struct SearchBar: View {
             }
             .padding(.horizontal, Spacing.md)
             .padding(.vertical, Spacing.md)
-            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
-            .contentShape(RoundedRectangle(cornerRadius: 8))
+            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: Metrics.corner))
+            .contentShape(RoundedRectangle(cornerRadius: Metrics.corner))
             .toolbar {
                 ToolbarItemGroup(placement: .keyboard) {
                     Spacer()
@@ -459,7 +459,7 @@ private struct SearchBar: View {
                 }
                 .scrollDismissesKeyboard(.immediately)
                 .frame(maxHeight: Layout.searchResultsMaxHeight)
-                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
+                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: Metrics.corner))
                 .padding(.top, Spacing.xs)
             }
         }
@@ -494,7 +494,7 @@ private struct MapToolBar: View {
 
     /// 收起後貼在畫面右邊的小箭咀，按一下把整列叫回來。
     private var collapsedTab: some View {
-        Button { withAnimation(.snappy) { isExpanded = true } } label: {
+        Button { withAnimation(Motion.panel) { isExpanded = true } } label: {
             Image(systemName: "chevron.left")
                 .font(.labelEmphasis)
                 .foregroundStyle(Color.primary)
@@ -506,7 +506,7 @@ private struct MapToolBar: View {
         .buttonStyle(.plain)
         .background(
             .regularMaterial,
-            in: UnevenRoundedRectangle(topLeadingRadius: 8, bottomLeadingRadius: 8)
+            in: UnevenRoundedRectangle(topLeadingRadius: Metrics.corner, bottomLeadingRadius: Metrics.corner)
         )
         // 抵銷外層的水平內距，讓它真的貼住畫面右邊。這個值沒有自己的意義，
         // 它必須永遠等於外層那個內距，所以直接寫同一個 token——先前外層換成
@@ -547,16 +547,16 @@ private struct MapToolBar: View {
             HStack(spacing: Spacing.xs) {
                 airplaneAssistButton
                 mapButton("chevron.right", label: "收起地圖工具列") {
-                    withAnimation(.snappy) { isExpanded = false }
+                    withAnimation(Motion.panel) { isExpanded = false }
                 }
             }
         }
         .padding(Spacing.sm)
         .fixedSize()
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: Metrics.corner))
         // 讓整塊工具列（含按鈕之間的空隙與內距）吃掉點擊，
         // 否則點到空隙會穿透到後面的地圖而變成選點
-        .contentShape(RoundedRectangle(cornerRadius: 8))
+        .contentShape(RoundedRectangle(cornerRadius: Metrics.corner))
     }
 
     /// 一鍵補錄。捷徑還沒成功跑過一次時不直接送出，改為帶使用者去設定頁——
@@ -638,7 +638,7 @@ private struct ControlPanel: View {
                 if controller.status.isActive {
                     Circle().fill(controller.status.isPaused ? Color.statusAttention : Color.statusOK).frame(width: Metrics.statusDot, height: Metrics.statusDot)
                 }
-                Button { withAnimation(.snappy) { isExpanded.toggle() } } label: {
+                Button { withAnimation(Motion.panel) { isExpanded.toggle() } } label: {
                     Image(systemName: isExpanded ? "chevron.down" : "chevron.up")
                 }
                 .buttonStyle(.borderless)
@@ -673,8 +673,8 @@ private struct ControlPanel: View {
             }
         }
         .padding(Spacing.lg)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
-        .contentShape(RoundedRectangle(cornerRadius: 8))
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: Metrics.corner))
+        .contentShape(RoundedRectangle(cornerRadius: Metrics.corner))
         .alert("儲存路線", isPresented: $showSaveRoute) {
             TextField("路線名稱", text: $routeName)
             Button("儲存") { controller.saveRoute(name: routeName); routeName = "" }

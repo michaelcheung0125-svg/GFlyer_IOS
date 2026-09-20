@@ -134,7 +134,7 @@ struct MessageBoardView: View {
         .refreshable { board.refresh() }
         .overlay {
             if board.isLoading && board.member != nil {
-                ProgressView().padding(Spacing.md).background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
+                ProgressView().padding(Spacing.md).background(.regularMaterial, in: RoundedRectangle(cornerRadius: Metrics.corner))
             }
         }
     }

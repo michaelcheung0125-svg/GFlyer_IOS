@@ -131,7 +131,7 @@ struct CoordinateLibraryView: View {
         }
         .padding(.horizontal, Spacing.md)
         .padding(.vertical, Spacing.sm)
-        .background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: 8))
+        .background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: Metrics.corner))
         .padding(.horizontal, Spacing.lg)
         .padding(.bottom, Spacing.sm)
     }
@@ -277,7 +277,7 @@ private struct LibraryCoordinateRow: View {
                 }
             }
             .frame(width: 54, height: 54)
-            .clipShape(RoundedRectangle(cornerRadius: 8))
+            .clipShape(RoundedRectangle(cornerRadius: Metrics.corner))
         }
     }
 
