@@ -33,6 +33,12 @@ struct MainView: View {
     @State private var cameraDistance: CLLocationDistance = 5_000
     @FocusState private var searchFieldFocused: Bool
 
+    /// CI 的截圖步驟用 `xcrun simctl launch … -GFlyerScreenshotMode` 啟動 App。
+    /// 只用來關掉會發出網路請求的啟動動作，不影響任何版面——否則截圖會隨著
+    /// 線上有沒有新版本、留言板有沒有未讀而改變，看起來像版面動了。
+    static let isCapturingScreenshots =
+        ProcessInfo.processInfo.arguments.contains("-GFlyerScreenshotMode")
+
     // 這個畫面的 body 拆成幾層小的計算屬性。整串堆在一起時 Swift 的型別
     // 檢查器會在 MainView.body 上放棄（unable to type-check in reasonable
     // time），加新的 sheet 或 alert 前請維持這個分層。
@@ -119,10 +125,9 @@ struct MainView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { mainToolbar }
             .onChange(of: scenePhase) { _, phase in
-                if phase == .active {
-                    messageBoard.refreshInBackground()
-                    updateChecker.checkIfDue()
-                }
+                guard phase == .active, !Self.isCapturingScreenshots else { return }
+                messageBoard.refreshInBackground()
+                updateChecker.checkIfDue()
             }
             .onChange(of: controller.selectedCoordinate) { _, coordinate in
                 if suppressNextRecenter {

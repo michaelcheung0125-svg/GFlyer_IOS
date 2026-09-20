@@ -106,6 +106,45 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             COMPILER_INDEX_STORE_ENABLE=NO
 
+      # 這個專案在 Windows 上開發，本機沒有模擬器，所以版面改動以前只能等到
+      # 實機才看得到。這一步拿上一步已經建好的 .app 截兩張圖當 artifact，
+      # 每次 push 就能直接在 CI 頁面看版面。刻意輸出 PNG 而不是 .xcresult：
+      # .xcresult 要 Xcode 才打得開，在 Windows 上等於沒有。
+      #
+      # 這不取代實機驗證，docs/RELEASE_PROCESS.md 那條規則仍然有效；它只是
+      # 讓明顯的版面問題在走到實機之前就被攔下來。
+      #
+      # 沒有另開 UI test target：simctl 從外面截圖就夠了，代價是只看得到啟動
+      # 畫面。要截「工具列收起」那種需要互動的狀態才需要 XCUITest。
+      - name: Capture simulator screenshots
+        run: |
+          app="$RUNNER_TEMP/GFlyerIOS-DerivedData/Build/Products/Debug-iphonesimulator/GFlyer.app"
+          test -d "$app"
+          sim="${{ steps.simulator.outputs.id }}"
+          shots="$RUNNER_TEMP/screenshots"
+          mkdir -p "$shots"
+          xcrun simctl bootstatus "$sim" -b
+          xcrun simctl install "$sim" "$app"
+          for appearance in light dark; do
+            xcrun simctl ui "$sim" appearance "$appearance"
+            xcrun simctl terminate "$sim" com.geopilot.gflyer.ios || true
+            # -GFlyerScreenshotMode 讓 App 跳過更新檢查與留言板刷新。少了它，
+            # 截圖會隨著線上有沒有新版本、留言板有沒有未讀而變，看起來像版面動了。
+            xcrun simctl launch "$sim" com.geopilot.gflyer.ios -GFlyerScreenshotMode
+            # 沒有可以等的訊號，只能給地圖與工具列固定時間畫完。
+            sleep 8
+            xcrun simctl io "$sim" screenshot "$shots/main-$appearance.png"
+          done
+          ls -l "$shots"
+
+      - name: Upload simulator screenshots
+        uses: actions/upload-artifact@v4
+        with:
+          name: simulator-screenshots
+          path: ${{ runner.temp }}/screenshots/*.png
+          if-no-files-found: error
+          retention-days: 14
+
   idevice-archive:
     name: Idevice unsigned archive
     runs-on: macos-15
