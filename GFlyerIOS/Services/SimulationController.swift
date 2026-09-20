@@ -590,11 +590,15 @@ final class SimulationController: ObservableObject {
         }
     }
 
+    /// - Parameter onFinish: 成功與失敗都會呼叫，給呼叫端收掉「定位中」的畫面。
+    ///   只靠 `onSuccess` 收不掉：失敗時它不會被呼叫，轉圈會一直留在畫面上。
     func requestCurrentLocation(
+        onFinish: (() -> Void)? = nil,
         onSuccess: @escaping (DeviceLocationService.CurrentLocationFix) -> Void
     ) {
         lastError = nil
         deviceLocation.requestCurrentLocation { [weak self] result in
+            onFinish?()
             switch result {
             case let .success(fix):
                 onSuccess(fix)

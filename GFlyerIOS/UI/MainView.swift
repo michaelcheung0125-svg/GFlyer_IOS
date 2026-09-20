@@ -30,6 +30,9 @@ struct MainView: View {
     @State private var suppressNextRecenter = false
     @State private var feedbackMessage: String?
     @State private var feedbackTask: Task<Void, Never>?
+    /// 定位要花幾秒，期間按鈕要換成轉圈，否則使用者不知道有沒有按到。
+    @State private var isLocating = false
+    @State private var locateTimeoutTask: Task<Void, Never>?
     @State private var cameraDistance: CLLocationDistance = 5_000
     @FocusState private var searchFieldFocused: Bool
 
@@ -248,6 +251,7 @@ struct MainView: View {
                         showAirplaneAssist: $showAirplaneAssist,
                         position: $position,
                         cameraDistance: $cameraDistance,
+                        isLocating: isLocating,
                         onLocate: locateCurrentPosition,
                         onFeedback: announce
                     )
@@ -364,7 +368,25 @@ struct MainView: View {
     }
 
     private func locateCurrentPosition() {
-        controller.requestCurrentLocation { fix in
+        // 連按沒有意義，第二次只會疊一個一樣的請求。
+        guard !isLocating else { return }
+        isLocating = true
+
+        // 保險絲。`onFinish` 蓋得住成功與失敗，但權限還沒決定時
+        // `requestCurrentLocation` 會把完成回呼收起來等使用者回答對話框，
+        // 如果對話框被略過就永遠不會回來——沒有這一段，轉圈會一直轉下去。
+        locateTimeoutTask?.cancel()
+        locateTimeoutTask = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 20_000_000_000)
+            guard !Task.isCancelled else { return }
+            isLocating = false
+        }
+
+        controller.requestCurrentLocation(onFinish: {
+            locateTimeoutTask?.cancel()
+            locateTimeoutTask = nil
+            isLocating = false
+        }) { fix in
             cameraDistance = 5_000
             position = .region(region(around: fix.coordinate, span: 0.04))
             if fix.isSimulatedBySoftware {
@@ -486,6 +508,7 @@ private struct MapToolBar: View {
     @Binding var showAirplaneAssist: Bool
     @Binding var position: MapCameraPosition
     @Binding var cameraDistance: CLLocationDistance
+    let isLocating: Bool
     let onLocate: () -> Void
     let onFeedback: (String) -> Void
 
@@ -508,7 +531,7 @@ private struct MapToolBar: View {
                 .frame(width: Metrics.tapTarget, height: 46)
                 .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(PressFeedbackButtonStyle())
         .background(
             .regularMaterial,
             in: UnevenRoundedRectangle(topLeadingRadius: Metrics.corner, bottomLeadingRadius: Metrics.corner)
@@ -527,7 +550,12 @@ private struct MapToolBar: View {
                 mapButton("minus", label: "縮小") { zoom(2) }
             }
             HStack(spacing: Spacing.xs) {
-                mapButton("location.fill", label: "前往目前位置", action: onLocate)
+                mapButton(
+                    "location.fill",
+                    label: "前往目前位置",
+                    isBusy: isLocating,
+                    action: onLocate
+                )
                 mapButton(showJoystick ? "gamecontroller.fill" : "gamecontroller", label: "搖桿") {
                     showJoystick.toggle()
                     if showJoystick { isPanelExpanded = false }
@@ -598,18 +626,27 @@ private struct MapToolBar: View {
         _ icon: String,
         label: String,
         tint: Color? = nil,
+        isBusy: Bool = false,
         action: @escaping () -> Void
     ) -> some View {
         Button(action: action) {
-            Image(systemName: icon)
-                // .plain 的按鈕不會自動上 accent 色，所以未指定時維持原本的 primary
-                .foregroundStyle(tint ?? Color.primary)
-                .frame(width: Metrics.tapTarget, height: Metrics.tapTarget)
-                // 沒有這行時，可點區域只有圖示筆畫本身而不是整個方框
-                .contentShape(Rectangle())
+            Group {
+                if isBusy {
+                    ProgressView()
+                } else {
+                    Image(systemName: icon)
+                }
+            }
+            // .plain 的按鈕不會自動上 accent 色，所以未指定時維持原本的 primary
+            .foregroundStyle(tint ?? Color.primary)
+            .frame(width: Metrics.tapTarget, height: Metrics.tapTarget)
+            // 沒有這行時，可點區域只有圖示筆畫本身而不是整個方框
+            .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        // 原本是 .plain，那會連按壓高亮一起拿掉，所以按下去畫面毫無變化。
+        .buttonStyle(PressFeedbackButtonStyle())
         .accessibilityLabel(label)
+        .accessibilityValue(isBusy ? "定位中" : "")
     }
 
     private func zoom(_ factor: Double) {
@@ -629,26 +666,39 @@ private struct ControlPanel: View {
 
     var body: some View {
         VStack(spacing: Spacing.md) {
-            HStack {
-                VStack(alignment: .leading, spacing: Spacing.xs) {
-                    Text(controller.status.message).font(.labelEmphasis)
-                    Text(controller.status.coordinate?.display ?? controller.selectedCoordinate.display)
-                        .font(.numericCaption).foregroundStyle(.secondary)
-                    if controller.status.isActive, let stopAt = controller.status.autoStopAt {
-                        Text("將於 \(stopAt.formatted(date: .omitted, time: .shortened)) 自動停止")
-                            .font(.caption2).foregroundStyle(.secondary)
+            // 整條橫列都是收合／展開的按鈕。原本只有那個箭頭圖示可以按，
+            // 實機上回報很難按中——圖示本身大約只有 20pt 寬，而且 .borderless
+            // 不會把周圍的空白算進可點範圍。現在標題、座標、狀態點、箭頭連同
+            // 它們之間的空隙都能按，箭頭本身也補到 44pt。
+            Button {
+                withAnimation(Motion.panel) { isExpanded.toggle() }
+            } label: {
+                HStack {
+                    VStack(alignment: .leading, spacing: Spacing.xs) {
+                        Text(controller.status.message).font(.labelEmphasis)
+                        Text(controller.status.coordinate?.display ?? controller.selectedCoordinate.display)
+                            .font(.numericCaption).foregroundStyle(.secondary)
+                        if controller.status.isActive, let stopAt = controller.status.autoStopAt {
+                            Text("將於 \(stopAt.formatted(date: .omitted, time: .shortened)) 自動停止")
+                                .font(.caption2).foregroundStyle(.secondary)
+                        }
                     }
-                }
-                Spacer()
-                if controller.status.isActive {
-                    Circle().fill(controller.status.isPaused ? Color.statusAttention : Color.statusOK).frame(width: Metrics.statusDot, height: Metrics.statusDot)
-                }
-                Button { withAnimation(Motion.panel) { isExpanded.toggle() } } label: {
+                    .multilineTextAlignment(.leading)
+                    Spacer()
+                    if controller.status.isActive {
+                        Circle().fill(controller.status.isPaused ? Color.statusAttention : Color.statusOK).frame(width: Metrics.statusDot, height: Metrics.statusDot)
+                    }
                     Image(systemName: isExpanded ? "chevron.down" : "chevron.up")
+                        .frame(width: Metrics.tapTarget, height: Metrics.tapTarget)
                 }
-                .buttonStyle(.borderless)
-                .accessibilityLabel(isExpanded ? "收合控制面板" : "展開控制面板")
+                .foregroundStyle(Color.primary)
+                // 沒有這行時，橫列裡文字與圖示之間的空白按不到。
+                .contentShape(Rectangle())
             }
+            .buttonStyle(PressFeedbackButtonStyle(scalesOnPress: false))
+            // 不覆寫 accessibilityLabel：整條列的內容本來就是使用者要聽的狀態，
+            // 換成「收合控制面板」反而把狀態訊息蓋掉。用 hint 補上按下去會怎樣。
+            .accessibilityHint(isExpanded ? "收合控制面板" : "展開控制面板")
 
             if isExpanded {
                 Picker("模式", selection: Binding(get: { controller.mode }, set: controller.setMode)) {

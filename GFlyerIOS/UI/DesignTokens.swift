@@ -82,6 +82,8 @@ enum Motion {
     static let feedbackIn: Animation = .easeOut(duration: 0.18)
     /// 操作提示消失。
     static let feedbackOut: Animation = .easeIn(duration: 0.18)
+    /// 按壓回饋。要比其他動畫都短——慢一點就不像「有反應」，而像播了一段動畫。
+    static let tap: Animation = .easeOut(duration: 0.12)
 }
 
 // MARK: - 顏色

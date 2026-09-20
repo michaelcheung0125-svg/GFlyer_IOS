@@ -73,6 +73,8 @@ struct SetupView: View {
     @ObservedObject private var pairingStore: PairingFileStore
     @ObservedObject private var deviceLocation: DeviceLocationService
     @ObservedObject private var vpn: LocalDevVPNBridge
+    /// 和 GFlyerIOSApp 讀同一個鍵；那邊負責套用，這裡只負責改。
+    @AppStorage(AppAppearance.storageKey) private var appearanceRawValue = AppAppearance.system.rawValue
     @State private var showImporter = false
     @State private var pendingImport: ImportTarget?
     @State private var showExporter = false
@@ -196,6 +198,7 @@ struct SetupView: View {
     private var formContent: some View {
         Form {
             backendSection
+            appearanceSection
             pairingSection
             localDevVPNSection
             locationSection
@@ -233,6 +236,19 @@ struct SetupView: View {
                     Label("使用教學", systemImage: "book")
                 }
             }
+        }
+    }
+
+    private var appearanceSection: some View {
+        Section("外觀") {
+            Picker("深淺色", selection: $appearanceRawValue) {
+                ForEach(AppAppearance.allCases) { appearance in
+                    Text(appearance.label).tag(appearance.rawValue)
+                }
+            }
+            .pickerStyle(.segmented)
+        } footer: {
+            Text("只影響 GFlyer，不會改到其他 App。選「跟隨系統」就是原本的行為。")
         }
     }
 

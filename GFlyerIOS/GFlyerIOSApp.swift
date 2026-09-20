@@ -8,6 +8,9 @@ struct GFlyerIOSApp: App {
     @StateObject private var updateChecker = AppUpdateChecker()
     @StateObject private var stepRecorder = StepRecorderController()
     @StateObject private var airplaneAssist = AirplaneAssistController()
+    /// 深淺色偏好。設在這一層而不是 MainView 上，sheet 才會跟著一起換——
+    /// sheet 是另一個呈現層，套在 MainView 上時設定頁自己不會變色。
+    @AppStorage(AppAppearance.storageKey) private var appearanceRawValue = AppAppearance.system.rawValue
 
     var body: some Scene {
         WindowGroup {
@@ -27,6 +30,7 @@ struct GFlyerIOSApp: App {
                 guard !stepRecorder.handleCallback(url) else { return }
                 airplaneAssist.handleCallback(url)
             }
+            .preferredColorScheme(AppAppearance.stored(appearanceRawValue).colorScheme)
         }
     }
 }
