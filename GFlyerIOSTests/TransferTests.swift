@@ -178,4 +178,104 @@ final class TransferTests: XCTestCase {
         XCTAssertEqual(controller.mode, .multiRoute)
         XCTAssertEqual(controller.routePoints.count, 2)
     }
+
+    // MARK: - 跨平台 settings 透傳（DRIFT D1）
+
+    /// Android 匯出 -> iOS 匯入 -> iOS 匯出 之後，Android 專屬的設定必須還在。
+    /// 沒有這個行為的話，使用者的懸浮視窗位置、地圖供應商、循環模式等等
+    /// 會在往返一次之後被靜默重設成預設值。
+    func testBackupPreservesForeignSettingsAcrossRoundTrip() throws {
+        let androidExport = """
+        {
+          "format": "GFlyer Backup",
+          "version": 1,
+          "exportedAt": 1758585600000,
+          "folders": [],
+          "favorites": [],
+          "history": [],
+          "routes": [],
+          "quickSpeedPresets": [],
+          "settings": {
+            "crossDateWarningEnabled": false,
+            "autoStopMinutes": 30,
+            "loopRoute": true,
+            "loopTransitionMode": "TELEPORT_TO_START",
+            "floatingControlsEnabled": false,
+            "floatingStatusBarAnchor": "TOP_RIGHT",
+            "floatingStatusBarOffsetX": 120,
+            "floatingStatusBarTextSizeSp": 14,
+            "manualStepCount": 5,
+            "mapProvider": "OPEN_STREET_MAP"
+          }
+        }
+        """
+
+        let payload = try AppBackupCodec.decode(Data(androidExport.utf8))
+        XCTAssertEqual(payload.crossDateWarningEnabled, false)
+        XCTAssertEqual(payload.autoStopMinutes, 30)
+        XCTAssertNotNil(payload.foreignSettings, "Android 專屬的鍵必須被保留下來")
+
+        var snapshot = LocalDataSnapshot()
+        snapshot.playback.crossDateWarningEnabled = try XCTUnwrap(payload.crossDateWarningEnabled)
+        snapshot.playback.autoStopMinutes = try XCTUnwrap(payload.autoStopMinutes)
+        snapshot.foreignSettings = payload.foreignSettings
+
+        let exported = try AppBackupCodec.export(snapshot: snapshot)
+        let root = try XCTUnwrap(JSONSerialization.jsonObject(with: exported) as? [String: Any])
+        let settings = try XCTUnwrap(root["settings"] as? [String: Any])
+
+        // Android 專屬的鍵原封不動
+        XCTAssertEqual(settings["loopRoute"] as? Bool, true)
+        XCTAssertEqual(settings["loopTransitionMode"] as? String, "TELEPORT_TO_START")
+        XCTAssertEqual(settings["floatingControlsEnabled"] as? Bool, false)
+        XCTAssertEqual(settings["floatingStatusBarAnchor"] as? String, "TOP_RIGHT")
+        XCTAssertEqual(settings["floatingStatusBarOffsetX"] as? Int, 120)
+        XCTAssertEqual(settings["floatingStatusBarTextSizeSp"] as? Int, 14)
+        XCTAssertEqual(settings["manualStepCount"] as? Int, 5)
+        XCTAssertEqual(settings["mapProvider"] as? String, "OPEN_STREET_MAP")
+
+        // 本平台的鍵也還在
+        XCTAssertEqual(settings["crossDateWarningEnabled"] as? Bool, false)
+        XCTAssertEqual(settings["autoStopMinutes"] as? Int, 30)
+        XCTAssertEqual(settings.count, 10, "不該多出或少掉任何鍵")
+    }
+
+    /// 保留下來的副本不可以蓋掉本平台目前的設定。
+    func testOwnSettingsWinOverPreservedCopy() throws {
+        let stale = """
+        {
+          "format": "GFlyer Backup",
+          "version": 1,
+          "settings": { "crossDateWarningEnabled": false, "autoStopMinutes": 30, "loopRoute": true }
+        }
+        """
+        let payload = try AppBackupCodec.decode(Data(stale.utf8))
+
+        var snapshot = LocalDataSnapshot()
+        snapshot.foreignSettings = payload.foreignSettings
+        // 使用者之後在 iOS 上改了這兩項
+        snapshot.playback.crossDateWarningEnabled = true
+        snapshot.playback.autoStopMinutes = 90
+
+        let exported = try AppBackupCodec.export(snapshot: snapshot)
+        let root = try XCTUnwrap(JSONSerialization.jsonObject(with: exported) as? [String: Any])
+        let settings = try XCTUnwrap(root["settings"] as? [String: Any])
+
+        XCTAssertEqual(settings["crossDateWarningEnabled"] as? Bool, true)
+        XCTAssertEqual(settings["autoStopMinutes"] as? Int, 90)
+        XCTAssertEqual(settings["loopRoute"] as? Bool, true, "外來鍵仍然保留")
+    }
+
+    /// 沒有 settings 區塊時不該憑空生出外來鍵。
+    func testNoForeignSettingsWhenBackupHasNone() throws {
+        let minimal = """
+        {
+          "format": "GFlyer Backup",
+          "version": 1,
+          "settings": { "crossDateWarningEnabled": true, "autoStopMinutes": 0 }
+        }
+        """
+        let payload = try AppBackupCodec.decode(Data(minimal.utf8))
+        XCTAssertNil(payload.foreignSettings)
+    }
 }

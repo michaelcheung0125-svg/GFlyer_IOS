@@ -21,7 +21,9 @@ This is a separate SwiftUI prototype for personal sideloading. It does not modif
 - Local favorites, history, favorite folders, named routes, and route-draft recovery
 - GPX 1.1 import (tracks, routes, and loose waypoints) and all-routes export
 - Cross-platform backup/restore in the Android-compatible `GFlyer Backup` v1
-  JSON format (favorites, history, folders, routes, speed presets)
+  JSON format (favorites, history, folders, routes, speed presets). Settings
+  keys iOS does not use are kept and written back on export, so an
+  Android -> iOS -> Android round trip no longer resets Android-only settings
 - Coordinate library (座標圖鑑) downloaded from the GFlyer-updates Pages JSON,
   with favorites, visit reminders, and anonymous stale-data reports; unlike
   Android there is no bundled seed, so the first load needs network access

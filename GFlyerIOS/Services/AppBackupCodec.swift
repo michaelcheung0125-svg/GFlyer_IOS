@@ -15,6 +15,14 @@ struct BackupPayload: Equatable {
     var presets: [QuickSpeedPreset] = []
     var crossDateWarningEnabled: Bool?
     var autoStopMinutes: Int?
+
+    /// 這個平台不認識的 settings 鍵,序列化後原樣保留,匯出時寫回。
+    ///
+    /// 沒有這一步的話,Android 匯出的 15 個設定(懸浮視窗位置、地圖供應商、
+    /// 循環模式等)會在「Android 匯出 -> iOS 匯入 -> iOS 匯出 -> Android 匯入」
+    /// 這一輪之後全部被重設成預設值,而且沒有任何提示。
+    /// 見 GFlyer-Suite 的 docs/DRIFT.md D1。
+    var foreignSettings: Data?
 }
 
 enum AppBackupError: LocalizedError {
@@ -97,10 +105,7 @@ enum AppBackupCodec {
                     "metresPerSecond": preset.kilometresPerHour / 3.6,
                 ]
             },
-            "settings": [
-                "crossDateWarningEnabled": snapshot.playback.crossDateWarningEnabled,
-                "autoStopMinutes": snapshot.playback.autoStopMinutes,
-            ] as [String: Any],
+            "settings": settingsJSON(for: snapshot),
         ]
         return try JSONSerialization.data(
             withJSONObject: root,
@@ -182,8 +187,37 @@ enum AppBackupCodec {
         if let settings = root["settings"] as? [String: Any] {
             payload.crossDateWarningEnabled = settings["crossDateWarningEnabled"] as? Bool
             payload.autoStopMinutes = intValue(settings["autoStopMinutes"])
+            payload.foreignSettings = encodeForeignSettings(from: settings)
         }
         return payload
+    }
+
+    // MARK: - Settings 透傳
+
+    /// 這個平台實際會讀寫的 settings 鍵。不在這裡面的一律視為別的平台的,
+    /// 原樣保留。新增本平台支援的設定時,記得同步加進這個集合,
+    /// 否則它會被當成外來鍵而不會被自己讀到。
+    private static let ownedSettingKeys: Set<String> = [
+        "crossDateWarningEnabled",
+        "autoStopMinutes",
+    ]
+
+    private static func encodeForeignSettings(from settings: [String: Any]) -> Data? {
+        let foreign = settings.filter { !ownedSettingKeys.contains($0.key) }
+        guard !foreign.isEmpty, JSONSerialization.isValidJSONObject(foreign) else { return nil }
+        return try? JSONSerialization.data(withJSONObject: foreign, options: [.sortedKeys])
+    }
+
+    private static func settingsJSON(for snapshot: LocalDataSnapshot) -> [String: Any] {
+        var settings: [String: Any] = [:]
+        if let data = snapshot.foreignSettings,
+           let restored = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] {
+            settings = restored
+        }
+        // 本平台的值一律覆寫,避免保留下來的舊副本蓋掉現在的設定。
+        settings["crossDateWarningEnabled"] = snapshot.playback.crossDateWarningEnabled
+        settings["autoStopMinutes"] = snapshot.playback.autoStopMinutes
+        return settings
     }
 
     // MARK: - Helpers

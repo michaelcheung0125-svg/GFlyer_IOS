@@ -9,10 +9,14 @@ struct LocalDataSnapshot: Codable {
     var draft: RouteDraft?
     var playback = PlaybackSettings()
 
+    /// 備份檔裡不屬於本平台的 settings 鍵,序列化後原樣保存,下次匯出時寫回。
+    /// 見 AppBackupCodec 與 GFlyer-Suite 的 docs/DRIFT.md D1。
+    var foreignSettings: Data?
+
     init() {}
 
     private enum CodingKeys: String, CodingKey {
-        case favorites, history, folders, routes, presets, draft, playback
+        case favorites, history, folders, routes, presets, draft, playback, foreignSettings
     }
 
     // Tolerant decoding: a missing or malformed field falls back to its
@@ -27,6 +31,7 @@ struct LocalDataSnapshot: Codable {
         presets = (try? container.decode([QuickSpeedPreset].self, forKey: .presets)) ?? SpeedScale.defaultPresets
         draft = (try? container.decodeIfPresent(RouteDraft.self, forKey: .draft)) ?? nil
         playback = (try? container.decode(PlaybackSettings.self, forKey: .playback)) ?? PlaybackSettings()
+        foreignSettings = (try? container.decodeIfPresent(Data.self, forKey: .foreignSettings)) ?? nil
     }
 }
 
@@ -188,6 +193,8 @@ final class LocalDataStore {
         if let autoStop = payload.autoStopMinutes {
             snapshot.playback.autoStopMinutes = autoStop
         }
+        // 別的平台的設定原樣留著,下次匯出寫回,否則往返一次就會把它們清光。
+        snapshot.foreignSettings = payload.foreignSettings
         snapshot.playback = snapshot.playback.sanitized()
         persist()
         return BackupImportResult(

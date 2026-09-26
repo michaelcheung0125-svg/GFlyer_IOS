@@ -67,7 +67,10 @@ C:\Project\GFlyer
   - 搖桿位移動力學（三次曲線、不對稱加減速、推到邊持續加速）與獨立搖桿限速
   - GPX 1.1 匯入（trk/rte/wpt）與全部路線匯出
   - 與 Android 互通的 `GFlyer Backup` v1 備份／還原（收藏、歷史、資料夾、
-    路線、速度預設；UUID 與 Android long id 雙向映射）
+    路線、速度預設；UUID 與 Android long id 雙向映射）。0.6.8 之後（尚未發佈）：
+    iOS 不認識的 settings 鍵原樣保留、匯出時寫回，Android → iOS → Android
+    往返不再把 Android 專屬設定重設成預設值（`AppBackupCodec`、
+    `LocalDataSnapshot.foreignSettings`，`TransferTests` 有 3 個測試）
   - 座標圖鑑：從 GFlyer-updates Pages 下載 `coordinates.json`、分類／子分類
     瀏覽、搜尋、星號最愛、到訪提醒、匿名過期回報；iOS 不內建種子資料，
     第一次載入需要網路
@@ -409,7 +412,8 @@ GFlyerIOS/UI/LibraryViews.swift
 
 macOS CI 已在 commit `ada19c5`（run `33500571429`）通過。接下來：
 用一部 Android 裝置匯出 `gflyer-backup.json`，在 iOS 還原驗證互通（反向
-亦然）；確認 `GFlyer-updates` Pages 上的 `coordinates/coordinates.json`
+亦然）；再從 iOS 匯出、回到 Android 還原，確認懸浮狀態列、地圖供應商等
+Android 專屬設定沒有被重設；確認 `GFlyer-updates` Pages 上的 `coordinates/coordinates.json`
 可公開存取並在 iOS 圖鑑載入；在實機驗證播放選項（逐點傳送／停留／繞圈／
 手動前進／倒數／自動停止）、跨日期提醒、搖桿動力學、GPX 匯入匯出與
 中斷恢復提示。
