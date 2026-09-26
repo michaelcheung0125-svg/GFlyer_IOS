@@ -127,7 +127,7 @@ enum AppBackupCodec {
         var payload = BackupPayload()
         var folderUUIDs: [Int64: UUID] = [:]
 
-        for item in objectArray(root["folders"]).prefix(30) {
+        for item in objectArray(root["folders"], limit: 30) {
             guard let longID = intValue(item["id"]).map(Int64.init),
                   let name = item["name"] as? String,
                   folderUUIDs[longID] == nil else { continue }
@@ -153,15 +153,14 @@ enum AppBackupCodec {
             )
         }
 
-        payload.favorites = objectArray(root["favorites"]).prefix(100)
+        payload.favorites = objectArray(root["favorites"], limit: 100)
             .compactMap { place(from: $0, keepFolder: true) }
-        payload.history = objectArray(root["history"]).prefix(30)
+        payload.history = objectArray(root["history"], limit: 30)
             .compactMap { place(from: $0, keepFolder: false) }
 
-        for item in objectArray(root["routes"]).prefix(50) {
+        for item in objectArray(root["routes"], limit: 50) {
             guard let name = item["name"] as? String else { continue }
-            let points = objectArray(item["points"])
-                .prefix(GpxCodec.maxPointsPerRoute)
+            let points = objectArray(item["points"], limit: GpxCodec.maxPointsPerRoute)
                 .compactMap(coordinate(from:))
             guard points.count >= 2 else { continue }
             payload.routes.append(
@@ -175,7 +174,7 @@ enum AppBackupCodec {
             )
         }
 
-        payload.presets = objectArray(root["quickSpeedPresets"]).prefix(QuickSpeedPreset.maxCount).compactMap { item in
+        payload.presets = objectArray(root["quickSpeedPresets"], limit: QuickSpeedPreset.maxCount).compactMap { item in
             guard let name = item["name"] as? String,
                   let metresPerSecond = doubleValue(item["metresPerSecond"]) else { return nil }
             return QuickSpeedPreset(
@@ -237,10 +236,14 @@ enum AppBackupCodec {
         return GeoCoordinate.validated(latitude: latitude, longitude: longitude)
     }
 
-    /// 陣列裡不是物件的元素只略過那一個。原本用 `value as? [[String: Any]]`,
-    /// 只要混進一個非物件元素,整個集合都會被丟掉(GFlyer-Suite docs/DRIFT.md D4)。
-    private static func objectArray(_ value: Any?) -> [[String: Any]] {
-        (value as? [Any])?.compactMap { $0 as? [String: Any] } ?? []
+    /// 取原始陣列的前 `limit` 個元素(不是物件的也算一個),只保留其中是物件的。
+    ///
+    /// 和 Android 的 `BackupDecoder` 同一條規則:上限套在原始前 N 個元素上,其中不是物件的
+    /// 元素與不合法的項目一律略過(GFlyer-Suite docs/DRIFT.md D4)。原本用
+    /// `value as? [[String: Any]]`,只要混進一個非物件元素,整個集合都會被丟掉。
+    private static func objectArray(_ value: Any?, limit: Int) -> [[String: Any]] {
+        guard let array = value as? [Any] else { return [] }
+        return array.prefix(limit).compactMap { $0 as? [String: Any] }
     }
 
     private static func intValue(_ value: Any?) -> Int? {

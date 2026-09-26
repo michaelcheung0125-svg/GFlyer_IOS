@@ -309,6 +309,15 @@ final class TransferTests: XCTestCase {
         XCTAssertEqual(payload.routes.first?.points.count, 2, "不是點的元素只略過那一個,路線仍然保留")
     }
 
+    /// 不是物件的元素也佔一個名額,和 Android 的 BackupDecoderTest 同一個案例、同一個答案。
+    func testNonObjectElementStillTakesOneSlotOfTheLimit() throws {
+        let presets = ["null", "42"] + (1...6).map { #"{"id": \#($0), "name": "p\#($0)", "metresPerSecond": 2.0}"# }
+        let json = #"{"format": "GFlyer Backup", "version": 1, "quickSpeedPresets": [\#(presets.joined(separator: ","))]}"#
+        let payload = try AppBackupCodec.decode(Data(json.utf8))
+
+        XCTAssertEqual(payload.presets.map(\.name), ["p1", "p2", "p3", "p4"])
+    }
+
     // MARK: - 速度預設上限統一為 6(DRIFT D2)
 
     func testBackupDecodeKeepsAtMostSixPresets() throws {
