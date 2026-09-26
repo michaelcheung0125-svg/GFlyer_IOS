@@ -278,4 +278,96 @@ final class TransferTests: XCTestCase {
         let payload = try AppBackupCodec.decode(Data(minimal.utf8))
         XCTAssertNil(payload.foreignSettings)
     }
+
+    // MARK: - 單一筆壞掉只略過那一筆(DRIFT D4)
+
+    /// 陣列裡混進一個不是物件的元素,原本會讓整個集合被丟掉;現在只略過那一個。
+    func testBackupDecodeSkipsNonObjectEntriesInsteadOfDroppingTheList() throws {
+        let json = """
+        {
+          "format": "GFlyer Backup",
+          "version": 1,
+          "favorites": [
+            {"id": 1, "name": "第一個", "latitude": 25.0, "longitude": 121.5, "createdAt": 10},
+            42,
+            "不是物件",
+            {"id": 2, "name": "第二個", "latitude": 25.1, "longitude": 121.6, "createdAt": 10},
+            {"id": 3, "latitude": 25.2, "longitude": 121.7, "createdAt": 10}
+          ],
+          "routes": [
+            {"id": 4, "name": "路線", "points": [
+              {"latitude": 25.0, "longitude": 121.5},
+              "不是點",
+              {"latitude": 25.1, "longitude": 121.6}
+            ]}
+          ]
+        }
+        """
+        let payload = try AppBackupCodec.decode(Data(json.utf8))
+
+        XCTAssertEqual(payload.favorites.map(\.name), ["第一個", "第二個"])
+        XCTAssertEqual(payload.routes.first?.points.count, 2, "不是點的元素只略過那一個,路線仍然保留")
+    }
+
+    // MARK: - 速度預設上限統一為 6(DRIFT D2)
+
+    func testBackupDecodeKeepsAtMostSixPresets() throws {
+        let presets = (1...8)
+            .map { #"{"id": \#($0), "name": "p\#($0)", "metresPerSecond": 2.0}"# }
+            .joined(separator: ",")
+        let json = #"{"format": "GFlyer Backup", "version": 1, "quickSpeedPresets": [\#(presets)]}"#
+        let payload = try AppBackupCodec.decode(Data(json.utf8))
+
+        XCTAssertEqual(QuickSpeedPreset.maxCount, 6)
+        XCTAssertEqual(payload.presets.map(\.name), ["p1", "p2", "p3", "p4", "p5", "p6"])
+    }
+
+    @MainActor
+    func testApplyBackupKeepsAtMostSixPresets() {
+        let suiteName = "gflyer.preset-tests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let store = LocalDataStore(defaults: defaults)
+
+        var payload = BackupPayload()
+        payload.presets = (1...8).map { QuickSpeedPreset(name: "p\($0)", kilometresPerHour: 10) }
+        let result = store.applyBackup(payload)
+
+        XCTAssertEqual(store.snapshot.presets.count, 6)
+        XCTAssertEqual(result.presetCount, 6)
+    }
+
+    /// 舊版允許 12 個。已經存了超過 6 個的人,刪掉一個只會少一個,不會被一次截到 6 個。
+    @MainActor
+    func testExistingPresetsAboveSixSurviveRemovingOne() {
+        let suiteName = "gflyer.preset-tests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let store = LocalDataStore(defaults: defaults)
+        let ten = (1...10).map { QuickSpeedPreset(name: "p\($0)", kilometresPerHour: 10) }
+        store.savePresets(ten)
+
+        let controller = SimulationController(backend: PreviewLocationSimulationBackend(), dataStore: store)
+        XCTAssertEqual(controller.quickSpeedPresets.count, 10)
+
+        controller.removeQuickSpeedPreset(ten[9].id)
+        XCTAssertEqual(controller.quickSpeedPresets.count, 9)
+    }
+
+    @MainActor
+    func testControllerRefusesToAddBeyondSixPresets() {
+        let suiteName = "gflyer.preset-tests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let store = LocalDataStore(defaults: defaults)
+        let controller = SimulationController(backend: PreviewLocationSimulationBackend(), dataStore: store)
+        XCTAssertEqual(controller.quickSpeedPresets.count, SpeedScale.defaultPresets.count)
+
+        controller.saveQuickSpeedPreset(name: "第六個", speed: 30)
+        XCTAssertEqual(controller.quickSpeedPresets.count, 6)
+
+        controller.saveQuickSpeedPreset(name: "第七個", speed: 40)
+        XCTAssertEqual(controller.quickSpeedPresets.count, 6, "滿 6 個時不可再新增")
+        XCTAssertFalse(controller.quickSpeedPresets.contains { $0.name == "第七個" })
+    }
 }

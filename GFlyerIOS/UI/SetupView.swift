@@ -376,7 +376,7 @@ struct SetupView: View {
             Button { showPresetPrompt = true } label: {
                 Label("新增速度預設", systemImage: "plus")
             }
-            .disabled(controller.quickSpeedPresets.count >= 12)
+            .disabled(controller.quickSpeedPresets.count >= QuickSpeedPreset.maxCount)
             .alert("新增速度預設", isPresented: $showPresetPrompt) {
                 TextField("名稱", text: $presetName)
                 TextField("速度 km/h", text: $presetSpeed)
@@ -385,6 +385,11 @@ struct SetupView: View {
                 Button("取消", role: .cancel) { }
             } message: {
                 Text("速度會限制在 1.8 至 900 km/h")
+            }
+            if controller.quickSpeedPresets.count >= QuickSpeedPreset.maxCount {
+                Text("速度快捷預設最多 \(QuickSpeedPreset.maxCount) 個")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
         }
     }

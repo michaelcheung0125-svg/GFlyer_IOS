@@ -85,7 +85,8 @@ Status: feature implementation complete; macOS/Xcode and target-iPhone regressio
 - Branded map home, search, map tools, and collapsible controls
 - Map selection and static teleport
 - Single-point and multi-point straight-line routes
-- Nonlinear 1.8-900 km/h speed scale and reusable presets
+- Nonlinear 1.8-900 km/h speed scale and reusable presets (at most 6 after
+  `0.6.8`, aligned with Android; existing lists above 6 are kept)
 - Pause, resume, stop
 - Loop route with walk-back or instant return
 - Foreground joystick and spiral exploration

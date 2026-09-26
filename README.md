@@ -17,7 +17,8 @@ This is a separate SwiftUI prototype for personal sideloading. It does not modif
 - Pause, resume, stop, looping, and return behavior
 - In-app foreground joystick with Android-parity displacement speed dynamics,
   edge continuous acceleration, and an independent speed cap
-- Reusable built-in and custom speed presets
+- Reusable built-in and custom speed presets (at most 6, the same limit as
+  Android; people who already saved more than 6 keep them but cannot add more)
 - Local favorites, history, favorite folders, named routes, and route-draft recovery
 - GPX 1.1 import (tracks, routes, and loose waypoints) and all-routes export
 - Cross-platform backup/restore in the Android-compatible `GFlyer Backup` v1

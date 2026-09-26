@@ -175,7 +175,7 @@ enum AppBackupCodec {
             )
         }
 
-        payload.presets = objectArray(root["quickSpeedPresets"]).prefix(12).compactMap { item in
+        payload.presets = objectArray(root["quickSpeedPresets"]).prefix(QuickSpeedPreset.maxCount).compactMap { item in
             guard let name = item["name"] as? String,
                   let metresPerSecond = doubleValue(item["metresPerSecond"]) else { return nil }
             return QuickSpeedPreset(
@@ -237,8 +237,10 @@ enum AppBackupCodec {
         return GeoCoordinate.validated(latitude: latitude, longitude: longitude)
     }
 
+    /// 陣列裡不是物件的元素只略過那一個。原本用 `value as? [[String: Any]]`,
+    /// 只要混進一個非物件元素,整個集合都會被丟掉(GFlyer-Suite docs/DRIFT.md D4)。
     private static func objectArray(_ value: Any?) -> [[String: Any]] {
-        value as? [[String: Any]] ?? []
+        (value as? [Any])?.compactMap { $0 as? [String: Any] } ?? []
     }
 
     private static func intValue(_ value: Any?) -> Int? {

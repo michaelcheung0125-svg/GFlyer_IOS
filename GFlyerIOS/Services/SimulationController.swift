@@ -879,6 +879,7 @@ final class SimulationController: ObservableObject {
     }
 
     func saveQuickSpeedPreset(name: String, speed: Double) {
+        guard quickSpeedPresets.count < QuickSpeedPreset.maxCount else { return }
         var presets = quickSpeedPresets
         presets.append(QuickSpeedPreset(name: name, kilometresPerHour: speed))
         dataStore.savePresets(presets)

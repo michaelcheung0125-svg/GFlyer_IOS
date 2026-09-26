@@ -126,6 +126,13 @@ enum OrbitPlanner {
 }
 
 struct QuickSpeedPreset: Codable, Equatable, Identifiable {
+    /// 新增與匯入備份的上限。和 Android 統一為 6 個(GFlyer-Suite docs/DRIFT.md D2)。
+    static let maxCount = 6
+
+    /// 儲存時的上限。舊版允許 12 個,已經存了超過 6 個的使用者原本的預設全部保留,
+    /// 只是不能再新增;存檔時若改用 maxCount 截斷,刪掉 1 個會連帶少掉好幾個。
+    static let legacyMaxStoredCount = 12
+
     let id: UUID
     var name: String
     var kilometresPerHour: Double

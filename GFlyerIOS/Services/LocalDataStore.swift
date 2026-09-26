@@ -160,7 +160,9 @@ final class LocalDataStore {
     }
 
     func savePresets(_ presets: [QuickSpeedPreset]) {
-        snapshot.presets = Array(presets.prefix(12))
+        // 新增的上限由 SimulationController 把關;這裡保留舊上限,已經超過 6 個的人刪掉一個
+        // 只會少一個,不會被一次截到 6 個。
+        snapshot.presets = Array(presets.prefix(QuickSpeedPreset.legacyMaxStoredCount))
         persist()
     }
 
@@ -186,7 +188,7 @@ final class LocalDataStore {
         }
         snapshot.presets = payload.presets.isEmpty
             ? SpeedScale.defaultPresets
-            : Array(payload.presets.prefix(12))
+            : Array(payload.presets.prefix(QuickSpeedPreset.maxCount))
         if let crossDate = payload.crossDateWarningEnabled {
             snapshot.playback.crossDateWarningEnabled = crossDate
         }
