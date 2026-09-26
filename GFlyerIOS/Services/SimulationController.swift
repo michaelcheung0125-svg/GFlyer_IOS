@@ -793,13 +793,13 @@ final class SimulationController: ObservableObject {
     func saveBoardCoordinate(_ coordinate: GeoCoordinate, name: String?) {
         let normalized = name?.trimmingCharacters(in: .whitespacesAndNewlines)
         let preferredName = normalized.flatMap { $0.isEmpty ? nil : $0 }
-        let title = String((preferredName ?? "留言板位置 \(coordinate.display)").prefix(80))
+        let title = (preferredName ?? "留言板位置 \(coordinate.display)").prefixCodePoints(80)
         dataStore.addFavorite(name: title, coordinate: coordinate)
         refreshStoredData()
     }
 
     func saveBoardRoute(_ route: SharedBoardRoute, authorName: String) {
-        let baseName = String("\(route.name) (\(authorName))".prefix(80))
+        let baseName = "\(route.name) (\(authorName))".prefixCodePoints(80)
         let existingNames = Set(savedRoutes.map { $0.name.lowercased() })
         let name = Self.uniqueRouteName(base: baseName, existingLowercased: existingNames)
         dataStore.saveRoute(name: name, points: route.points, loop: route.loop)
@@ -818,7 +818,7 @@ final class SimulationController: ObservableObject {
         var existingNames = Set(savedRoutes.map { $0.name.lowercased() })
         var namedRoutes: [(name: String, points: [GeoCoordinate], loop: Bool)] = []
         for route in imported {
-            let base = route.name.map { String($0.prefix(80)) } ?? "匯入路線"
+            let base = route.name.map { $0.prefixCodePoints(80) } ?? "匯入路線"
             let name = Self.uniqueRouteName(base: base, existingLowercased: existingNames)
             existingNames.insert(name.lowercased())
             namedRoutes.append((name: name, points: route.points, loop: false))
@@ -868,11 +868,11 @@ final class SimulationController: ObservableObject {
     }
 
     static func uniqueRouteName(base: String, existingLowercased: Set<String>) -> String {
-        var name = String(base.prefix(80))
+        var name = base.prefixCodePoints(80)
         var suffix = 2
         while existingLowercased.contains(name.lowercased()) {
             let suffixText = " \(suffix)"
-            name = String(base.prefix(max(80 - suffixText.count, 1))) + suffixText
+            name = base.prefixCodePoints(max(80 - suffixText.unicodeScalars.count, 1)) + suffixText
             suffix += 1
         }
         return name
@@ -880,8 +880,13 @@ final class SimulationController: ObservableObject {
 
     func saveQuickSpeedPreset(name: String, speed: Double) {
         guard quickSpeedPresets.count < QuickSpeedPreset.maxCount else { return }
+        // 和 Android 的 QuickSpeedPresetsStore 相同:去掉前後空白、最多 20 個 code point。
+        // 原本不限長度,備份還原後名稱會被截短,往返一次就變了(DRIFT D14)。
+        let normalized = name.trimmingCharacters(in: .whitespacesAndNewlines)
+            .prefixCodePoints(QuickSpeedPreset.maxNameLength)
+        guard !normalized.isEmpty else { return }
         var presets = quickSpeedPresets
-        presets.append(QuickSpeedPreset(name: name, kilometresPerHour: speed))
+        presets.append(QuickSpeedPreset(name: normalized, kilometresPerHour: speed))
         dataStore.savePresets(presets)
         refreshStoredData()
     }

@@ -116,14 +116,14 @@ struct CoordinateLibrary: Equatable {
                     id: id,
                     categoryID: categoryID,
                     subcategoryID: trimmedString(item["subcategoryId"]),
-                    name: String(name.prefix(maxNameLength)),
+                    name: name.prefixCodePoints(maxNameLength),
                     latitude: latitude,
                     longitude: longitude,
-                    note: String((trimmedString(item["note"]) ?? "").prefix(300)),
+                    note: (trimmedString(item["note"]) ?? "").prefixCodePoints(300),
                     period: trimmedString(item["period"]) ?? "",
                     remindDays: intValue(item["remindDays"]).flatMap { $0 > 0 ? $0 : nil },
                     thumbnailURL: httpsURL(trimmedString(item["thumbnail"])),
-                    icon: trimmedString(item["icon"]).map { String($0.prefix(8)) },
+                    icon: trimmedString(item["icon"]).map { $0.prefixCodePoints(8) },
                     enabled: item["enabled"] as? Bool ?? true,
                     updatedAt: trimmedString(item["updatedAt"])
                 )
@@ -140,8 +140,12 @@ struct CoordinateLibrary: Equatable {
         )
     }
 
+    /// 逐元素略過不是物件的項目。原本用 `value as? [[String: Any]]`,只要混進一個非物件元素,
+    /// 整個集合都會被丟掉;Android 用 `optJSONObject(index) ?: continue`,只略過那一個
+    /// (GFlyer-Suite docs/DRIFT.md D17,和備份的 D4 同一個問題)。
     private static func objectArray(_ value: Any?) -> [[String: Any]] {
-        value as? [[String: Any]] ?? []
+        guard let array = value as? [Any] else { return [] }
+        return array.compactMap { $0 as? [String: Any] }
     }
 
     private static func trimmedString(_ value: Any?) -> String? {

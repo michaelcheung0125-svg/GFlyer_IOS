@@ -92,7 +92,7 @@ final class LocalDataStore {
               !snapshot.folders.contains(where: { $0.name.caseInsensitiveCompare(normalized) == .orderedSame }) else {
             return nil
         }
-        let folder = FavoriteFolder(name: String(normalized.prefix(40)))
+        let folder = FavoriteFolder(name: normalized.prefixCodePoints(40))
         snapshot.folders.append(folder)
         persist()
         return folder
@@ -130,7 +130,7 @@ final class LocalDataStore {
 
     private func insertRoute(name: String, points: [GeoCoordinate], loop: Bool, clearDraft: Bool) {
         guard points.count >= 2 else { return }
-        let normalized = String(name.trimmingCharacters(in: .whitespacesAndNewlines).prefix(80))
+        let normalized = name.trimmingCharacters(in: .whitespacesAndNewlines).prefixCodePoints(80)
         guard !normalized.isEmpty else { return }
         let old = snapshot.routes.first(where: { $0.name.caseInsensitiveCompare(normalized) == .orderedSame })
         let route = SavedRoute(id: old?.id ?? UUID(), name: normalized, points: points, loop: loop, folderID: old?.folderID)
@@ -189,12 +189,11 @@ final class LocalDataStore {
         snapshot.presets = payload.presets.isEmpty
             ? SpeedScale.defaultPresets
             : Array(payload.presets.prefix(QuickSpeedPreset.maxCount))
-        if let crossDate = payload.crossDateWarningEnabled {
-            snapshot.playback.crossDateWarningEnabled = crossDate
-        }
-        if let autoStop = payload.autoStopMinutes {
-            snapshot.playback.autoStopMinutes = autoStop
-        }
+        // 兩個平台共通的設定:缺少或型別不對時套預設值,不保留裝置目前的值 ——
+        // 還原就是還原,和 Android 相同(GFlyer-Suite docs/DRIFT.md D13)。
+        let defaults = PlaybackSettings()
+        snapshot.playback.crossDateWarningEnabled = payload.crossDateWarningEnabled ?? defaults.crossDateWarningEnabled
+        snapshot.playback.autoStopMinutes = payload.autoStopMinutes ?? defaults.autoStopMinutes
         // 別的平台的設定原樣留著,下次匯出寫回,否則往返一次就會把它們清光。
         snapshot.foreignSettings = payload.foreignSettings
         snapshot.playback = snapshot.playback.sanitized()

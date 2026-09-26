@@ -48,7 +48,8 @@ final class PlaybackFeatureTests: XCTestCase {
         XCTAssertEqual(sanitized.orbitRadiiMetres, [500, 5, 30, 40])
         // 非選項值取最接近的選項（例如 Android 備份帶來的自訂分鐘數）
         XCTAssertEqual(sanitized.startDelaySeconds, 5)
-        XCTAssertEqual(sanitized.autoStopMinutes, 30)
+        // 45 和 30、60 距離相同,取較大的(DRIFT D15)
+        XCTAssertEqual(sanitized.autoStopMinutes, 60)
 
         var empty = PlaybackSettings()
         empty.orbitRadiiMetres = []

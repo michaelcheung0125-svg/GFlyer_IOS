@@ -132,7 +132,7 @@ enum AppBackupCodec {
                   let name = item["name"] as? String,
                   folderUUIDs[longID] == nil else { continue }
             let folder = FavoriteFolder(
-                name: String(name.prefix(40)),
+                name: name.prefixCodePoints(40),
                 createdAt: date(fromMillis: item["createdAt"])
             )
             folderUUIDs[longID] = folder.id
@@ -146,7 +146,7 @@ enum AppBackupCodec {
                 ? intValue(item["folderId"]).map(Int64.init).flatMap { folderUUIDs[$0] }
                 : nil
             return SavedPlace(
-                name: String(name.prefix(80)),
+                name: name.prefixCodePoints(80),
                 coordinate: coordinate,
                 createdAt: date(fromMillis: item["createdAt"]),
                 folderID: folderID
@@ -165,9 +165,9 @@ enum AppBackupCodec {
             guard points.count >= 2 else { continue }
             payload.routes.append(
                 SavedRoute(
-                    name: String(name.prefix(80)),
+                    name: name.prefixCodePoints(80),
                     points: points,
-                    loop: item["loop"] as? Bool ?? false,
+                    loop: boolValue(item["loop"]) ?? false,
                     createdAt: date(fromMillis: item["createdAt"]),
                     folderID: intValue(item["folderId"]).map(Int64.init).flatMap { folderUUIDs[$0] }
                 )
@@ -178,13 +178,13 @@ enum AppBackupCodec {
             guard let name = item["name"] as? String,
                   let metresPerSecond = doubleValue(item["metresPerSecond"]) else { return nil }
             return QuickSpeedPreset(
-                name: String(name.prefix(20)),
+                name: name.prefixCodePoints(QuickSpeedPreset.maxNameLength),
                 kilometresPerHour: metresPerSecond * 3.6
             )
         }
 
         if let settings = root["settings"] as? [String: Any] {
-            payload.crossDateWarningEnabled = settings["crossDateWarningEnabled"] as? Bool
+            payload.crossDateWarningEnabled = boolValue(settings["crossDateWarningEnabled"])
             payload.autoStopMinutes = intValue(settings["autoStopMinutes"])
             payload.foreignSettings = encodeForeignSettings(from: settings)
         }
@@ -246,14 +246,28 @@ enum AppBackupCodec {
         return array.prefix(limit).compactMap { $0 as? [String: Any] }
     }
 
+    // JSONSerialization 把 true / false 解析成 NSNumber,`as? NSNumber` 分不出布林和數字,
+    // `as? Bool` 也會把數字 0 / 1 橋接成布林。和 Android 的 `as? Number` / `as? Boolean`
+    // 一樣嚴格區分:布林不是數字,數字也不是布林(GFlyer-Suite docs/DRIFT.md D12)。
+
+    private static func isBoolean(_ number: NSNumber) -> Bool {
+        CFGetTypeID(number) == CFBooleanGetTypeID()
+    }
+
     private static func intValue(_ value: Any?) -> Int? {
-        if let number = value as? NSNumber, !(number is NSNull) { return number.intValue }
-        return nil
+        guard let number = value as? NSNumber, !isBoolean(number) else { return nil }
+        return number.intValue
     }
 
     private static func doubleValue(_ value: Any?) -> Double? {
-        if let number = value as? NSNumber, !(number is NSNull) { return number.doubleValue }
-        return nil
+        guard let number = value as? NSNumber, !isBoolean(number) else { return nil }
+        let double = number.doubleValue
+        return double.isFinite ? double : nil
+    }
+
+    private static func boolValue(_ value: Any?) -> Bool? {
+        guard let number = value as? NSNumber, isBoolean(number) else { return nil }
+        return number.boolValue
     }
 
     /// FNV-1a over the UUID bytes, masked positive; bumped on collision so

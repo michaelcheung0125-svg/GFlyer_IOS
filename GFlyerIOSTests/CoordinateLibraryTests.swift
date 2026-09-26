@@ -107,4 +107,26 @@ final class CoordinateLibraryTests: XCTestCase {
         restored.clearMark("p1")
         XCTAssertNil(CoordinateMarkStore(defaults: defaults).marks["p1"])
     }
+
+    /// 陣列裡混進非物件元素時只略過那一個,和 Android 相同(DRIFT D17)。
+    func testParseSkipsNonObjectElementsInsteadOfDroppingTheList() throws {
+        let json = """
+        {
+          "schemaVersion": 1, "revision": 3,
+          "categories": [
+            "不是物件",
+            {"id": "purespot", "name": "純點", "subcategories": [42, {"id": "park", "name": "公園"}]}
+          ],
+          "coordinates": [
+            null,
+            {"id": "p1", "categoryId": "purespot", "name": "公園", "lat": 1, "lng": 2}
+          ]
+        }
+        """
+        let library = try CoordinateLibrary.parse(Data(json.utf8))
+
+        XCTAssertEqual(library.categories.map(\.id), ["purespot"])
+        XCTAssertEqual(library.categories.first?.subcategories.map(\.id), ["park"])
+        XCTAssertEqual(library.coordinates.map(\.id), ["p1"])
+    }
 }

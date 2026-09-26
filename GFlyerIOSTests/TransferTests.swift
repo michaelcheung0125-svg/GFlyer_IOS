@@ -379,4 +379,126 @@ final class TransferTests: XCTestCase {
         XCTAssertEqual(controller.quickSpeedPresets.count, 6, "滿 6 個時不可再新增")
         XCTAssertFalse(controller.quickSpeedPresets.contains { $0.name == "第七個" })
     }
+
+    /// 和 Android 的 QuickSpeedPresetsStore 相同:去掉前後空白、最多 20 個 code point(DRIFT D14)。
+    @MainActor
+    func testControllerTrimsAndLimitsPresetName() {
+        let suiteName = "gflyer.preset-tests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let store = LocalDataStore(defaults: defaults)
+        let controller = SimulationController(backend: PreviewLocationSimulationBackend(), dataStore: store)
+        let before = controller.quickSpeedPresets.count
+
+        controller.saveQuickSpeedPreset(name: "   ", speed: 30)
+        XCTAssertEqual(controller.quickSpeedPresets.count, before, "只有空白的名稱不新增")
+
+        let walker = "\u{1F6B6}"
+        controller.saveQuickSpeedPreset(name: "  " + String(repeating: walker, count: 25) + "  ", speed: 30)
+        XCTAssertEqual(controller.quickSpeedPresets.last?.name, String(repeating: walker, count: 20))
+    }
+
+    // MARK: - DRIFT D12〜D16
+
+    /// 布林不是數字,數字也不是布林 —— 和 Android 的 `as? Number` / `as? Boolean` 相同(DRIFT D12)。
+    func testBackupDecodeKeepsBooleansAndNumbersApart() throws {
+        let json = """
+        {
+          "format": "GFlyer Backup", "version": 1,
+          "favorites": [
+            {"name": "布林座標", "latitude": true, "longitude": 1},
+            {"name": "布林時間", "latitude": 1, "longitude": 2, "createdAt": true}
+          ],
+          "routes": [
+            {"name": "數字 loop", "loop": 1,
+             "points": [{"latitude": 1, "longitude": 1}, {"latitude": 2, "longitude": 2}]}
+          ],
+          "quickSpeedPresets": [
+            {"name": "布林速度", "metresPerSecond": true},
+            {"name": "正常", "metresPerSecond": 2}
+          ],
+          "settings": {"crossDateWarningEnabled": 0, "autoStopMinutes": true}
+        }
+        """
+        let payload = try AppBackupCodec.decode(Data(json.utf8))
+
+        XCTAssertEqual(payload.favorites.map(\.name), ["布林時間"])
+        // createdAt 是布林時當成缺少,用匯入當下的時間,而不是 1970 年
+        XCTAssertGreaterThan(payload.favorites[0].createdAt.timeIntervalSince1970, 1_700_000_000)
+        XCTAssertEqual(payload.routes.first?.loop, false)
+        XCTAssertEqual(payload.presets.map(\.name), ["正常"])
+        XCTAssertNil(payload.crossDateWarningEnabled)
+        XCTAssertNil(payload.autoStopMinutes)
+
+        let booleanVersion = #"{"format": "GFlyer Backup", "version": true}"#
+        XCTAssertThrowsError(try AppBackupCodec.decode(Data(booleanVersion.utf8))) { error in
+            XCTAssertEqual(error as? AppBackupError, .unsupportedVersion)
+        }
+    }
+
+    /// 共通設定缺少時套預設值,不保留裝置目前的值(DRIFT D13);非選項值對齊到最近的選項(D15)。
+    @MainActor
+    func testApplyBackupResetsMissingSharedSettingsToDefaults() {
+        let suiteName = "gflyer.settings-tests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let store = LocalDataStore(defaults: defaults)
+        var playback = PlaybackSettings()
+        playback.crossDateWarningEnabled = false
+        playback.autoStopMinutes = 60
+        store.savePlaybackSettings(playback)
+
+        store.applyBackup(BackupPayload())
+        XCTAssertTrue(store.snapshot.playback.crossDateWarningEnabled)
+        XCTAssertEqual(store.snapshot.playback.autoStopMinutes, 0)
+
+        var payload = BackupPayload()
+        payload.autoStopMinutes = 15
+        store.applyBackup(payload)
+        XCTAssertEqual(store.snapshot.playback.autoStopMinutes, 30, "15 分鐘不可以變成 0 把自動停止關掉")
+    }
+
+    /// 名稱以 Unicode code point 截斷(DRIFT D14)。
+    func testBackupNamesAreTruncatedByCodePoint() throws {
+        let walker = "\u{1F6B6}"
+        let flag = "\u{1F1F9}\u{1F1FC}"
+        let folder: [String: Any] = ["id": 1, "name": String(repeating: walker, count: 41)]
+        let favorite: [String: Any] = [
+            "name": String(repeating: "e\u{0301}", count: 41), "latitude": 1, "longitude": 2,
+        ]
+        let preset: [String: Any] = ["name": "走" + String(repeating: flag, count: 10), "metresPerSecond": 2]
+        let root: [String: Any] = [
+            "format": "GFlyer Backup",
+            "version": 1,
+            "folders": [folder],
+            "favorites": [favorite],
+            "quickSpeedPresets": [preset],
+        ]
+        let payload = try AppBackupCodec.decode(JSONSerialization.data(withJSONObject: root))
+
+        XCTAssertEqual(payload.folders.first?.name, String(repeating: walker, count: 40))
+        XCTAssertEqual(payload.favorites.first?.name.unicodeScalars.count, 80)
+        // 國旗是 2 個 code point:「走」加 19 個 code point,最後一面國旗被切開
+        XCTAssertEqual(payload.presets.first?.name.unicodeScalars.count, 20)
+        XCTAssertEqual(
+            payload.presets.first?.name.unicodeScalars.map(\.value),
+            ("走" + String(repeating: flag, count: 9) + "\u{1F1F9}").unicodeScalars.map(\.value)
+        )
+    }
+
+    /// 整份拒絕的判定和訊息和 Android 一字不差(DRIFT D16)。
+    func testBackupDecodeRejectsAnythingAfterTheBackupObject() throws {
+        let backup = #"{"format": "GFlyer Backup", "version": 1}"#
+        for json in ["\(backup) x", "\(backup) {}", "\(backup) ]", "[\(backup)]", "\"text\"", "", "   "] {
+            XCTAssertThrowsError(try AppBackupCodec.decode(Data(json.utf8)), json) { error in
+                XCTAssertEqual(error as? AppBackupError, .invalidFormat, json)
+            }
+        }
+        // 前後的空白和換行不算額外內容
+        XCTAssertNoThrow(try AppBackupCodec.decode(Data("\n  \(backup) \r\n\t ".utf8)))
+
+        XCTAssertEqual(AppBackupError.invalidFormat.errorDescription, "這不是 GFlyer 備份檔案。")
+        XCTAssertEqual(AppBackupError.unsupportedVersion.errorDescription, "不支援這個備份版本。")
+        XCTAssertEqual(AppBackupError.tooLarge.errorDescription, "備份檔案過大。")
+    }
 }

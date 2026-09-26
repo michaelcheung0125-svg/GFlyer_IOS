@@ -92,7 +92,7 @@ struct PlaybackSettings: Codable, Equatable {
         if copy.orbitRadiiMetres.isEmpty { copy.orbitRadiiMetres = Self.defaultOrbitRadiiMetres }
         // 非選項值（例如 Android 備份帶來的 15 分鐘）取最接近的選項而不是直接停用
         copy.startDelaySeconds = Self.nearestOption(to: startDelaySeconds, in: Self.startDelayOptions)
-        copy.autoStopMinutes = Self.nearestOption(to: autoStopMinutes, in: Self.autoStopOptions)
+        copy.autoStopMinutes = Self.nearestAutoStopOption(to: autoStopMinutes)
         copy.joystickMaxSpeedKilometresPerHour = min(
             max(joystickMaxSpeedKilometresPerHour, Self.joystickMaxSpeedRange.lowerBound),
             Self.joystickMaxSpeedRange.upperBound
@@ -100,8 +100,24 @@ struct PlaybackSettings: Codable, Equatable {
         return copy
     }
 
-    private static func nearestOption(to value: Int, in options: [Int]) -> Int {
-        options.min(by: { abs($0 - value) < abs($1 - value) }) ?? 0
+    /// 自動停止對齊到最近的選項,距離相同時取較大的:15 分鐘變成 30,而不是變成 0
+    /// 把自動停止關掉。和 Android 的 `AutoStop.nearestOption` 相同(GFlyer-Suite
+    /// docs/DRIFT.md D15、contracts/fixtures/settings/auto-stop-minutes.json)。
+    static func nearestAutoStopOption(to minutes: Int) -> Int {
+        nearestOption(to: minutes, in: autoStopOptions, preferLargerOnTie: true)
+    }
+
+    /// 距離相同時預設取較小的(`startDelaySeconds` 一直是這樣,它不是跨平台的設定)。
+    private static func nearestOption(to value: Int, in options: [Int], preferLargerOnTie: Bool = false) -> Int {
+        guard let lowest = options.min(), let highest = options.max() else { return 0 }
+        // 先夾進選項範圍:範圍外最近的一定是端點,也避免極端值在 abs 裡溢位而當掉
+        let value = min(max(value, lowest), highest)
+        return options.min { lhs, rhs in
+            let lhsDistance = abs(lhs - value)
+            let rhsDistance = abs(rhs - value)
+            if lhsDistance != rhsDistance { return lhsDistance < rhsDistance }
+            return preferLargerOnTie && lhs > rhs
+        } ?? 0
     }
 }
 
@@ -132,6 +148,9 @@ struct QuickSpeedPreset: Codable, Equatable, Identifiable {
     /// 儲存時的上限。舊版允許 12 個,已經存了超過 6 個的使用者原本的預設全部保留,
     /// 只是不能再新增;存檔時若改用 maxCount 截斷,刪掉 1 個會連帶少掉好幾個。
     static let legacyMaxStoredCount = 12
+
+    /// 名稱最多 20 個 Unicode code point,和 Android 相同(DRIFT D14)。
+    static let maxNameLength = 20
 
     let id: UUID
     var name: String
