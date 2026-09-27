@@ -96,7 +96,9 @@ struct CoordinateLibrary: Equatable {
                 LibraryCategory(
                     id: id,
                     name: name,
-                    icon: trimmedString(item["icon"]) ?? "",
+                    // 分類圖示、頂層的 updatedAt 與 source 原樣保留、不去空白,和 Android 相同
+                    // (GFlyer-Suite contracts/fixtures/coordinate-library/type-strictness.expected.json)
+                    icon: item["icon"] as? String ?? "",
                     subcategories: subcategories
                 )
             )
@@ -124,7 +126,7 @@ struct CoordinateLibrary: Equatable {
                     remindDays: intValue(item["remindDays"]).flatMap { $0 > 0 ? $0 : nil },
                     thumbnailURL: httpsURL(trimmedString(item["thumbnail"])),
                     icon: trimmedString(item["icon"]).map { $0.prefixCodePoints(8) },
-                    enabled: item["enabled"] as? Bool ?? true,
+                    enabled: boolValue(item["enabled"]) ?? true,
                     updatedAt: trimmedString(item["updatedAt"])
                 )
             )
@@ -133,8 +135,8 @@ struct CoordinateLibrary: Equatable {
         return CoordinateLibrary(
             schemaVersion: schemaVersion,
             revision: revision,
-            updatedAt: trimmedString(root["updatedAt"]) ?? "",
-            source: trimmedString(root["source"]) ?? "皮克敏純點明信片地圖 pikmin.talllkai.com",
+            updatedAt: root["updatedAt"] as? String ?? "",
+            source: root["source"] as? String ?? "皮克敏純點明信片地圖 pikmin.talllkai.com",
             categories: categories,
             coordinates: coordinates
         )
@@ -154,14 +156,28 @@ struct CoordinateLibrary: Equatable {
         return trimmed.isEmpty ? nil : trimmed
     }
 
+    // JSONSerialization 把 true / false 解析成 NSNumber,`as? NSNumber` 分不出布林和數字,
+    // `as? Bool` 也會把數字 0 / 1 橋接成布林。和備份(AppBackupCodec)同一條規則:布林不是數字,
+    // 數字也不是布林(GFlyer-Suite docs/DRIFT.md D12、coordinate-library/type-strictness.*.json)。
+
+    private static func isBoolean(_ number: NSNumber) -> Bool {
+        CFGetTypeID(number) == CFBooleanGetTypeID()
+    }
+
     private static func intValue(_ value: Any?) -> Int? {
-        (value as? NSNumber)?.intValue
+        guard let number = value as? NSNumber, !isBoolean(number) else { return nil }
+        return number.intValue
     }
 
     private static func doubleValue(_ value: Any?) -> Double? {
-        guard let number = value as? NSNumber else { return nil }
+        guard let number = value as? NSNumber, !isBoolean(number) else { return nil }
         let double = number.doubleValue
         return double.isFinite ? double : nil
+    }
+
+    private static func boolValue(_ value: Any?) -> Bool? {
+        guard let number = value as? NSNumber, isBoolean(number) else { return nil }
+        return number.boolValue
     }
 
     private static func httpsURL(_ text: String?) -> URL? {
