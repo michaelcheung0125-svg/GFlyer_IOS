@@ -220,6 +220,68 @@ final class AppUpdateTests: XCTestCase {
         XCTAssertFalse(update?.releaseNotes.isEmpty ?? true)
     }
 
+    /// 0.6.9 起 altstore.json 由 GFlyer-Suite 的 release_manifest.py 產生(DRIFT D8)。這裡照抄
+    /// contracts/fixtures/release/altstore.expected-0.6.9.json 的前兩個版本與扁平欄位
+    /// (歷史版本省略),確認已安裝的 0.6.8 (21) 讀得動、會看到 0.6.9 (22)。
+    func testParserReadsTheGeneratorOutputForTheNextRelease() throws {
+        let generated = Data(#"""
+        {
+          "name": "GFlyer iOS",
+          "identifier": "com.geopilot.gflyer.source",
+          "apps": [
+            {
+              "name": "GFlyer",
+              "bundleIdentifier": "com.geopilot.gflyer.ios",
+              "developerName": "GFlyer",
+              "version": "0.6.9",
+              "buildVersion": "22",
+              "versionDate": "2026-09-30T12:00:00Z",
+              "versionDescription": "假想的 0.6.9 版，只用於測試產生器，不是真的發布。\n第二行測試換行、「全形引號」與 \"ASCII 引號\" 的跳脫。",
+              "downloadURL": "https://github.com/michaelcheung0125-svg/GFlyer-updates/releases/download/ios-v0.6.9/GFlyerIOS-0.6.9-unsigned.ipa",
+              "size": 9987654,
+              "versions": [
+                {
+                  "version": "0.6.9",
+                  "buildVersion": "22",
+                  "date": "2026-09-30T12:00:00Z",
+                  "localizedDescription": "假想的 0.6.9 版，只用於測試產生器，不是真的發布。\n第二行測試換行、「全形引號」與 \"ASCII 引號\" 的跳脫。",
+                  "downloadURL": "https://github.com/michaelcheung0125-svg/GFlyer-updates/releases/download/ios-v0.6.9/GFlyerIOS-0.6.9-unsigned.ipa",
+                  "size": 9987654,
+                  "sha256": "82b9ddd445604b0b59eb8866230090fa3cd0d51c7cc6d34034677bae13acf199",
+                  "minOSVersion": "17.4"
+                },
+                {
+                  "version": "0.6.8",
+                  "buildVersion": "21",
+                  "date": "2026-09-20T13:33:43Z",
+                  "localizedDescription": "工具列按鈕按下去會有視覺與震動回饋。",
+                  "downloadURL": "https://github.com/michaelcheung0125-svg/GFlyer-updates/releases/download/ios-v0.6.8/GFlyerIOS-0.6.8-unsigned.ipa",
+                  "size": 9949118,
+                  "sha256": "2ffc675733ae3f24cd5ba30f0845cda5fa91038a9c8eba6651acc02a1a3891ab",
+                  "minOSVersion": "17.4"
+                }
+              ]
+            }
+          ],
+          "news": []
+        }
+        """#.utf8)
+
+        // SideStore 重簽會在 bundle id 後面加 team id 後綴
+        for installedID in [bundleID, bundleID + ".ABCDE12345"] {
+            let update = try XCTUnwrap(AltStoreSourceParser.latestUpdate(
+                from: generated, bundleIdentifier: installedID, currentVersion: "0.6.8", currentBuild: "21"
+            ), installedID)
+            XCTAssertEqual(update.displayVersion, "0.6.9 (22)", installedID)
+            XCTAssertEqual(update.downloadURL.lastPathComponent, "GFlyerIOS-0.6.9-unsigned.ipa", installedID)
+            XCTAssertEqual(update.minOSVersion, "17.4", installedID)
+            XCTAssertTrue(update.releaseNotes.contains("\n第二行"), installedID)
+        }
+        XCTAssertNil(try AltStoreSourceParser.latestUpdate(
+            from: generated, bundleIdentifier: bundleID, currentVersion: "0.6.9", currentBuild: "22"
+        ))
+    }
+
     // MARK: - 安裝器連結
 
     func testInstallerDeepLinks() throws {
