@@ -525,7 +525,7 @@ struct SetupView: View {
             } label: {
                 Label("匯入 GPX 路線", systemImage: "square.and.arrow.down")
             }
-            .disabled(controller.isMotionActive)
+            // 模擬中也可以匯入(和 Android 相同):路線照樣存進去,只是不載入編輯器
             Button {
                 if let data = controller.exportAllRoutesAsGpx() {
                     exportDocument = ExportedDataDocument(data: data)
@@ -640,18 +640,26 @@ struct SetupView: View {
         }
     }
 
+    /// 讀不到的檔案略過、繼續下一個,整批只顯示一則訊息;選了檔案就一定有訊息,
+    /// 每個都讀不到時是「找不到可用路線」。和 Android 相同(GFlyer-Suite docs/features/gpx-import.md)。
     private func importGpx(_ result: Result<[URL], Error>) {
+        let urls: [URL]
         do {
-            var importedRoutes = 0
-            for url in try result.get() {
-                let data = try readSecurityScopedFile(at: url)
-                importedRoutes += controller.importGpxData(data)
-            }
-            if importedRoutes > 0 {
-                transferSummary = "已匯入 \(importedRoutes) 條 GPX 路線。"
-            }
+            urls = try result.get()
         } catch {
             importError = describe(error)
+            return
+        }
+        guard !urls.isEmpty else { return }
+        var importedRoutes = 0
+        for url in urls {
+            guard let data = try? readSecurityScopedFile(at: url) else { continue }
+            importedRoutes += controller.importGpxData(data)
+        }
+        if importedRoutes > 0 {
+            transferSummary = SimulationController.gpxImportedMessage(count: importedRoutes)
+        } else {
+            importError = SimulationController.gpxNoRoutesMessage
         }
     }
 

@@ -172,11 +172,83 @@ final class TransferTests: XCTestCase {
                 GeoCoordinate(latitude: 22.4, longitude: 114.2),
             ]),
         ])
+        controller.setLoopRoute(true)
         XCTAssertEqual(controller.importGpxData(gpx), 1)
         XCTAssertEqual(controller.savedRoutes.count, 2)
         XCTAssertTrue(controller.savedRoutes.contains { $0.name == "維港路線 2" })
         XCTAssertEqual(controller.mode, .multiRoute)
         XCTAssertEqual(controller.routePoints.count, 2)
+        XCTAssertTrue(controller.loopRoute, "載入匯入的路線不動循環設定,和 Android 相同")
+        XCTAssertNil(controller.lastError)
+    }
+
+    /// 沒有路線的檔案只貢獻 0 條,不設定錯誤;訊息由呼叫端整批顯示一次(gpx-import.md)。
+    @MainActor
+    func testGpxWithoutRoutesReturnsZeroSilently() {
+        let suiteName = "gflyer.gpx-tests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let controller = SimulationController(
+            backend: PreviewLocationSimulationBackend(),
+            dataStore: LocalDataStore(defaults: defaults)
+        )
+        let empty = """
+        <gpx version="1.1" xmlns="http://www.topografix.com/GPX/1/1">
+          <trk><name>短</name><trkseg><trkpt lat="22.3" lon="114.1"></trkpt></trkseg></trk>
+        </gpx>
+        """
+        XCTAssertEqual(controller.importGpxData(Data(empty.utf8)), 0)
+        XCTAssertEqual(controller.importGpxData(Data("不是 XML".utf8)), 0)
+        XCTAssertNil(controller.lastError)
+        XCTAssertTrue(controller.savedRoutes.isEmpty)
+        XCTAssertEqual(controller.mode, .teleport)
+
+        XCTAssertEqual(SimulationController.gpxImportedMessage(count: 3), "已匯入 3 條 GPX 路線。")
+        XCTAssertEqual(SimulationController.gpxNoRoutesMessage, "GPX 檔案中找不到可用路線（每條路線至少需要兩個座標）。")
+    }
+
+    /// gpx-import.md 第 3 節「載入第一條路線」的表。
+    @MainActor
+    func testImportedRouteLoadsOnlyWhenNothingWouldBeOverwritten() {
+        let cases: [(name: String, isSimulating: Bool, draftPointCount: Int, importedCount: Int, expected: Bool)] = [
+            ("nothing imported", false, 0, 0, false),
+            ("simulation running", true, 0, 2, false),
+            ("unsaved draft with two points", false, 2, 1, false),
+            ("empty draft", false, 0, 1, true),
+            ("draft with one point", false, 1, 3, true),
+        ]
+        for testCase in cases {
+            XCTAssertEqual(
+                SimulationController.shouldLoadImportedRoute(
+                    isSimulating: testCase.isSimulating,
+                    draftPointCount: testCase.draftPointCount,
+                    importedCount: testCase.importedCount
+                ),
+                testCase.expected,
+                testCase.name
+            )
+        }
+
+        // 正在畫、還沒存的路線不會被匯入的路線換掉,匯入的路線照樣存進去
+        let suiteName = "gflyer.gpx-tests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let controller = SimulationController(
+            backend: PreviewLocationSimulationBackend(),
+            dataStore: LocalDataStore(defaults: defaults)
+        )
+        let draft = [GeoCoordinate(latitude: 1, longitude: 1), GeoCoordinate(latitude: 2, longitude: 2)]
+        controller.setMode(.multiRoute)
+        for point in draft { controller.select(point) }
+        let gpx = GpxCodec.write(routes: [
+            GpxCodec.ExportRoute(name: "匯入", points: [
+                GeoCoordinate(latitude: 22.3, longitude: 114.1),
+                GeoCoordinate(latitude: 22.4, longitude: 114.2),
+            ]),
+        ])
+        XCTAssertEqual(controller.importGpxData(gpx), 1)
+        XCTAssertEqual(controller.routePoints, draft)
+        XCTAssertEqual(controller.savedRoutes.map(\.name), ["匯入"])
     }
 
     // MARK: - 跨平台 settings 透傳（DRIFT D1）

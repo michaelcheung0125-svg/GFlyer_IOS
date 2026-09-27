@@ -818,13 +818,25 @@ final class SimulationController: ObservableObject {
 
     // MARK: - GPX 與備份
 
+    /// 選了檔案但一條路線都沒有(包括每個檔案都讀不到)時的訊息,整批只顯示一次。
+    static let gpxNoRoutesMessage = "GPX 檔案中找不到可用路線（每條路線至少需要兩個座標）。"
+
+    static func gpxImportedMessage(count: Int) -> String {
+        "已匯入 \(count) 條 GPX 路線。"
+    }
+
+    /// 匯入之後要不要把第一條匯入的路線載入編輯器:模擬進行中、或草稿已經有 2 個點以上
+    /// (使用者正在畫、還沒存的路線)時不載入,不可以覆蓋(GFlyer-Suite docs/features/gpx-import.md)。
+    static func shouldLoadImportedRoute(isSimulating: Bool, draftPointCount: Int, importedCount: Int) -> Bool {
+        importedCount > 0 && !isSimulating && draftPointCount <= 1
+    }
+
+    /// 一個 GPX 檔案:存下所有 2 點以上的路線,回傳存了幾條。沒有路線時靜默回傳 0,
+    /// 訊息由呼叫端在整批處理完之後顯示一次。
     @discardableResult
     func importGpxData(_ data: Data) -> Int {
         let imported = GpxCodec.readRoutes(from: data).filter { $0.points.count >= 2 }
-        guard !imported.isEmpty else {
-            lastError = "GPX 檔案中找不到可用路線（每條路線至少需要兩個座標）。"
-            return 0
-        }
+        guard !imported.isEmpty else { return 0 }
         let names = Self.importedRouteNames(
             for: imported.map(\.name),
             existingLowercased: Set(savedRoutes.map { $0.name.lowercased() })
@@ -834,14 +846,26 @@ final class SimulationController: ObservableObject {
         }
         dataStore.saveRoutes(namedRoutes)
         refreshStoredData()
-        // 只有在沒有進行中的模擬、也沒有未儲存的路線草稿時才自動載入
-        if !status.isActive,
-           routePoints.count <= 1,
+        // 每個檔案之後判斷一次:第一個檔案載入之後草稿就超過 1 點,後面的檔案不會再載入,
+        // 結果和整批之後判斷一次相同
+        if Self.shouldLoadImportedRoute(
+            isSimulating: status.isActive,
+            draftPointCount: routePoints.count,
+            importedCount: imported.count
+        ),
            let firstName = namedRoutes.first?.name,
            let firstRoute = savedRoutes.first(where: { $0.name == firstName }) {
-            loadSavedRoute(firstRoute)
+            loadImportedRoute(firstRoute)
         }
         return imported.count
+    }
+
+    /// 和 `loadSavedRoute` 相同,但不動循環設定,和 Android 的 `importGpxBatch` 相同。
+    private func loadImportedRoute(_ route: SavedRoute) {
+        mode = .multiRoute
+        routePoints = route.points
+        selectedCoordinate = route.points.last ?? selectedCoordinate
+        persistDraft()
     }
 
     func exportAllRoutesAsGpx() -> Data? {
