@@ -91,9 +91,9 @@ https://michaelcheung0125-svg.github.io/GFlyer-updates/altstore.json
 在 AltStore / SideStore 的 **Browse → Sources → +** 加入這個網址之後，新版
 會出現在 App 內，一鍵更新。
 
-IPA 必須放在**公開**的網址上才抓得到。`GFlyer_IOS` 是私有 repository，它的
-release 與 Actions artifact 都需要登入，所以 iOS 的 IPA 和 Android 的 APK
-一樣，發佈到公開的 `GFlyer-updates` releases。
+IPA 必須放在**公開**、不必登入的網址上才抓得到。`GFlyer_IOS` 本身雖然是公開
+repository，但 Actions artifact 一律要登入才能下載、而且會過期，所以 iOS 的 IPA
+和 Android 的 APK 一樣，發佈到公開的 `GFlyer-updates` releases，和來源檔放在一起。
 
 ## 發佈新版的流程
 
@@ -150,9 +150,18 @@ not valid`：
 - `permissions` 必須是陣列；新格式的 `appPermissions` 物件不會被讀取
 - 日期要用 ISO-8601 帶時間，例如 `2026-09-01T15:40:00Z`；只寫日期會失敗
 
-`scripts/update_altstore_source.py` 會在每次發佈時自動把扁平欄位同步成最新
-版本，所以正常流程不需要手動維護。要改格式前，先抓一份實際可用的來源
-（例如 `https://apps.sidestore.io`）比對欄位，不要只依文件推測。
+來源檔由 GFlyer-Suite 的 `tools/release/release_manifest.py` 產生（DRIFT D8，
+步驟見 [RELEASE_PROCESS.md](RELEASE_PROCESS.md) 第 5、6 步），每次發佈時自動把扁平
+欄位同步成 `versions[0]`，所以正常流程不需要手動維護，也不要手改：被重新排版過的
+檔案會被產生器拒絕。幾個細節：
+
+- `minOSVersion` 寫在每一個 `versions[]` 項目裡，取自那一版 IPA 的 `MinimumOSVersion`。
+- `sha256` 一律是小寫十六進位。
+- 同一個資料夾裡還有 `releases.json`：三平台聚合的最新版本資訊，也由同一支產生器
+  維護，`check` 子命令會檢查它和 `altstore.json` 一致。
+
+要改格式前，先抓一份實際可用的來源（例如 `https://apps.sidestore.io`）比對欄位，
+不要只依文件推測；格式的定義在 GFlyer-Suite 的 `contracts/release-manifest.schema.json`。
 
 SideStore 會快取來源內容。改過來源檔後若沒看到新版，把來源移除再重新加入。
 

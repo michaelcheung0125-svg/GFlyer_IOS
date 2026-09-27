@@ -103,8 +103,10 @@ https://michaelcheung0125-svg.github.io/GFlyer-updates/altstore.json
 This does not extend the signing period. A free Apple ID still expires after
 seven days; AltStore and SideStore only automate the refresh. See
 [docs/ALTSTORE_DISTRIBUTION.md](docs/ALTSTORE_DISTRIBUTION.md) for the install
-steps and the release process, including `scripts/update_altstore_source.py`,
-which regenerates the source entry from a built IPA.
+steps and the source format. The source entry is generated from a built IPA by
+`tools/release/release_manifest.py` in the GFlyer-Suite repository (`build ios`,
+then `project`), which also maintains the cross-platform `releases.json` next to
+`altstore.json`.
 
 ## Release process
 
@@ -114,8 +116,10 @@ Every code change reaches users through the runbook in
 **inspect the IPA payload** (a green CI run does not prove the payload is
 complete — an early build shipped without the entire asset catalog), publish
 it as an `ios-v<version>` release in the public `GFlyer-updates` repository,
-regenerate `altstore.json` with `scripts/update_altstore_source.py`, verify
-the live source and download URL, then record the version in `HANDOFF.md`.
+update `altstore.json` and `releases.json` with GFlyer-Suite's
+`tools/release/release_manifest.py` (`build ios`, then `project`, with a
+`--dry-run` first), verify the live source and download URL, then record the
+version in `HANDOFF.md`.
 
 The two optional Shortcuts (step logging and the airplane toggle) are
 documented in [docs/SHORTCUTS.md](docs/SHORTCUTS.md), including why each one

@@ -1,8 +1,9 @@
 name: macOS Xcode validation
 
-# 這個 workflow 跑在 macos-15 上，而私有 repo 的 macOS runner 是 10 倍計費：
-# 每次 push 大約吃掉 60-80 分鐘的 included 額度。所以每一步都要問「這一分鐘
-# 買到什麼」。目前的取捨記在 docs/RELEASE_PROCESS.md 的 CI 段落。
+# 這個 workflow 跑在 macos-15 上。本 repo 是公開的，標準 runner 不計費；repo 還是
+# 私有時 macOS runner 以 10 倍計費，每次 push 大約吃掉 60-80 分鐘的 included 額度，
+# 下面的取捨是那時做的，現在省的是等結果的時間。改成私有之前先讀
+# docs/RELEASE_PROCESS.md 的 CI 段落。
 on:
   push:
     # 純文件改動不需要編譯。commit 訊息的 [skip ci] 仍然有效，這裡是自動化

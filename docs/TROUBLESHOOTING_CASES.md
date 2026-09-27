@@ -224,8 +224,8 @@ SideStore **直接從該網址安裝**，不會排進「有更新」清單。
 - `permissions` 為陣列（新格式的 `appPermissions` 物件不會被讀取）
 - 日期為 ISO-8601 帶時間，只寫日期會失敗
 
-`scripts/update_altstore_source.py` 會自動維護這些欄位，正常發佈流程不需要
-手動處理。
+GFlyer-Suite 的 `tools/release/release_manifest.py` 會自動維護這些欄位（DRIFT D8，
+步驟見 `docs/RELEASE_PROCESS.md` 第 5、6 步），正常發佈流程不需要手動處理。
 
 ### 備註
 
