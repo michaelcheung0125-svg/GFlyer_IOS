@@ -396,70 +396,99 @@ struct SetupView: View {
 
     private var playbackSection: some View {
         Section("路線播放") {
-            Picker("開始前倒數", selection: playbackBinding(\.startDelaySeconds)) {
-                ForEach(PlaybackSettings.startDelayOptions, id: \.self) { seconds in
-                    Text(seconds == 0 ? "關閉" : "\(seconds) 秒").tag(seconds)
+            VStack(alignment: .leading, spacing: Spacing.xs) {
+                Picker("多點路線倒數", selection: playbackBinding(\.startDelaySeconds)) {
+                    ForEach(PlaybackSettings.startDelayOptions, id: \.self) { seconds in
+                        Text(seconds == 0 ? "不用" : "\(seconds) 秒").tag(seconds)
+                    }
                 }
+                Text(controller.playbackSettings.startDelaySeconds == 0
+                     ? "按「開始」後立即啟動多點路線。"
+                     : "按「開始」後倒數 \(controller.playbackSettings.startDelaySeconds) 秒才啟動，方便切回遊戲畫面。")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
             Picker("自動停止", selection: playbackBinding(\.autoStopMinutes)) {
                 ForEach(PlaybackSettings.autoStopOptions, id: \.self) { minutes in
                     Text(minutes == 0 ? "關閉" : "\(minutes) 分鐘").tag(minutes)
                 }
             }
-            Stepper(
-                "逐點傳送停留 \(controller.playbackSettings.dwellSeconds) 秒",
-                value: playbackBinding(\.dwellSeconds),
-                in: PlaybackSettings.dwellRange,
-                step: 5
-            )
+            VStack(alignment: .leading, spacing: Spacing.xs) {
+                Stepper(
+                    "傳送到點停留 \(controller.playbackSettings.dwellSeconds) 秒",
+                    value: playbackBinding(\.dwellSeconds),
+                    in: PlaybackSettings.dwellRange,
+                    step: 1
+                )
+                Text("定點傳送模式到達路線點後，先停留再執行繞圈／微動。")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
             Toggle("跨日期傳送提醒", isOn: playbackBinding(\.crossDateWarningEnabled))
             Picker("搖桿速度上限", selection: playbackBinding(\.joystickMaxSpeedKilometresPerHour)) {
                 ForEach(PlaybackSettings.joystickMaxSpeedOptions, id: \.self) { speed in
                     Text("\(speed) km/h").tag(speed)
                 }
             }
-            Text("倒數方便先切回遊戲畫面；停留秒數只在多點路線的「逐點傳送」模式使用。搖桿以推桿幅度控制速度，推到底會持續加速到上限。")
+            Text("搖桿以推桿幅度控制速度，推到底會持續加速到上限。")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
     }
 
+    /// 和 Android 的「繞圈設定」相同:每一圈 ±5 公尺、可刪任一圈,新增的一圈 40 公尺;改完一律經過
+    /// `PlaybackSettings.normalizedOrbitRadii`(會去重,所以調成和另一圈一樣時那一圈會消失)。
     private var orbitRadiusSection: some View {
-        Section("到點繞圈半徑") {
-            ForEach(Array(controller.playbackSettings.orbitRadiiMetres.enumerated()), id: \.offset) { index, radius in
-                Stepper(
-                    "第 \(index + 1) 圈 · \(radius) 米",
-                    value: orbitRadiusBinding(index: index, fallback: radius),
-                    in: PlaybackSettings.orbitRadiusRange,
-                    step: 5
-                )
+        Section("繞圈設定") {
+            let radii = controller.playbackSettings.orbitRadiiMetres
+            ForEach(Array(radii.enumerated()), id: \.offset) { index, radius in
+                orbitRadiusRow(index: index, radius: radius, canDelete: radii.count > 1)
             }
-            HStack {
+            if radii.count < PlaybackSettings.maxOrbitLaps {
                 Button {
-                    controller.updatePlayback { settings in
-                        settings.orbitRadiiMetres.append(PlaybackSettings.defaultOrbitRadiiMetres.last ?? 30)
-                    }
+                    controller.editOrbitRadii(.add)
                 } label: {
-                    Label("新增一圈", systemImage: "plus")
+                    Label("新增一圈（預設 \(PlaybackSettings.addedLapRadiusMetres) 米）", systemImage: "plus")
                 }
-                .disabled(controller.playbackSettings.orbitRadiiMetres.count >= PlaybackSettings.maxOrbitLaps)
-                Spacer()
-                Button(role: .destructive) {
-                    controller.updatePlayback { settings in
-                        if settings.orbitRadiiMetres.count > 1 {
-                            settings.orbitRadiiMetres.removeLast()
-                        }
-                    }
-                } label: {
-                    Label("移除最後一圈", systemImage: "minus.circle")
-                }
-                .disabled(controller.playbackSettings.orbitRadiiMetres.count <= 1)
+            } else {
+                Text("最多 \(PlaybackSettings.maxOrbitLaps) 圈。")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
-            .buttonStyle(.borderless)
-            Text("多點路線選擇「到點繞圈」時，會依序以這些半徑各繞一圈（最多 \(PlaybackSettings.maxOrbitLaps) 圈）。")
-                .font(.caption)
-                .foregroundStyle(.secondary)
         }
+    }
+
+    private func orbitRadiusRow(index: Int, radius: Int, canDelete: Bool) -> some View {
+        HStack(spacing: Spacing.md) {
+            Text("第 \(index + 1) 圈半徑")
+            Spacer()
+            Button {
+                controller.editOrbitRadii(.decrease(index: index))
+            } label: {
+                Image(systemName: "minus.circle")
+            }
+            .disabled(radius <= PlaybackSettings.orbitRadiusRange.lowerBound)
+            .accessibilityLabel("減少第 \(index + 1) 圈半徑")
+            Text("\(radius) 米")
+                .font(.numericLabel)
+                .frame(minWidth: 56)
+            Button {
+                controller.editOrbitRadii(.increase(index: index))
+            } label: {
+                Image(systemName: "plus.circle")
+            }
+            .disabled(radius >= PlaybackSettings.orbitRadiusRange.upperBound)
+            .accessibilityLabel("增加第 \(index + 1) 圈半徑")
+            Button(role: .destructive) {
+                controller.editOrbitRadii(.delete(index: index))
+            } label: {
+                Image(systemName: "xmark.circle")
+            }
+            .disabled(!canDelete)
+            .accessibilityLabel("刪除第 \(index + 1) 圈")
+        }
+        // 一列裡有好幾個按鈕,不加的話在 Form 裡點哪裡都會觸發整列
+        .buttonStyle(.borderless)
     }
 
     private var softwareUpdateSection: some View {
@@ -676,22 +705,6 @@ struct SetupView: View {
         Binding(
             get: { controller.playbackSettings[keyPath: keyPath] },
             set: { value in controller.updatePlayback { $0[keyPath: keyPath] = value } }
-        )
-    }
-
-    private func orbitRadiusBinding(index: Int, fallback: Int) -> Binding<Int> {
-        Binding(
-            get: {
-                let radii = controller.playbackSettings.orbitRadiiMetres
-                return radii.indices.contains(index) ? radii[index] : fallback
-            },
-            set: { value in
-                controller.updatePlayback { settings in
-                    if settings.orbitRadiiMetres.indices.contains(index) {
-                        settings.orbitRadiiMetres[index] = value
-                    }
-                }
-            }
         )
     }
 

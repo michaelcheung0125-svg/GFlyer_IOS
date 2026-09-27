@@ -47,7 +47,7 @@ struct MainView: View {
     // time），加新的 sheet 或 alert 前請維持這個分層。
     var body: some View {
         NavigationStack {
-            contentWithSheets
+            contentWithNotices
                 .alert(
                     "操作失敗",
                     isPresented: errorAlertBinding
@@ -91,6 +91,16 @@ struct MainView: View {
         // 鍵盤彈出時整個畫面都不要被推上去。這一行要加在 NavigationStack
         // 外面：只加在裡面的 ZStack 上，搜尋列與右側工具列仍會被頂一下
         .ignoresSafeArea(.keyboard, edges: .bottom)
+    }
+
+    /// 升級後只出現一次的提示。和其他 alert 分開一層,理由同 body 上面的說明。
+    private var contentWithNotices: some View {
+        contentWithSheets
+            .alert(SimulationController.arrivalRulesNoticeTitle, isPresented: arrivalRulesNoticeBinding) {
+                Button("知道了", role: .cancel) { controller.dismissArrivalRulesNotice() }
+            } message: {
+                Text(SimulationController.arrivalRulesNoticeMessage)
+            }
     }
 
     private var contentWithSheets: some View {
@@ -341,6 +351,20 @@ struct MainView: View {
         Binding(
             get: { controller.pendingResumeSession != nil },
             set: { if !$0 { controller.clearResumePrompt() } }
+        )
+    }
+
+    /// 啟動時可能同時有恢復、更新或錯誤的 alert;等它們都關掉才顯示,免得互相擋掉。
+    private var arrivalRulesNoticeBinding: Binding<Bool> {
+        Binding(
+            get: {
+                controller.playbackSettings.pendingArrivalRulesNotice
+                    && controller.pendingResumeSession == nil
+                    && controller.pendingCrossDateWarning == nil
+                    && controller.lastError == nil
+                    && !updateChecker.showsPrompt
+            },
+            set: { if !$0 { controller.dismissArrivalRulesNotice() } }
         )
     }
 
@@ -753,13 +777,16 @@ private struct ControlPanel: View {
                     .disabled(controller.routePoints.count < 2).accessibilityLabel("儲存路線")
             }
             speedControls
-            Toggle("循環路線", isOn: Binding(get: { controller.loopRoute }, set: controller.setLoopRoute))
-            if controller.loopRoute {
-                Picker("循環方式", selection: Binding(get: { controller.loopTransitionMode }, set: controller.setLoopTransitionMode)) {
-                    ForEach(LoopTransitionMode.allCases) { mode in Text(mode.rawValue).tag(mode) }
-                }.pickerStyle(.segmented)
+            // 單點路線不循環,和 Android 相同:循環與播放選項只在多點模式出現
+            if controller.mode == .multiRoute {
+                Toggle("循環路線", isOn: Binding(get: { controller.loopRoute }, set: controller.setLoopRoute))
+                if controller.loopRoute {
+                    Picker("循環方式", selection: Binding(get: { controller.loopTransitionMode }, set: controller.setLoopTransitionMode)) {
+                        ForEach(LoopTransitionMode.allCases) { mode in Text(mode.label).tag(mode) }
+                    }.pickerStyle(.segmented)
+                }
+                advancedPlaybackOptions
             }
-            if controller.mode == .multiRoute { advancedPlaybackOptions }
         }
     }
 
@@ -770,33 +797,53 @@ private struct ControlPanel: View {
                     get: { controller.playbackSettings.travelMode },
                     set: { value in controller.updatePlayback { $0.travelMode = value } }
                 )) {
-                    ForEach(RouteTravelMode.allCases) { mode in Text(mode.rawValue).tag(mode) }
+                    ForEach(RouteTravelMode.allCases) { mode in Text(mode.label).tag(mode) }
                 }
                 .pickerStyle(.segmented)
-                Picker("到點動作", selection: Binding(
-                    get: { controller.playbackSettings.pointAction },
-                    set: { value in controller.updatePlayback { $0.pointAction = value } }
-                )) {
-                    ForEach(RoutePointAction.allCases) { action in
-                        Text(action == .none ? "無動作" : "到點\(action.rawValue)").tag(action)
-                    }
-                }
-                .pickerStyle(.segmented)
-                Toggle("到點後手動前進", isOn: Binding(
-                    get: { controller.playbackSettings.manualAdvance },
-                    set: { value in controller.updatePlayback { $0.manualAdvance = value } }
-                ))
-                if controller.playbackSettings.travelMode == .teleport {
-                    Text("每點傳送後停留 \(controller.playbackSettings.dwellSeconds) 秒，可在設定頁調整")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }
+                // 到點動作與手動前進只在定點傳送使用;模擬移動到點不停,直接走向下一點(和 Android 相同)
+                if controller.playbackSettings.travelMode == .teleport { teleportArrivalOptions }
             }
             .padding(.top, Spacing.sm)
+            // 播放中改了也只影響下一趟,和 Android 一樣整組停用,免得以為已經生效
+            .disabled(controller.status.isPlayingRoute)
         } label: {
             Label("進階播放選項", systemImage: "slider.horizontal.3").font(.caption)
         }
+    }
+
+    private var teleportArrivalOptions: some View {
+        VStack(alignment: .leading, spacing: Spacing.sm) {
+            Text("到點動作").font(.caption).foregroundStyle(.secondary)
+            HStack(spacing: Spacing.sm) {
+                ForEach(RoutePointAction.selectableCases) { action in pointActionButton(action) }
+            }
+            Toggle("每點手動前進", isOn: Binding(
+                get: { controller.playbackSettings.manualAdvance },
+                set: { value in controller.updatePlayback { $0.manualAdvance = value } }
+            ))
+            Text(controller.playbackSettings.manualAdvance
+                 ? "傳送到每個路線點後停下，按「下一點」再繼續。"
+                 : "傳送到點後停 \(controller.playbackSettings.dwellSeconds) 秒再動作（設定頁可調整）。")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    /// 兩個都沒選取時是 0.6.8 以前留下的「定點傳送 + 無動作」:照舊到點不做動作,和 Android 讀到 NONE
+    /// 時一樣。選了其中一個之後就回不到無動作。
+    private func pointActionButton(_ action: RoutePointAction) -> some View {
+        let isSelected = controller.playbackSettings.pointAction == action
+        return Button {
+            controller.updatePlayback { $0.pointAction = action }
+        } label: {
+            Label(action.label ?? "", systemImage: isSelected ? "checkmark.circle.fill" : "circle")
+                .font(.caption)
+                .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(.bordered)
+        .tint(isSelected ? Color.statusActive : Color.secondary)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 
     private var playbackActionButtons: some View {
