@@ -29,12 +29,18 @@ struct SavedPlacesView: View {
                                 Text("資料夾")
                                 Spacer()
                                 Button { showFolderPrompt = true } label: { Image(systemName: "folder.badge.plus") }
+                                    .disabled(controller.favoriteFolders.count >= FavoriteFolder.maxCount)
                                     .accessibilityLabel("新增收藏資料夾")
                                     .alert("新增資料夾", isPresented: $showFolderPrompt) {
                                         TextField("資料夾名稱", text: $folderName)
                                         Button("新增") { _ = controller.createFavoriteFolder(name: folderName); folderName = "" }
                                         Button("取消", role: .cancel) { }
                                     }
+                            }
+                            if controller.favoriteFolders.count >= FavoriteFolder.maxCount {
+                                Text("收藏資料夾最多 \(FavoriteFolder.maxCount) 個")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
                             }
                         }
                         ForEach(controller.favoriteFolders) { folder in

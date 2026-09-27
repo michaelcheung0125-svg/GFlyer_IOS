@@ -90,7 +90,9 @@ final class LocalDataStore {
         // 先截斷再比對同名,和 insertRoute、Android 的 FavoriteFoldersStore.save 相同(DRIFT D14);
         // 否則超過 40 個字、前 40 個字和既有資料夾相同的名稱會建出第二個同名資料夾。
         let normalized = name.trimmingCharacters(in: .whitespacesAndNewlines).prefixCodePoints(40)
-        guard !normalized.isEmpty,
+        // 已經超過 30 個的舊資料保留,只是不能再新增(和速度預設的做法相同)
+        guard snapshot.folders.count < FavoriteFolder.maxCount,
+              !normalized.isEmpty,
               !snapshot.folders.contains(where: { $0.name.caseInsensitiveCompare(normalized) == .orderedSame }) else {
             return nil
         }
@@ -132,7 +134,7 @@ final class LocalDataStore {
 
     private func insertRoute(name: String, points: [GeoCoordinate], loop: Bool, clearDraft: Bool) {
         guard points.count >= 2 else { return }
-        let normalized = name.trimmingCharacters(in: .whitespacesAndNewlines).prefixCodePoints(80)
+        let normalized = SavedRoute.normalizedName(name)
         guard !normalized.isEmpty else { return }
         let old = snapshot.routes.first(where: { $0.name.caseInsensitiveCompare(normalized) == .orderedSame })
         let route = SavedRoute(id: old?.id ?? UUID(), name: normalized, points: points, loop: loop, folderID: old?.folderID)

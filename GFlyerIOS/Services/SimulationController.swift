@@ -868,11 +868,13 @@ final class SimulationController: ObservableObject {
     }
 
     static func uniqueRouteName(base: String, existingLowercased: Set<String>) -> String {
-        var name = base.prefixCodePoints(80)
+        let trimmed = base.trimmingCharacters(in: .whitespacesAndNewlines)
+        var name = SavedRoute.normalizedName(trimmed)
         var suffix = 2
         while existingLowercased.contains(name.lowercased()) {
             let suffixText = " \(suffix)"
-            name = base.prefixCodePoints(max(80 - suffixText.unicodeScalars.count, 1)) + suffixText
+            name = trimmed.prefixCodePoints(max(80 - suffixText.unicodeScalars.count, 1))
+                .trimmingCharacters(in: .whitespacesAndNewlines) + suffixText
             suffix += 1
         }
         return name

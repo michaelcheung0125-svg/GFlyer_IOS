@@ -449,6 +449,36 @@ final class TransferTests: XCTestCase {
         XCTAssertEqual(store.snapshot.folders.count, 1)
     }
 
+    /// 最多 30 個資料夾,和 Android 相同;備份還原兩個平台也都只取前 30 個。
+    @MainActor
+    func testCreateFolderStopsAtThirty() {
+        let suiteName = "gflyer.folder-tests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let store = LocalDataStore(defaults: defaults)
+
+        for index in 1...30 {
+            XCTAssertNotNil(store.createFolder(name: "資料夾 \(index)"))
+        }
+        XCTAssertNil(store.createFolder(name: "資料夾 31"))
+        XCTAssertEqual(store.snapshot.folders.count, FavoriteFolder.maxCount)
+    }
+
+    /// 截斷後結尾剛好是空白時,要和 insertRoute 存下來的名稱一樣去掉空白再比對同名,
+    /// 否則會被當成不同名,存的時候又變成同名,無聲覆蓋既有路線。和 Android 的 RouteNamesTest 相同。
+    @MainActor
+    func testUniqueRouteNameComparesTheNameTheWayItIsSaved() {
+        let base = String(repeating: "r", count: 79) + " (Bob)"
+        let stored = SavedRoute.normalizedName(base)
+
+        XCTAssertEqual(stored, String(repeating: "r", count: 79))
+        XCTAssertEqual(
+            SimulationController.uniqueRouteName(base: base, existingLowercased: [stored.lowercased()]),
+            String(repeating: "r", count: 78) + " 2"
+        )
+        XCTAssertEqual(SimulationController.uniqueRouteName(base: "  Harbour  ", existingLowercased: ["harbour"]), "Harbour 2")
+    }
+
     /// 共通設定缺少時套預設值,不保留裝置目前的值(DRIFT D13);非選項值對齊到最近的選項(D15)。
     @MainActor
     func testApplyBackupResetsMissingSharedSettingsToDefaults() {
@@ -501,11 +531,15 @@ final class TransferTests: XCTestCase {
 
     /// 第一個物件之後的內容一律忽略,和 Android 相同(DRIFT D16)。
     func testBackupDecodeIgnoresContentAfterTheFirstObject() throws {
-        // 名稱裡的括號與跳脫的引號不能被誤認成物件的結尾
-        let backup = #"{"format": "GFlyer Backup", "version": 1, "favorites": [{"name": "a } \" { b", "latitude": 1, "longitude": 2}]}"#
-        for json in ["\(backup) x", "\(backup) {}", "\(backup) ]", "\(backup)\u{0}garbage", "\n  \(backup) \r\n\t "] {
+        // 名稱裡的括號與跳脫的引號不能被誤認成物件的結尾:「}]}」在字串外會把深度降到 0
+        let backup = #"{"format": "GFlyer Backup", "version": 1, "favorites": [{"name": "a }]} \" b", "latitude": 1, "longitude": 2}]}"#
+        let inputs = [
+            "\(backup) x", "\(backup) {}", "\(backup) ]", "\(backup)\u{0}garbage", "\n  \(backup) \r\n\t ",
+            "\u{FEFF}\(backup)", "\u{FEFF}\(backup) x",
+        ]
+        for json in inputs {
             let payload = try AppBackupCodec.decode(Data(json.utf8))
-            XCTAssertEqual(payload.favorites.map(\.name), ["a } \" { b"], json)
+            XCTAssertEqual(payload.favorites.map(\.name), ["a }]} \" b"], json)
         }
     }
 
@@ -525,7 +559,11 @@ final class TransferTests: XCTestCase {
     /// 整份拒絕的判定和訊息和 Android 一字不差(DRIFT D16)。
     func testBackupDecodeRejectsFilesThatDoNotStartWithAnObject() throws {
         let backup = #"{"format": "GFlyer Backup", "version": 1}"#
-        for json in ["[\(backup)]", "\"text\"", "x \(backup)", "", "   ", "{\"format\": \"GFlyer Backup\""] {
+        let inputs = [
+            "[\(backup)]", "\"text\"", "x \(backup)", "", "   ",
+            "// note\n\(backup)", "/* note */\(backup)", "# note\n\(backup)", "{\"format\": \"GFlyer Backup\"",
+        ]
+        for json in inputs {
             XCTAssertThrowsError(try AppBackupCodec.decode(Data(json.utf8)), json) { error in
                 XCTAssertEqual(error as? AppBackupError, .invalidFormat, json)
             }

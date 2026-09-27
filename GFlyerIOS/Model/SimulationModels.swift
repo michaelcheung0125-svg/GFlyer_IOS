@@ -185,7 +185,21 @@ struct SavedPlace: Codable, Equatable, Identifiable {
     }
 }
 
+extension SavedRoute {
+    /// 儲存時的路線名稱:去掉前後空白、截斷到 80 個 code point,再去掉截斷後留在結尾的空白。
+    /// `LocalDataStore.insertRoute` 用這個結果比對同名,產生名稱的地方也必須先經過它,否則
+    /// 「檢查時不同名、存的時候變成同名」會無聲覆蓋既有路線。和 Android 的 `RouteNames` 相同。
+    static func normalizedName(_ name: String) -> String {
+        name.trimmingCharacters(in: .whitespacesAndNewlines)
+            .prefixCodePoints(80)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+}
+
 struct FavoriteFolder: Codable, Equatable, Identifiable {
+    /// 新增資料夾的上限,和 Android 相同;備份還原兩個平台也都只取前 30 個。
+    static let maxCount = 30
+
     let id: UUID
     var name: String
     let createdAt: Date

@@ -245,18 +245,20 @@ enum AppBackupCodec {
     /// 先找出第一個物件的結尾,只解析那一段。
     static func firstJSONObject(in data: Data) -> Any? {
         if let whole = try? JSONSerialization.jsonObject(with: data) { return whole }
-        guard let end = endOfFirstObject(in: data) else { return nil }
-        return try? JSONSerialization.jsonObject(with: data.prefix(end))
+        let bytes = [UInt8](data)
+        guard let range = firstObjectRange(in: bytes) else { return nil }
+        return try? JSONSerialization.jsonObject(with: Data(bytes[range]))
     }
 
-    /// 第一個頂層物件結尾 `}` 之後的位元組數;開頭不是物件或物件沒有結束時是 nil。
+    /// 第一個頂層物件從 `{` 到對應的 `}` 的位元組範圍;物件前面只能有 UTF-8 BOM 與空白。
+    /// 開頭不是物件或物件沒有結束時是 nil。
     /// 只看 ASCII 的結構字元:UTF-8 多位元組字元的每個位元組都 >= 0x80,不會被誤認。
-    private static func endOfFirstObject(in data: Data) -> Int? {
-        let bytes = [UInt8](data)
+    private static func firstObjectRange(in bytes: [UInt8]) -> Range<Int>? {
         var index = 0
         if bytes.starts(with: [0xEF, 0xBB, 0xBF]) { index = 3 }
         while index < bytes.count, [0x20, 0x09, 0x0A, 0x0D].contains(bytes[index]) { index += 1 }
         guard index < bytes.count, bytes[index] == UInt8(ascii: "{") else { return nil }
+        let start = index
 
         var depth = 0
         var inString = false
@@ -281,7 +283,7 @@ enum AppBackupCodec {
                 depth += 1
             case UInt8(ascii: "}"), UInt8(ascii: "]"):
                 depth -= 1
-                if depth == 0 { return index }
+                if depth == 0 { return start..<index }
             default:
                 break
             }
