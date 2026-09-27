@@ -94,7 +94,8 @@ Status: feature implementation complete; macOS/Xcode and target-iPhone regressio
 - Pause, resume, stop
 - Loop route with walk-back or instant return (for `0.6.9`, like Android:
   multi-point routes only, and the instant return is labelled 「瞬間跳轉」)
-- Foreground joystick and spiral exploration
+- Foreground joystick and exploration (Android's serpentine pattern from
+  `0.6.9`, replacing the spiral)
 - Visible backend and connection state
 
 Exit criterion: a 30-minute foreground route completes without losing the tunnel or leaving simulated GPS active after Stop.
@@ -145,7 +146,18 @@ Exit criterion: a 30-minute foreground route completes without losing the tunnel
 - Joystick movement (implemented for foreground use; `0.3.0 (5)` adds the
   Android displacement-based speed dynamics, edge continuous acceleration and
   an independent joystick speed cap; validation pending)
-- Spiral exploration (implemented; validation pending)
+- Exploration (spiral implemented earlier; validation pending). For `0.6.9`
+  it becomes Android's serpentine exploration per GFlyer-Suite
+  `docs/features/serpentine-exploration.md`: `SerpentinePath` ports Android's
+  geometry line by line, Y (200-5,000 m, step 100) and the direction live in
+  `PlaybackSettings`, a run is an `ExplorationRun`, pressing 「開始探索」 while
+  exploring restarts from the current position, there is no 0.5 m per-tick
+  minimum, and the map preview is cached. Interrupted explorations resume from
+  the interruption point with the saved progress; `ActiveSessionSnapshot`
+  decodes 0.6.8 spiral snapshots and resumes them as a fresh serpentine. The
+  whole `explore/serpentine-path.json` fixture is copied into
+  `SharedContractTests`; the snapshot migration and settings are in
+  `PlaybackFeatureTests`. Device validation pending
 - Cross-date teleport warning (implemented in `0.3.0 (5)` with the Android
   longitude-based offline estimate; validation pending)
 - Cross-platform backup/restore in the Android `GFlyer Backup` v1 JSON format

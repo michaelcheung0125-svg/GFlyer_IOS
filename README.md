@@ -6,7 +6,18 @@ This is a separate SwiftUI prototype for personal sideloading. It does not modif
 
 - Branded MapKit home screen with place/coordinate search and map tool controls
 - Current-device-location button with explicit Core Location permission handling
-- Static teleport plus single-point, multi-point, and spiral exploration modes
+- Static teleport plus single-point, multi-point, and exploration modes
+- Exploration follows GFlyer Android's serpentine pattern (GFlyer-Suite
+  `docs/features/serpentine-exploration.md`; it replaces the `0.6.8` spiral):
+  north for Y, 530 m sideways (「左（西）」 or 「右（東）」), then 2Y south, 530 m,
+  2Y north and so on until stopped. Y is 200-5,000 m in 100 m steps (default
+  1,000 m); Y and the direction are saved, apply to the next start, and are
+  locked while exploring. The map previews 10Y + 2,120 m ahead from the start
+  point (the simulated position while simulating, otherwise the selected
+  point). Pressing 「開始探索」 again restarts from the current position; each
+  0.25 s tick moves speed x 0.25 s with no minimum. An interrupted exploration
+  resumes where it stopped with its saved progress, and a spiral snapshot left
+  by `0.6.8` resumes as a fresh serpentine at its position (Y 1,000 m, east)
 - Multi-point route playback with a nonlinear 1.8-900 km/h speed scale
 - Route playback options ported from GFlyer Android: per-point teleport travel
   mode, dwell seconds, orbit (skippable) and micro-move arrival actions,

@@ -31,7 +31,7 @@ C:\Project\GFlyer
 - SwiftUI + MapKit 地圖介面
 - 飛豬品牌地圖標記、地圖點擊選點、地點/座標搜尋及右側地圖工具列
 - 地圖目前位置按鈕、真實 Core Location 權限流程及使用者位置標示
-- 傳送、單點、多點及螺旋探索四種模式
+- 傳送、單點、多點及探索四種模式（0.6.9 起探索是和 Android 相同的蛇形，取代螺旋）
 - 非線性 1.8-900 km/h 速度控制、內建/自訂速度預設及 20 km/h 提示。0.6.8 之後（尚未發佈）：
   速度預設上限從 12 改成 6，和 Android 一致；已經存了超過 6 個的使用者原本的全部保留，
   只是不能再新增，刪掉一個只會少一個。匯入備份時最多取 6 個。新增速度預設時
@@ -184,6 +184,47 @@ C:\Project\GFlyer
     - **尚待驗證**（實機）：§6 的上機清單 —— 模擬移動多點路線到點不停；定點傳送 + 繞圈 +
       停留 3 秒；定點傳送 + 向東走 20 米 + 手動前進（最後一點不等）；跳過繞圈與跳過倒數；單點
       與留言板路線直接開始不倒數；從 0.6.8 升上來，§5.3 每種舊設定各一次。
+  - **蛇形探索**（另一批，`docs/features/serpentine-exploration.md`，照 Android 取代 0.6.8 的
+    螺旋；決定：中斷恢復從中斷位置接著走（Android 0.8.7 也修成這樣）、0.6.8 的螺旋快照恢復成
+    一輪新的蛇形、文字照 Android、數字固定照繁中格式）：
+    - 模型（`Model/SimulationModels.swift`）：`SpiralPath` 換成 `SerpentinePath`，逐行照 Android
+      的運算順序（段號才會和 fixture 完全相等，不要「整理」）；`ExplorationDirection` 的 rawValue
+      是 `"EAST"` / `"WEST"`（設定與快照裡存的值）；`ExplorationRun` 是一輪探索的起點、目前位置、
+      進度、Y 與方向；畫面文字在 `ExplorationTexts`。拿掉 `SimulationError.exploreAlreadyActive`
+      （「探索已經在執行中。」）。
+    - 設定：`PlaybackSettings.explorationVerticalLengthMetres`（預設 1000，夾在 200〜5000，步進
+      100）與 `explorationDirection`（預設 EAST），都在明確的 `CodingKeys` 裡、寬鬆解碼（0.6.8 的
+      存檔沒有這兩個鍵 → 預設值）。**不在備份裡**，`AppBackupCodec` 沒動。
+    - 播放（`SimulationController.startExplore`）：每 0.25 秒從上一次的位置與進度走「速度 × 0.25
+      秒」，拿掉 0.5 公尺下限；暫停時不前進。起點是模擬中的模擬座標，否則是選取點。探索中再按
+      「開始探索」從目前位置、進度 (0, 0) 重新開始，不再報錯（0.6.8 會先取消播放再被擋下，模擬停在
+      原地、狀態卻還是進行中）。Y 與方向探索中（含暫停）停用，`adjustExplorationVerticalLength` /
+      `setExplorationDirection` 也直接忽略。點地圖只改選取點。預覽線 `explorationPreview` 輸入沒變
+      就用快取（Y = 5000 約 1,300 點）。狀態文字「正在蛇形探索」。
+    - 中斷快照（`ActiveSessionStore.swift`）：移除 `spiralCenter` / `spiralAngleRadians`，新增選填
+      `explorationCenter` / `explorationState` / `explorationVerticalLengthMetres` /
+      `explorationDirection`。`init(from:)` 寫在 **extension** 裡（保留 memberwise init）：0.6.8 原有
+      欄位照舊要求存在，四個探索欄位各自寬鬆，壞掉只讓那一欄變 nil。`encode(to:)` 維持自動合成，
+      降版到 0.6.8 仍讀得到。鍵維持 `gflyer.active-session.v1`（換鍵會連路線快照一起丟）。
+      `resumedExploration` 負責清理（負數、非有限值）與補預設（進度 (0, 0)、Y 1000 再夾限、EAST、
+      起點用中斷座標）；恢復時從快照的 `coordinate` 出發，不跳回起點。進度在 `send()` 之前換好，
+      快照的座標與進度是同一個 tick。
+    - 畫面（`MainView.exploreControls`）：標題「探索中心」／「虛擬定位已啟用」＋選取點座標；
+      「預設路線寬度為鳥瞰地圖縮至最遠的寬度」「X 固定 530 米」；「Y」的 −／＋（無障礙標籤「減少
+      Y 值 100 米」／「增加 Y 值 100 米」，200／5000 時停用）、「1,000 米」、「預覽 12.12 公里」；
+      「左（西）」「右（東）」（全形括號）；開始鈕「開始探索」。刪掉「以選取位置為中心持續螺旋探索」。
+    - 沒有照 Android 做的（規格允許，只影響預設起點與鏡頭）：切到探索模式時 Android 把選取點換成
+      地圖中心，iOS 保留目前的選取點；起點改變時 Android 把鏡頭縮放到整條預覽線，iOS 維持原本的
+      選點置中。預覽線樣式沿用 iOS 的虛線。
+    - 測試：`SharedContractTests` 照抄 `explore/serpentine-path.json` 全部段落（constants、
+      previewDistance、segments 四組、advance 22 例、walks 5 條全部取樣點、previews 5 例）；
+      `PlaybackFeatureTests` 有 §4.3 的 0.6.8 螺旋快照（`load(now:)` 貼近 savedAt）、方向
+      `"UPWARDS"` 只讓方向變 nil、壞欄位不丟快照、路線快照不受影響、0.6.8 必要的鍵仍寫出、恢復時的
+      清理、設定預設與夾限與存檔、Y 步進、閒置時的預覽與按鈕、文字。
+    - **尚待驗證**（實機，規格 §6）：Y 1000、EAST、汽車速度：先往北，到上緣往東 530 米，再往南
+      2,000 米；預覽線與實際路線重合、開始後改從目前位置畫；移動中 Y 與方向停用、速度可改、暫停／
+      繼續／停止；探索中再按「開始探索」不跳走、不報錯；探索幾分鐘後結束 App，恢復後從中斷位置接著
+      走；用 0.6.8 在探索中結束 App，10 分鐘內升級到 0.6.9 再開，提示可以恢復且不當機。
 
 - `0.6.8 (21)`：0.6.7 實機回報的四件事。
   - 已發佈 `ios-v0.6.8`；CI 兩個 job 通過（97 個測試），IPA 拆檢通過
