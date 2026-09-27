@@ -24,7 +24,12 @@ This is a separate SwiftUI prototype for personal sideloading. It does not modif
 - Cross-platform backup/restore in the Android-compatible `GFlyer Backup` v1
   JSON format (favorites, history, folders, routes, speed presets). Settings
   keys iOS does not use are kept and written back on export, so an
-  Android -> iOS -> Android round trip no longer resets Android-only settings
+  Android -> iOS -> Android round trip no longer resets Android-only settings.
+  Import follows the same rules as Android (GFlyer-Suite
+  `contracts/backup.schema.json`): a bad item is skipped on its own, JSON
+  booleans and numbers are kept apart, names are truncated by Unicode code
+  point, shared settings missing from the file reset to their defaults, and a
+  non-option auto-stop value rounds to the nearest option (ties go up)
 - Coordinate library (座標圖鑑) downloaded from the GFlyer-updates Pages JSON,
   with favorites, visit reminders, and anonymous stale-data reports; unlike
   Android there is no bundled seed, so the first load needs network access

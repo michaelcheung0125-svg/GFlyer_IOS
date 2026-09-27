@@ -128,7 +128,12 @@ Exit criterion: a 30-minute foreground route completes without losing the tunnel
 - Cross-platform backup/restore in the Android `GFlyer Backup` v1 JSON format
   (implemented in `0.3.0 (5)`; cross-platform restore validation pending).
   Unknown `settings` keys are preserved and written back on export (after
-  `0.6.8`; covered by `TransferTests`, device round-trip validation pending)
+  `0.6.8`; covered by `TransferTests`, device round-trip validation pending).
+  Also after `0.6.8`: import rules aligned with Android per GFlyer-Suite
+  `docs/DRIFT.md` D4 and D12-D15 (skip bad items one at a time, strict
+  boolean/number types, code-point name truncation, missing shared settings
+  reset to defaults, auto-stop rounds to the nearest option with ties going
+  up); covered by `TransferTests` and `SharedContractTests`
 - Coordinate library (座標圖鑑) downloaded from the GFlyer-updates Pages JSON
   with favorites, visit reminders, and anonymous stale-data reports
   (implemented in `0.3.0 (5)`; unlike Android there is no bundled seed, the
@@ -210,6 +215,8 @@ Exit criterion: a 30-minute route continues while another App is in the foregrou
 | GPX file with tracks, routes, and loose waypoints | Tracks/routes with two or more points import as saved routes with unique names |
 | Android `gflyer-backup.json` imported on iOS | Folders, favorites, history, routes, and presets restore with folder links preserved |
 | Android backup restored on iOS, exported again, then restored on Android | Android-only settings (floating status bar, map provider, loop transition, manual step count) come back unchanged |
+| Backup whose `autoStopMinutes` is 15 (hand-edited) restored | Auto-stop shows 30 minutes, not Off |
+| Backup without a `settings` object restored | Cross-date warning is on and auto-stop is Off, whatever the device had before |
 | App killed during route playback | Relaunch within 10 minutes offers to resume from the interrupted position |
 | Message board visible during refresh | Visible foreign posts/replies remain read; after leaving, later foreign activity increments the badge |
 | Session revoked by administrator | The next API request clears the local Keychain session and returns to the join screen |

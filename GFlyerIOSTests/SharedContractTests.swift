@@ -51,6 +51,31 @@ final class SharedContractTests: XCTestCase {
         XCTAssertEqual(PlaybackSettings.nearestAutoStopOption(to: .min), 0)
     }
 
+    /// contracts/fixtures/settings/auto-stop-minutes.json 的 backupValues:備份裡的原始 JSON 值
+    /// 還原之後存下來的分鐘數(DRIFT D12、D13、D15)。
+    @MainActor
+    func testAutoStopValuesInABackupRestoreToTheSharedExpectedMinutes() throws {
+        let cases: [(json: String, expected: Int)] = [
+            ("15", 30), ("15.0", 30), ("14.9", 0), ("45.5", 60), ("2147483648", 120),
+            ("4294967326", 120), ("-2147483649", 0), ("1e20", 120), ("true", 0), ("\"30\"", 0), ("null", 0),
+        ]
+        for testCase in cases {
+            let suiteName = "gflyer.auto-stop-tests.\(UUID().uuidString)"
+            let defaults = UserDefaults(suiteName: suiteName)!
+            defer { defaults.removePersistentDomain(forName: suiteName) }
+            let store = LocalDataStore(defaults: defaults)
+            var playback = PlaybackSettings()
+            playback.autoStopMinutes = 60
+            store.savePlaybackSettings(playback)
+
+            let json = #"{"format": "GFlyer Backup", "version": 1, "settings": {"autoStopMinutes": \#(testCase.json)}}"#
+            let payload = try AppBackupCodec.decode(Data(json.utf8))
+            store.applyBackup(payload)
+
+            XCTAssertEqual(store.snapshot.playback.autoStopMinutes, testCase.expected, "json=\(testCase.json)")
+        }
+    }
+
     func testStartDelayKeepsPreferringTheSmallerOptionOnTie() {
         var settings = PlaybackSettings()
         settings.startDelaySeconds = 4

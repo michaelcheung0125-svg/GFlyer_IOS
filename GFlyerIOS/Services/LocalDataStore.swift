@@ -87,12 +87,14 @@ final class LocalDataStore {
 
     @discardableResult
     func createFolder(name: String) -> FavoriteFolder? {
-        let normalized = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        // 先截斷再比對同名,和 insertRoute、Android 的 FavoriteFoldersStore.save 相同(DRIFT D14);
+        // 否則超過 40 個字、前 40 個字和既有資料夾相同的名稱會建出第二個同名資料夾。
+        let normalized = name.trimmingCharacters(in: .whitespacesAndNewlines).prefixCodePoints(40)
         guard !normalized.isEmpty,
               !snapshot.folders.contains(where: { $0.name.caseInsensitiveCompare(normalized) == .orderedSame }) else {
             return nil
         }
-        let folder = FavoriteFolder(name: normalized.prefixCodePoints(40))
+        let folder = FavoriteFolder(name: normalized)
         snapshot.folders.append(folder)
         persist()
         return folder

@@ -436,6 +436,19 @@ final class TransferTests: XCTestCase {
         }
     }
 
+    /// 先截斷再比對同名,和 Android 相同(DRIFT D14)。
+    @MainActor
+    func testCreateFolderComparesTheTruncatedName() {
+        let suiteName = "gflyer.folder-tests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let store = LocalDataStore(defaults: defaults)
+
+        XCTAssertNotNil(store.createFolder(name: String(repeating: "旅", count: 40)))
+        XCTAssertNil(store.createFolder(name: String(repeating: "旅", count: 45)), "截斷後同名,不可以再建一個")
+        XCTAssertEqual(store.snapshot.folders.count, 1)
+    }
+
     /// 共通設定缺少時套預設值,不保留裝置目前的值(DRIFT D13);非選項值對齊到最近的選項(D15)。
     @MainActor
     func testApplyBackupResetsMissingSharedSettingsToDefaults() {
@@ -486,16 +499,43 @@ final class TransferTests: XCTestCase {
         )
     }
 
+    /// 第一個物件之後的內容一律忽略,和 Android 相同(DRIFT D16)。
+    func testBackupDecodeIgnoresContentAfterTheFirstObject() throws {
+        // 名稱裡的括號與跳脫的引號不能被誤認成物件的結尾
+        let backup = #"{"format": "GFlyer Backup", "version": 1, "favorites": [{"name": "a } \" { b", "latitude": 1, "longitude": 2}]}"#
+        for json in ["\(backup) x", "\(backup) {}", "\(backup) ]", "\(backup)\u{0}garbage", "\n  \(backup) \r\n\t "] {
+            let payload = try AppBackupCodec.decode(Data(json.utf8))
+            XCTAssertEqual(payload.favorites.map(\.name), ["a } \" { b"], json)
+        }
+    }
+
+    /// 舊版 Android 在 Android 10 以後覆寫一個比較長的同名備份時,舊檔的尾巴留在新 JSON 後面。
+    /// 這種檔案 Android 一直還原得了,iOS 也要還原得了(DRIFT D16)。
+    func testBackupOverwrittenWithoutTruncationStillDecodes() throws {
+        let oldFavorites = (1...5)
+            .map { #"{"id":\#($0),"name":"舊\#($0)","latitude":1,"longitude":2}"# }
+            .joined(separator: ",")
+        let old = #"{"format":"GFlyer Backup","version":1,"favorites":["# + oldFavorites + "]}"
+        let new = #"{"format":"GFlyer Backup","version":1,"favorites":[{"id":9,"name":"新","latitude":1,"longitude":2}]}"#
+        let onDisk = Data(new.utf8) + Data(old.utf8).dropFirst(Data(new.utf8).count)
+
+        XCTAssertEqual(try AppBackupCodec.decode(onDisk).favorites.map(\.name), ["新"])
+    }
+
     /// 整份拒絕的判定和訊息和 Android 一字不差(DRIFT D16)。
-    func testBackupDecodeRejectsAnythingAfterTheBackupObject() throws {
+    func testBackupDecodeRejectsFilesThatDoNotStartWithAnObject() throws {
         let backup = #"{"format": "GFlyer Backup", "version": 1}"#
-        for json in ["\(backup) x", "\(backup) {}", "\(backup) ]", "[\(backup)]", "\"text\"", "", "   "] {
+        for json in ["[\(backup)]", "\"text\"", "x \(backup)", "", "   ", "{\"format\": \"GFlyer Backup\""] {
             XCTAssertThrowsError(try AppBackupCodec.decode(Data(json.utf8)), json) { error in
                 XCTAssertEqual(error as? AppBackupError, .invalidFormat, json)
             }
         }
-        // 前後的空白和換行不算額外內容
-        XCTAssertNoThrow(try AppBackupCodec.decode(Data("\n  \(backup) \r\n\t ".utf8)))
+        for version in ["1e20", "true", "0", "2", "-1"] {
+            let json = #"{"format": "GFlyer Backup", "version": \#(version)}"#
+            XCTAssertThrowsError(try AppBackupCodec.decode(Data(json.utf8)), version) { error in
+                XCTAssertEqual(error as? AppBackupError, .unsupportedVersion, version)
+            }
+        }
 
         XCTAssertEqual(AppBackupError.invalidFormat.errorDescription, "這不是 GFlyer 備份檔案。")
         XCTAssertEqual(AppBackupError.unsupportedVersion.errorDescription, "不支援這個備份版本。")

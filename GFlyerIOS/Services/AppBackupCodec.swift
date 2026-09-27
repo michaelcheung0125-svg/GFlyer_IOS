@@ -117,12 +117,13 @@ enum AppBackupCodec {
 
     static func decode(_ data: Data) throws -> BackupPayload {
         guard data.count <= maxBackupBytes else { throw AppBackupError.tooLarge }
-        guard let root = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else {
+        guard let root = firstJSONObject(in: data) as? [String: Any] else {
             throw AppBackupError.invalidFormat
         }
         guard root["format"] as? String == formatName else { throw AppBackupError.invalidFormat }
-        let version = intValue(root["version"]) ?? 0
-        guard (1...formatVersion).contains(version) else { throw AppBackupError.unsupportedVersion }
+        // 用 Double 比較,超出 Int 範圍的值在每個平台都得到同一個結果(和 Android 相同)
+        let version = doubleValue(root["version"]) ?? 0
+        guard version >= 1, version < Double(formatVersion + 1) else { throw AppBackupError.unsupportedVersion }
 
         var payload = BackupPayload()
         var folderUUIDs: [Int64: UUID] = [:]
@@ -185,7 +186,7 @@ enum AppBackupCodec {
 
         if let settings = root["settings"] as? [String: Any] {
             payload.crossDateWarningEnabled = boolValue(settings["crossDateWarningEnabled"])
-            payload.autoStopMinutes = intValue(settings["autoStopMinutes"])
+            payload.autoStopMinutes = autoStopMinutes(settings["autoStopMinutes"])
             payload.foreignSettings = encodeForeignSettings(from: settings)
         }
         return payload
@@ -234,6 +235,65 @@ enum AppBackupCodec {
         guard let latitude = doubleValue(item["latitude"]),
               let longitude = doubleValue(item["longitude"]) else { return nil }
         return GeoCoordinate.validated(latitude: latitude, longitude: longitude)
+    }
+
+    /// 只讀檔案開頭的第一個 JSON 物件,後面還有什麼一律忽略,和 Android 相同(DRIFT D16)。
+    ///
+    /// 不可以拒絕結尾的多餘內容:Android 10 以後,舊版 Android App 匯出時用 "w" 模式覆寫一個
+    /// 比較長的同名備份,檔案不會被截斷,舊檔的尾巴會留在新 JSON 後面。這種檔案在 Android 上
+    /// 一直還原得了。`JSONSerialization` 會拒絕結尾的多餘內容,所以整份解析失敗時,
+    /// 先找出第一個物件的結尾,只解析那一段。
+    static func firstJSONObject(in data: Data) -> Any? {
+        if let whole = try? JSONSerialization.jsonObject(with: data) { return whole }
+        guard let end = endOfFirstObject(in: data) else { return nil }
+        return try? JSONSerialization.jsonObject(with: data.prefix(end))
+    }
+
+    /// 第一個頂層物件結尾 `}` 之後的位元組數;開頭不是物件或物件沒有結束時是 nil。
+    /// 只看 ASCII 的結構字元:UTF-8 多位元組字元的每個位元組都 >= 0x80,不會被誤認。
+    private static func endOfFirstObject(in data: Data) -> Int? {
+        let bytes = [UInt8](data)
+        var index = 0
+        if bytes.starts(with: [0xEF, 0xBB, 0xBF]) { index = 3 }
+        while index < bytes.count, [0x20, 0x09, 0x0A, 0x0D].contains(bytes[index]) { index += 1 }
+        guard index < bytes.count, bytes[index] == UInt8(ascii: "{") else { return nil }
+
+        var depth = 0
+        var inString = false
+        var escaped = false
+        while index < bytes.count {
+            let byte = bytes[index]
+            index += 1
+            if inString {
+                if escaped {
+                    escaped = false
+                } else if byte == UInt8(ascii: "\\") {
+                    escaped = true
+                } else if byte == UInt8(ascii: "\"") {
+                    inString = false
+                }
+                continue
+            }
+            switch byte {
+            case UInt8(ascii: "\""):
+                inString = true
+            case UInt8(ascii: "{"), UInt8(ascii: "["):
+                depth += 1
+            case UInt8(ascii: "}"), UInt8(ascii: "]"):
+                depth -= 1
+                if depth == 0 { return index }
+            default:
+                break
+            }
+        }
+        return nil
+    }
+
+    /// 不是數字時是 nil(呼叫端套預設值 0)。先夾到 ±1e9 再取整數,超出 Int 範圍的值
+    /// 和 Android 得到同一個結果。見 contracts/fixtures/settings/auto-stop-minutes.json 的 backupValues。
+    private static func autoStopMinutes(_ value: Any?) -> Int? {
+        guard let minutes = doubleValue(value) else { return nil }
+        return Int(min(max(minutes, -1e9), 1e9))
     }
 
     /// 取原始陣列的前 `limit` 個元素(不是物件的也算一個),只保留其中是物件的。

@@ -34,7 +34,8 @@ C:\Project\GFlyer
 - 傳送、單點、多點及螺旋探索四種模式
 - 非線性 1.8-900 km/h 速度控制、內建/自訂速度預設及 20 km/h 提示。0.6.8 之後（尚未發佈）：
   速度預設上限從 12 改成 6，和 Android 一致；已經存了超過 6 個的使用者原本的全部保留，
-  只是不能再新增，刪掉一個只會少一個。匯入備份時最多取 6 個
+  只是不能再新增，刪掉一個只會少一個。匯入備份時最多取 6 個。新增速度預設時
+  去掉名稱前後空白、最多 20 個 Unicode code point，和 Android 相同（原本不限長度）
 - App 前景搖桿控制
 - 收藏、歷史、收藏資料夾、命名路線及路線草稿重啟恢復
 - 可收合底部控制面板及原生 sheet/menu 操作
@@ -73,7 +74,14 @@ C:\Project\GFlyer
     iOS 不認識的 settings 鍵原樣保留、匯出時寫回，Android → iOS → Android
     往返不再把 Android 專屬設定重設成預設值（`AppBackupCodec`、
     `LocalDataSnapshot.foreignSettings`，`TransferTests` 有 3 個測試）。同一批：備份陣列裡混進
-    非物件元素時只略過那一個，不再讓整個集合被丟掉
+    非物件元素時只略過那一個，不再讓整個集合被丟掉。再同一批（GFlyer-Suite DRIFT D12〜D17，
+    commit `bb542f8`）：備份解析嚴格區分布林與數字（`"loop": 1` 不再是 true）、名稱以 Unicode
+    code point 截斷、備份缺少 `crossDateWarningEnabled` / `autoStopMinutes` 時還原成預設值
+    （原本保留裝置目前的值）、`autoStopMinutes` 不是選項值時距離相同取較大的（15 分鐘變 30，
+    原本變成 0 等於關掉自動停止）；座標圖鑑陣列裡的非物件元素也改成逐一略過。
+    備份檔在第一個 JSON 物件之後還有其他內容時忽略那些內容、照常還原（DRIFT D16）：舊版
+    Android 在 Android 10 以後覆寫比較長的同名備份時不截斷檔案，這種檔案原本 iOS 還原不了。
+    建立資料夾時先截斷到 40 個字再比對同名，不會再建出兩個同名資料夾
   - 座標圖鑑：從 GFlyer-updates Pages 下載 `coordinates.json`、分類／子分類
     瀏覽、搜尋、星號最愛、到訪提醒、匿名過期回報；iOS 不內建種子資料，
     第一次載入需要網路
