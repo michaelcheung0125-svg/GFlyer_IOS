@@ -161,6 +161,24 @@ struct QuickSpeedPreset: Codable, Equatable, Identifiable {
         self.name = name
         self.kilometresPerHour = SpeedScale.clamped(kilometresPerHour)
     }
+
+    /// 內建預設:名稱完全相同,速度相差不到 0.01 km/h。原本用 == 比速度,還原 Android 備份後
+    /// 「正常走路」「腳踏車」「汽車」是 Float 放寬的值(例如 5.000000238 km/h),會被當成自訂
+    /// 預設而出現刪除鈕(GFlyer-Suite contracts/fixtures/speed/preset-speed-values.json)。
+    var isBuiltIn: Bool {
+        SpeedScale.defaultPresets.contains {
+            $0.name.unicodeScalars.elementsEqual(name.unicodeScalars)
+                && SpeedScale.isSameSpeed($0.kilometresPerHour, kilometresPerHour)
+        }
+    }
+
+    /// 舊版 Android 的「正常走路」(1.4 m/s = 5.04 km/h)換成目前的 5.0 km/h,id、名稱不變。
+    /// 0.6.8 以前在 iOS 還原舊 Android 備份的人,裝置上存的就是 5.04。冪等:5.0 不在範圍內,
+    /// 所以每次載入都跑也安全(contracts/fixtures/backup/legacy-walk-preset.json)。
+    func replacingLegacyWalk() -> QuickSpeedPreset {
+        guard SpeedScale.isLegacyWalk(name: name, metresPerSecond: kilometresPerHour / 3.6) else { return self }
+        return QuickSpeedPreset(id: id, name: name, kilometresPerHour: SpeedScale.walkKilometresPerHour)
+    }
 }
 
 struct SavedPlace: Codable, Equatable, Identifiable {
@@ -346,8 +364,37 @@ enum SpeedScale {
         return carKilometresPerHour + ((normalized - carPosition) / (1 - carPosition)) * (airplaneKilometresPerHour - carKilometresPerHour)
     }
 
+    // 速度的相等與門檻比較一律用 km/h 的 Double,容差 0.01 km/h,和 Android 相同
+    // (GFlyer-Suite contracts/fixtures/speed/preset-speed-values.json)。Android 以 Float 存 m/s,
+    // 同一個「20 km/h」在兩邊是不同的數字,直接用 == 或 > 比會出現「顯示 20.0 卻跳警告」。
+
+    static let sameSpeedTolerance = 0.01
+
+    static func isSameSpeed(_ lhs: Double, _ rhs: Double) -> Bool {
+        abs(lhs - rhs) < sameSpeedTolerance
+    }
+
+    static func isBelow(_ speed: Double, _ threshold: Double) -> Bool {
+        speed < threshold && !isSameSpeed(speed, threshold)
+    }
+
+    static func isAtMost(_ speed: Double, _ threshold: Double) -> Bool {
+        speed <= threshold || isSameSpeed(speed, threshold)
+    }
+
     static func exceedsFlowerLimit(_ speed: Double) -> Bool {
-        speed > flowerLimitKilometresPerHour
+        !isAtMost(speed, flowerLimitKilometresPerHour)
+    }
+
+    /// Android 0.8.6 以前內建「正常走路」的速度。
+    static let legacyWalkMetresPerSecond = 1.4
+
+    /// 名稱完全等於「正常走路」(不去空白)而且和 1.4 m/s 相差不到 0.001;不看 id。
+    /// 還原備份與載入本機資料共用這一條(contracts/fixtures/backup/legacy-walk-preset.json)。
+    /// 名稱逐個 code point 比,和 Android 的 == 相同;String 的 == 會把正規等價的字當成相同。
+    static func isLegacyWalk(name: String, metresPerSecond: Double) -> Bool {
+        name.unicodeScalars.elementsEqual("正常走路".unicodeScalars)
+            && abs(metresPerSecond - legacyWalkMetresPerSecond) < 0.001
     }
 }
 

@@ -28,7 +28,10 @@ struct LocalDataSnapshot: Codable {
         history = (try? container.decode([SavedPlace].self, forKey: .history)) ?? []
         folders = (try? container.decode([FavoriteFolder].self, forKey: .folders)) ?? []
         routes = (try? container.decode([SavedRoute].self, forKey: .routes)) ?? []
-        presets = (try? container.decode([QuickSpeedPreset].self, forKey: .presets)) ?? SpeedScale.defaultPresets
+        // 0.6.8 以前還原舊 Android 備份存下的「正常走路」5.04 km/h 在這裡換成 5.0,下一次存檔寫回。
+        // 冪等,所以不需要新的資料版本(GFlyer-Suite contracts/fixtures/backup/legacy-walk-preset.json)。
+        presets = ((try? container.decode([QuickSpeedPreset].self, forKey: .presets)) ?? SpeedScale.defaultPresets)
+            .map { $0.replacingLegacyWalk() }
         draft = (try? container.decodeIfPresent(RouteDraft.self, forKey: .draft)) ?? nil
         playback = (try? container.decode(PlaybackSettings.self, forKey: .playback)) ?? PlaybackSettings()
         foreignSettings = (try? container.decodeIfPresent(Data.self, forKey: .foreignSettings)) ?? nil

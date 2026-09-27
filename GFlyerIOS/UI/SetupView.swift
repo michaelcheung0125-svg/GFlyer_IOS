@@ -362,7 +362,7 @@ struct SetupView: View {
                     Text(String(format: "%.1f km/h", preset.kilometresPerHour))
                         .font(.numericCaption)
                         .foregroundStyle(.secondary)
-                    if !isDefaultPreset(preset) {
+                    if !preset.isBuiltIn {
                         Button(role: .destructive) {
                             controller.removeQuickSpeedPreset(preset.id)
                         } label: {
@@ -610,12 +610,6 @@ struct SetupView: View {
         }
         presetName = ""
         presetSpeed = "50"
-    }
-
-    private func isDefaultPreset(_ preset: QuickSpeedPreset) -> Bool {
-        SpeedScale.defaultPresets.contains {
-            $0.name == preset.name && $0.kilometresPerHour == preset.kilometresPerHour
-        }
     }
 
     /// 使用者按「取消」時 fileImporter 一樣會回 failure，那不是匯入失敗，

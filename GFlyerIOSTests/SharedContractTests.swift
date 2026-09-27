@@ -188,6 +188,139 @@ final class SharedContractTests: XCTestCase {
         XCTAssertEqual(Set(store.snapshot.routes.map(\.name)), ["STRASSE", "Straße", "HARBOUR"])
     }
 
+    // MARK: - contracts/fixtures/speed/preset-speed-values.json
+
+    /// builtInPresets:iOS 內建預設的匯出值,以及讀入 Android 匯出值之後仍然認得是內建預設
+    /// (原本用 == 比,還原 Android 備份後「正常走路」「腳踏車」「汽車」會出現刪除鈕)。
+    func testBuiltInPresetsMatchTheSharedSpeedFixture() {
+        let cases: [(name: String, kilometresPerHour: Double, iosExport: Double, androidExport: Double,
+                     iosReadsAndroidExport: Double)] = [
+            ("正常走路", 5.0, 1.3888888888888888, 1.388888955116272, 5.000000238418579),
+            ("跑步", 10.8, 3.0, 3.0, 10.8),
+            ("腳踏車", 19.0, 5.277777777777778, 5.277778148651123, 19.000001335144045),
+            ("汽車", 50.0, 13.88888888888889, 13.88888931274414, 50.00000152587891),
+            ("飛機", 900.0, 250.0, 250.0, 900.0),
+        ]
+        XCTAssertEqual(SpeedScale.defaultPresets.map(\.name), cases.map { $0.name })
+        XCTAssertEqual(SpeedScale.sameSpeedTolerance, 0.01)
+        for (preset, testCase) in zip(SpeedScale.defaultPresets, cases) {
+            XCTAssertEqual(preset.kilometresPerHour, testCase.kilometresPerHour, testCase.name)
+            // 備份匯出的就是 km/h ÷ 3.6(AppBackupCodec.export),兩邊重做同一個運算,可以用 == 比
+            XCTAssertEqual(preset.kilometresPerHour / 3.6, testCase.iosExport, testCase.name)
+            XCTAssertEqual(testCase.androidExport * 3.6, testCase.iosReadsAndroidExport, testCase.name)
+            XCTAssertTrue(preset.isBuiltIn, testCase.name)
+            let restored = QuickSpeedPreset(name: testCase.name, kilometresPerHour: testCase.androidExport * 3.6)
+            XCTAssertTrue(restored.isBuiltIn, "還原 Android 備份後仍是內建預設:\(testCase.name)")
+        }
+        XCTAssertFalse(QuickSpeedPreset(name: "正常走路 ", kilometresPerHour: 5).isBuiltIn, "名稱要完全相同")
+        XCTAssertFalse(QuickSpeedPreset(name: "正常走路", kilometresPerHour: 5.04).isBuiltIn)
+    }
+
+    /// sameSpeedCases:輸入是 m/s(備份裡的單位),iOS 先乘 3.6 再比。
+    func testSameSpeedMatchesTheSharedSpeedFixture() {
+        let cases: [(name: String, a: Double, b: Double, expected: Bool)] = [
+            ("android-walk-vs-ios-walk", 1.388888955116272, 1.3888888888888888, true),
+            ("android-bicycle-vs-ios-bicycle", 5.277778148651123, 5.277777777777778, true),
+            ("android-car-vs-ios-car", 13.88888931274414, 13.88888888888889, true),
+            ("ios-walk-read-back-by-android", 1.3888888359069824, 1.388888955116272, true),
+            ("legacy-walk-is-not-walk", 1.399999976158142, 1.388888955116272, false),
+            ("inside-tolerance", 1.391388888888889, 1.388888955116272, true),
+            ("outside-tolerance", 1.392222222222222, 1.388888955116272, false),
+            ("slider-5.1-is-not-walk", 1.4166666666666665, 1.388888955116272, false),
+        ]
+        for testCase in cases {
+            XCTAssertEqual(SpeedScale.isSameSpeed(testCase.a * 3.6, testCase.b * 3.6), testCase.expected, testCase.name)
+        }
+    }
+
+    /// thresholdCases:種花警告是 above(v, 20)。懸浮鈕圖示是 Android 專屬,這裡只拿它的分段
+    /// 驗證 isBelow / isAtMost 的邊界。
+    func testThresholdsMatchTheSharedSpeedFixture() {
+        let cases: [(name: String, metresPerSecond: Double, icon: String, exceedsFlowerLimit: Bool)] = [
+            ("android-walk-constant", 1.388888955116272, "5to19", false),
+            ("ios-walk-read-back-by-android", 1.3888888359069824, "5to19", false),
+            ("floating-plus-one-up-to-19", 5.277776718139648, "19to50", false),
+            ("floating-minus-one-down-to-19", 5.2777814865112305, "19to50", false),
+            ("android-bicycle-constant", 5.277778148651123, "19to50", false),
+            ("clearly-below-5", 1.3833333333333335, "under5", false),
+            ("within-tolerance-below-19", 5.2763888888888895, "19to50", false),
+            ("clearly-below-19", 5.273611111111111, "5to19", false),
+            ("android-car-constant", 13.88888931274414, "19to50", true),
+            ("within-tolerance-above-50", 13.890277777777778, "19to50", true),
+            ("clearly-above-50", 13.894444444444446, "over50", true),
+            ("floating-minus-one-down-to-20", 5.555559158325195, "19to50", false),
+            ("ios-20-read-back-by-android", 5.55555534362793, "19to50", false),
+            ("within-tolerance-above-20", 5.5569444444444445, "19to50", false),
+            ("clearly-above-20", 5.561111111111111, "19to50", true),
+        ]
+        for testCase in cases {
+            let speed = testCase.metresPerSecond * 3.6
+            let icon: String
+            if SpeedScale.isBelow(speed, 5) {
+                icon = "under5"
+            } else if SpeedScale.isBelow(speed, 19) {
+                icon = "5to19"
+            } else if SpeedScale.isAtMost(speed, 50) {
+                icon = "19to50"
+            } else {
+                icon = "over50"
+            }
+            XCTAssertEqual(icon, testCase.icon, testCase.name)
+            XCTAssertEqual(SpeedScale.exceedsFlowerLimit(speed), testCase.exceedsFlowerLimit, testCase.name)
+        }
+    }
+
+    // MARK: - contracts/fixtures/backup/legacy-walk-preset.json
+
+    /// 還原備份時,舊版 Android 的「正常走路」1.4 m/s 換成 5.0 km/h;名稱完全相同才換,不看 id。
+    func testLegacyWalkPresetMatchesTheSharedFixture() throws {
+        let cases: [(name: String, id: String, presetName: String, metresPerSecond: String,
+                     expectedKilometresPerHour: Double, replaced: Bool, matchesBuiltInWalk: Bool)] = [
+            ("old-android-export", "1", "正常走路", "1.399999976158142", 5.0, true, true),
+            ("exact-1.4", "1", "正常走路", "1.4", 5.0, true, true),
+            ("id-does-not-matter", "5846229133072385071", "正常走路", "1.399999976158142", 5.0, true, true),
+            ("inside-window", "1", "正常走路", "1.4009", 5.0, true, true),
+            ("outside-window", "1", "正常走路", "1.402", 5.0472, false, false),
+            ("other-name-keeps-1.4", "7", "走路", "1.4", 5.04, false, false),
+            ("name-must-match-exactly", "1", "正常走路 ", "1.4", 5.04, false, false),
+            ("faster-walk-keeps-its-speed", "1", "正常走路", "1.5", 5.4, false, false),
+            ("current-android-export-is-untouched", "1", "正常走路", "1.388888955116272", 5.0, false, true),
+            ("current-ios-export-is-untouched", "5846229133072385071", "正常走路", "1.3888888888888888", 5.0, false, true),
+        ]
+        for testCase in cases {
+            let json = #"{"format": "GFlyer Backup", "version": 1, "quickSpeedPresets": [{"id": \#(testCase.id), "name": "\#(testCase.presetName)", "metresPerSecond": \#(testCase.metresPerSecond)}]}"#
+            let preset = try XCTUnwrap(AppBackupCodec.decode(Data(json.utf8)).presets.first, testCase.name)
+
+            XCTAssertEqual(preset.kilometresPerHour, testCase.expectedKilometresPerHour, accuracy: 0.01, testCase.name)
+            if testCase.replaced {
+                XCTAssertEqual(preset.kilometresPerHour, SpeedScale.walkKilometresPerHour, testCase.name)
+            }
+            XCTAssertEqual(preset.name, testCase.presetName, testCase.name)
+            XCTAssertEqual(preset.isBuiltIn, testCase.matchesBuiltInWalk, testCase.name)
+        }
+    }
+
+    /// 裝置上已經存著的 5.04 km/h(0.6.8 以前還原舊 Android 備份)在載入時換成 5.0,
+    /// id 與順序不變;其他預設不動。
+    func testStoredLegacyWalkPresetIsReplacedWhenLoading() throws {
+        let walkID = UUID()
+        let fasterID = UUID()
+        let otherID = UUID()
+        let json = """
+        {"presets": [
+          {"id": "\(walkID.uuidString)", "name": "正常走路", "kilometresPerHour": 5.039999914169312},
+          {"id": "\(fasterID.uuidString)", "name": "正常走路", "kilometresPerHour": 5.4},
+          {"id": "\(otherID.uuidString)", "name": "走路", "kilometresPerHour": 5.04}
+        ]}
+        """
+        let snapshot = try JSONDecoder().decode(LocalDataSnapshot.self, from: Data(json.utf8))
+
+        XCTAssertEqual(snapshot.presets.map(\.id), [walkID, fasterID, otherID])
+        XCTAssertEqual(snapshot.presets.map(\.kilometresPerHour), [5.0, 5.4, 5.04])
+        // 冪等:再跑一次不變
+        XCTAssertEqual(snapshot.presets.map { $0.replacingLegacyWalk() }, snapshot.presets)
+    }
+
     func testStartDelayKeepsPreferringTheSmallerOptionOnTie() {
         var settings = PlaybackSettings()
         settings.startDelaySeconds = 4

@@ -178,9 +178,14 @@ enum AppBackupCodec {
         payload.presets = objectArray(root["quickSpeedPresets"], limit: QuickSpeedPreset.maxCount).compactMap { item in
             guard let name = item["name"] as? String,
                   let metresPerSecond = doubleValue(item["metresPerSecond"]) else { return nil }
+            // 舊版 Android 的「正常走路」是 1.4 m/s,換成目前的 5.0 km/h,在夾限之前判斷,
+            // 和 Android 的 BackupDecoder 相同(contracts/fixtures/backup/legacy-walk-preset.json)
+            let kilometresPerHour = SpeedScale.isLegacyWalk(name: name, metresPerSecond: metresPerSecond)
+                ? SpeedScale.walkKilometresPerHour
+                : metresPerSecond * 3.6
             return QuickSpeedPreset(
                 name: name.prefixCodePoints(QuickSpeedPreset.maxNameLength),
-                kilometresPerHour: metresPerSecond * 3.6
+                kilometresPerHour: kilometresPerHour
             )
         }
 

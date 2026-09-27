@@ -853,7 +853,7 @@ private struct ControlPanel: View {
                 }
             }
             if SpeedScale.exceedsFlowerLimit(controller.speedKilometresPerHour) {
-                Label("速度高於 20 km/h，部分遊戲可能忽略定位更新", systemImage: "exclamationmark.triangle.fill")
+                Label("注意: 超過 20 km/h 將無法種花", systemImage: "exclamationmark.triangle.fill")
                     .font(.caption2).foregroundStyle(Color.statusAttention)
             }
         }
