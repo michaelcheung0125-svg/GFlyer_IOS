@@ -176,6 +176,12 @@ final class SimulationController: ObservableObject {
     }
 
     func start(bypassCrossDateCheck: Bool = false) {
+        start(bypassCrossDateCheck: bypassCrossDateCheck, isBoardRouteStart: false)
+    }
+
+    /// - Parameter isBoardRouteStart: 留言板路線直接開始。這種路線一律純模擬移動、不倒數,
+    ///   不套用使用者的播放選項(`RoutePlaybackOptions.effective`)。
+    private func start(bypassCrossDateCheck: Bool, isBoardRouteStart: Bool) {
         lastError = nil
         // 模擬開始前留住真實位置，完整清除時要用（模擬中的快取定位會被略過）
         deviceLocation.recordCachedRealLocation()
@@ -200,11 +206,15 @@ final class SimulationController: ObservableObject {
             return
         }
         // 走到這裡跨日提醒已經確認過，回來後不必再問一次
-        if deferUntilTunnelIsUp({ [weak self] in self?.start(bypassCrossDateCheck: true) }) { return }
+        if deferUntilTunnelIsUp({ [weak self] in
+            self?.start(bypassCrossDateCheck: true, isBoardRouteStart: isBoardRouteStart)
+        }) { return }
         lastSessionSnapshotAt = .distantPast
         currentLapPoints = []
         currentLapNextIndex = 0
         playbackGeneration += 1
+        // 被取代的路線任務不會再清這個旗標(generation 不同了);要播路線時 startRoute 會再設回來
+        status.isPlayingRoute = false
 
         switch mode {
         case .teleport:
@@ -222,7 +232,7 @@ final class SimulationController: ObservableObject {
             }
             dataStore.addHistory(coordinate: routePoints.last ?? selectedCoordinate)
             refreshStoredData()
-            startRoute()
+            startRoute(kind: isBoardRouteStart ? .boardRoute : routeStartKind)
             scheduleAutoStop()
         case .explore:
             guard deviceLocation.startBackgroundRouteActivity() else {
@@ -280,7 +290,7 @@ final class SimulationController: ObservableObject {
                 return
             }
             let firstLap = [snapshot.coordinate] + snapshot.remainingPoints
-            startRoute(resumingFrom: firstLap.count >= 2 ? firstLap : nil)
+            startRoute(kind: routeStartKind, resumingFrom: firstLap.count >= 2 ? firstLap : nil)
             scheduleAutoStop()
         case .explore:
             mode = .explore
@@ -341,6 +351,22 @@ final class SimulationController: ObservableObject {
         mutate(&settings)
         playbackSettings = settings.sanitized()
         dataStore.savePlaybackSettings(playbackSettings)
+    }
+
+    /// 設定頁「繞圈設定」的按鈕。按鈕不存在或停用的操作(`editedOrbitRadii` 回傳 nil)不做事。
+    func editOrbitRadii(_ edit: PlaybackSettings.OrbitRadiusEdit) {
+        guard let radii = PlaybackSettings.editedOrbitRadii(playbackSettings.orbitRadiiMetres, edit) else { return }
+        updatePlayback { $0.orbitRadiiMetres = radii }
+    }
+
+    // 0.6.8 以前在「模擬移動」用了到點動作或手動前進的人,升級後看一次這個提示:這是這次唯一
+    // 「原本有、現在沒有」的行為(GFlyer-Suite docs/features/route-arrival-actions.md §5.3、Q2)。
+    static let arrivalRulesNoticeTitle = "多點路線設定已調整"
+    static let arrivalRulesNoticeMessage = "「模擬移動」到點後不再繞圈、微動或等待「下一點」，這些選項只在「定點傳送」使用。"
+
+    func dismissArrivalRulesNotice() {
+        guard playbackSettings.pendingArrivalRulesNotice else { return }
+        updatePlayback { $0.pendingArrivalRulesNotice = false }
     }
 
     func skipStartCountdown() {
@@ -624,6 +650,7 @@ final class SimulationController: ObservableObject {
         status.countdownRemaining = nil
         status.waitingManualAdvance = false
         status.isOrbiting = false
+        status.isPlayingRoute = false
         joystickSpeedMetresPerSecond = 0
         joystickTask = Task { [weak self] in
             guard let self else { return }
@@ -743,7 +770,9 @@ final class SimulationController: ObservableObject {
     func removeFavoriteFolder(_ id: UUID) { dataStore.removeFolder(id); refreshStoredData() }
 
     func saveRoute(name: String) {
-        dataStore.saveRoute(name: name, points: routePoints, loop: loopRoute)
+        // 單點模式看不到循環選項,不能存下看不到的循環設定
+        let loop = RoutePlaybackOptions.loops(for: routeStartKind, requested: loopRoute)
+        dataStore.saveRoute(name: name, points: routePoints, loop: loop)
         refreshStoredData()
     }
 
@@ -796,7 +825,9 @@ final class SimulationController: ObservableObject {
         selectedCoordinate = route.points.last ?? selectedCoordinate
         persistDraft()
         lastError = nil
-        if startImmediately { start() }
+        // 直接開始是純模擬移動、不倒數(和 Android 的 startBoardRoute 相同);只預覽、之後自己按
+        // 「開始」時,照一般的多點路線套用播放選項
+        if startImmediately { start(bypassCrossDateCheck: false, isBoardRouteStart: true) }
         return true
     }
 
@@ -957,24 +988,28 @@ final class SimulationController: ObservableObject {
         return true
     }
 
-    private func startRoute(resumingFrom firstLapPoints: [GeoCoordinate]? = nil) {
-        var settings = playbackSettings
-        // 進階播放選項的 UI 只出現在多點模式，單點路線一律用預設行為
-        if mode != .multiRoute {
-            settings.travelMode = .simulate
-            settings.pointAction = .none
-            settings.manualAdvance = false
-        }
+    /// 目前模式的路線是單點還是多點。留言板路線直接開始由 `start` 另外指定。
+    private var routeStartKind: RouteStartKind {
+        mode == .singleRoute ? .singleRoute : .multiRoute
+    }
+
+    /// 播放一條路線,和 Android `MockLocationService.startRoute` 相同(GFlyer-Suite
+    /// docs/features/route-arrival-actions.md §3.3):實際採用的選項見 `RoutePlaybackOptions.effective`,
+    /// 每一段抵達之後的步驟見 `RouteArrivalSteps`。
+    private func startRoute(kind: RouteStartKind, resumingFrom firstLapPoints: [GeoCoordinate]? = nil) {
         let points = routePoints
-        let traversal = RoutePlan.traversalPoints(points, loop: loopRoute, transitionMode: loopTransitionMode)
-        let loop = loopRoute
+        guard points.count >= 2 else { return }
+        let options = RoutePlaybackOptions.effective(for: kind, settings: playbackSettings)
+        let loop = RoutePlaybackOptions.loops(for: kind, requested: loopRoute)
         let transition = loopTransitionMode
+        let traversal = RoutePlan.traversalPoints(points, loop: loop, transitionMode: transition)
         advanceRequested = false
         countdownSkipRequested = false
         orbitSkipRequested = false
         status.isActive = true
         status.isPaused = false
         status.mode = mode
+        status.isPlayingRoute = true
         playbackGeneration += 1
         let generation = playbackGeneration
         // 依 lap 內位置換算原路線的顯示編號；walk-back 尾段回到第 1 點。
@@ -987,6 +1022,8 @@ final class SimulationController: ObservableObject {
             if loop, transition == .walkBack, traversalIndex == traversal.count - 1 { return 1 }
             return traversalIndex + 1
         }
+        let firstLap = firstLapPoints ?? traversal
+        status.message = RoutePlaybackMessages.headingTo(point: pointNumber(lapPoints: firstLap, nextIndex: 1))
         playbackTask = Task { [weak self] in
             guard let self else { return }
             defer {
@@ -995,11 +1032,13 @@ final class SimulationController: ObservableObject {
                     status.countdownRemaining = nil
                     status.waitingManualAdvance = false
                     status.isOrbiting = false
+                    status.isPlayingRoute = false
                 }
             }
-            let countdownSeconds = firstLapPoints == nil ? settings.startDelaySeconds : 0
+            // 中斷後恢復的路線不倒數
+            let countdownSeconds = firstLapPoints == nil ? options.startDelaySeconds : 0
             guard await runStartCountdown(seconds: countdownSeconds) else { return }
-            var lapPoints = firstLapPoints ?? traversal
+            var lapPoints = firstLap
             while !Task.isCancelled {
                 currentLapPoints = lapPoints
                 for index in 0..<max(lapPoints.count - 1, 0) {
@@ -1007,42 +1046,41 @@ final class SimulationController: ObservableObject {
                     let end = lapPoints[index + 1]
                     let number = pointNumber(lapPoints: lapPoints, nextIndex: index + 1)
                     currentLapNextIndex = index + 1
-                    switch settings.travelMode {
+                    switch options.travelMode {
                     case .simulate:
                         guard await move(from: start, to: end) else { return }
+                        status.message = RoutePlaybackMessages.arrived(at: number)
                     case .teleport:
-                        guard await send(end, message: "已傳送至第 \(number) 點") else { return }
+                        // 這一段的起點不發送:開始時不先傳到第 1 點,「瞬間跳轉」循環也不回到第 1 點(和 Android 相同)
+                        guard await send(end, message: RoutePlaybackMessages.teleported(to: number)) else { return }
                     }
                     saveSessionSnapshot(coordinate: end, force: true)
-                    let isFinalStop = !loop && index + 1 == lapPoints.count - 1
-                    let hasArrivalStep = settings.manualAdvance
-                        || settings.pointAction != .none
-                        || (settings.travelMode == .teleport && settings.dwellSeconds > 0)
-                    if !hasArrivalStep && isFinalStop { continue }
-                    if settings.travelMode == .teleport, settings.dwellSeconds > 0 {
-                        guard await dwellAtPoint(seconds: settings.dwellSeconds, pointNumber: number) else { return }
+                    let steps = RouteArrivalSteps(
+                        options: options,
+                        isFinalStop: !loop && index + 1 == lapPoints.count - 1
+                    )
+                    if steps.dwellSeconds > 0 {
+                        guard await dwellAtPoint(seconds: steps.dwellSeconds, pointNumber: number) else { return }
                     }
-                    switch settings.pointAction {
+                    switch steps.action {
                     case .orbit:
-                        guard await orbitAround(end, pointNumber: number, radiiMetres: settings.orbitRadiiMetres) else { return }
+                        guard await orbitAround(end, pointNumber: number) else { return }
                     case .microMove:
                         guard await microMoveEast(from: end, pointNumber: number) else { return }
                     case .none:
                         break
                     }
-                    if isFinalStop { continue }
-                    if settings.manualAdvance {
+                    if steps.waitsForManualAdvance {
                         guard await waitForManualAdvance(pointNumber: number) else { return }
                     }
                 }
                 lapPoints = traversal
-                guard loop else { break }
-                if transition == .teleportToStart, let first = points.first {
-                    guard await send(first, message: "循環路線模擬中") else { return }
-                }
+                guard loop, !Task.isCancelled else { break }
+                // 模擬移動的下一圈從第 1 點走起;定點傳送不發送第 1 點(規格 Q5)
+                status.message = RoutePlaybackMessages.nextLap
             }
             if !Task.isCancelled {
-                status.message = "路線已完成"
+                status.message = RoutePlaybackMessages.finished
                 sessionStore.clear()
                 currentLapPoints = []
                 currentLapNextIndex = 0
@@ -1055,7 +1093,7 @@ final class SimulationController: ObservableObject {
         var remaining = seconds
         while remaining > 0, !Task.isCancelled, !countdownSkipRequested {
             status.countdownRemaining = remaining
-            status.message = "\(remaining) 秒後開始路線…"
+            status.message = RoutePlaybackMessages.countdown(seconds: remaining)
             await sleepThroughPause(nanoseconds: 1_000_000_000)
             if !status.isPaused { remaining -= 1 }
         }
@@ -1063,14 +1101,14 @@ final class SimulationController: ObservableObject {
         countdownSkipRequested = false
         status.countdownRemaining = nil
         guard !Task.isCancelled else { return false }
-        if skipped { status.message = "已跳過倒數，立即開始路線" }
+        if skipped { status.message = RoutePlaybackMessages.countdownSkipped }
         return true
     }
 
     private func dwellAtPoint(seconds: Int, pointNumber: Int) async -> Bool {
         var remaining = seconds
         while remaining > 0, !Task.isCancelled {
-            status.message = "第 \(pointNumber) 點 · 停留 \(remaining) 秒…"
+            status.message = RoutePlaybackMessages.dwelling(point: pointNumber, remainingSeconds: remaining)
             await sleepThroughPause(nanoseconds: 1_000_000_000)
             if !status.isPaused { remaining -= 1 }
         }
@@ -1080,71 +1118,70 @@ final class SimulationController: ObservableObject {
     private func waitForManualAdvance(pointNumber: Int) async -> Bool {
         advanceRequested = false
         status.waitingManualAdvance = true
-        status.message = "已到達第 \(pointNumber) 點，按「下一點」繼續"
+        status.message = RoutePlaybackMessages.waitingManualAdvance(point: pointNumber)
         defer { status.waitingManualAdvance = false }
         while !advanceRequested, !Task.isCancelled {
             try? await Task.sleep(nanoseconds: tickNanoseconds)
         }
         advanceRequested = false
         guard !Task.isCancelled else { return false }
-        status.message = "前往下一點"
+        status.message = RoutePlaybackMessages.advancing
         return true
     }
 
-    private func orbitAround(_ center: GeoCoordinate, pointNumber: Int, radiiMetres: [Int]) async -> Bool {
-        let radii = radiiMetres.isEmpty ? PlaybackSettings.defaultOrbitRadiiMetres : radiiMetres
+    /// 半徑在每次開始繞圈時才讀目前的設定(播放中改了半徑,下一個點就用新的),速度在每一圈開始時讀;
+    /// 狀態文字每一圈寫一次。和 Android 相同(規格 §3.2、§3.4)。
+    private func orbitAround(_ center: GeoCoordinate, pointNumber: Int) async -> Bool {
+        let radii = PlaybackSettings.normalizedOrbitRadii(playbackSettings.orbitRadiiMetres)
         orbitSkipRequested = false
         status.isOrbiting = true
         defer { status.isOrbiting = false }
         var angle = 0.0
-        for (lapIndex, radiusValue) in radii.enumerated() {
-            let radius = Double(radiusValue)
-            let stepRadians = OrbitPlanner.stepRadians(
-                speedMetresPerSecond: clampedSpeedMetresPerSecond,
+        for (lapIndex, radius) in radii.enumerated() {
+            let lap = OrbitPlanner.lap(
+                center: center,
                 radiusMetres: radius,
+                startAngleRadians: angle,
+                speedMetresPerSecond: routeSpeedMetresPerSecond,
                 tickSeconds: tickSeconds
             )
-            let stepsPerLap = OrbitPlanner.stepsPerLap(stepRadians: stepRadians)
-            for _ in 0..<stepsPerLap {
+            angle = lap.endAngleRadians
+            status.message = RoutePlaybackMessages.orbitLap(lapIndex + 1, of: radii.count, radiusMetres: radius)
+            for target in lap.waypoints {
                 if orbitSkipRequested {
                     orbitSkipRequested = false
-                    status.message = "已跳過繞圈，前往下一點"
+                    status.message = RoutePlaybackMessages.orbitSkipped
                     return true
                 }
                 guard !Task.isCancelled else { return false }
-                angle += stepRadians
-                let target = GeoMath.offset(
-                    from: center,
-                    eastMetres: radius * cos(angle),
-                    northMetres: radius * sin(angle)
-                )
-                guard await send(
-                    target,
-                    message: "繞圈中 · 第 \(lapIndex + 1)/\(radii.count) 圈 · 半徑 \(radiusValue) 米"
-                ) else { return false }
+                guard await send(target, message: nil) else { return false }
                 await sleepThroughPause(nanoseconds: tickNanoseconds)
             }
         }
-        status.message = "已完成第 \(pointNumber) 點繞圈"
+        guard !Task.isCancelled else { return false }
+        status.message = RoutePlaybackMessages.orbitFinished(point: pointNumber)
         return true
     }
 
-    private var clampedSpeedMetresPerSecond: Double {
-        max(speedKilometresPerHour / 3.6, 0.5)
+    /// 路線播放(走路、繞圈、微動)用的速度。
+    private var routeSpeedMetresPerSecond: Double {
+        SpeedScale.clamped(speedKilometresPerHour) / 3.6
     }
 
     private func microMoveEast(from origin: GeoCoordinate, pointNumber: Int) async -> Bool {
-        let distance = PlaybackSettings.microMoveDistanceMetres
-        let steps = max(Int(ceil(distance / (clampedSpeedMetresPerSecond * tickSeconds))), 1)
-        let stepLength = distance / Double(steps)
-        var current = origin
-        for _ in 0..<steps {
+        status.message = RoutePlaybackMessages.microMoveStarted
+        let waypoints = MicroMovePlanner.waypoints(
+            origin: origin,
+            speedMetresPerSecond: routeSpeedMetresPerSecond,
+            tickSeconds: tickSeconds
+        )
+        for target in waypoints {
             guard !Task.isCancelled else { return false }
-            current = GeoMath.destination(from: current, bearingDegrees: 90, distanceMetres: stepLength)
-            guard await send(current, message: "到點微動中 · 向東 20 米") else { return false }
+            guard await send(target, message: nil) else { return false }
             await sleepThroughPause(nanoseconds: tickNanoseconds)
         }
-        status.message = "已完成第 \(pointNumber) 點微動"
+        guard !Task.isCancelled else { return false }
+        status.message = RoutePlaybackMessages.microMoveFinished(point: pointNumber)
         return true
     }
 
@@ -1189,24 +1226,28 @@ final class SimulationController: ObservableObject {
         }
     }
 
+    /// 逐步的傳送不改狀態文字:「已到達第 N 點」這類事件訊息要留到下一個事件(規格 §3)。
     private func move(from start: GeoCoordinate, to end: GeoCoordinate) async -> Bool {
         let distance = max(GeoMath.distanceMetres(from: start, to: end), 0.1)
         var travelled = 0.0
         while travelled < distance, !Task.isCancelled {
             let coordinate = GeoMath.interpolate(from: start, to: end, fraction: travelled / distance)
-            guard await send(coordinate, message: "路線模擬中") else { return false }
-            travelled += max(speedKilometresPerHour / 3.6 * tickSeconds, 0.5)
+            guard await send(coordinate, message: nil) else { return false }
+            // 每一步走「速度 × 0.25 秒」,和 Android 相同。原本每步至少 0.5 公尺,最低速 1.8 km/h
+            // 時實際走得比顯示的快 4 倍
+            travelled += routeSpeedMetresPerSecond * tickSeconds
             await sleepThroughPause(nanoseconds: tickNanoseconds)
         }
         guard !Task.isCancelled else { return false }
-        return await send(end, message: "路線模擬中")
+        return await send(end, message: nil)
     }
 
     /// 回傳這次傳送是否成功。播放迴圈只依這個回傳值決定去留，
     /// 不看共用的 `lastError`——否則其他畫面（例如留言板守衛）設定的
     /// 錯誤訊息會被誤判成傳送失敗而中止路線。
+    /// - Parameter message: nil 時不改狀態文字(路線播放的逐步傳送)。
     @discardableResult
-    private func send(_ coordinate: GeoCoordinate, message: String) async -> Bool {
+    private func send(_ coordinate: GeoCoordinate, message: String?) async -> Bool {
         // 取消後排隊中的傳送不能再送出：這一筆若在 clearLocation 之後
         // 才進到後端，裝置會被重新設成模擬位置
         guard !Task.isCancelled else { return false }
@@ -1222,7 +1263,7 @@ final class SimulationController: ObservableObject {
             status.isActive = true
             status.coordinate = coordinate
             status.mode = mode
-            status.message = message
+            if let message { status.message = message }
             saveSessionSnapshot(coordinate: coordinate)
             return true
         } catch {
@@ -1238,6 +1279,7 @@ final class SimulationController: ObservableObject {
             status.countdownRemaining = nil
             status.waitingManualAdvance = false
             status.isOrbiting = false
+            status.isPlayingRoute = false
             status.autoStopAt = nil
             deviceLocation.stopBackgroundRouteActivity()
             return false

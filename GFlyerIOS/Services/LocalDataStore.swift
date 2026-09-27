@@ -48,6 +48,14 @@ final class LocalDataStore {
         if let data = defaults.data(forKey: key),
            let stored = try? JSONDecoder().decode(LocalDataSnapshot.self, from: data) {
             snapshot = stored
+            // 0.6.8 以前的播放設定換成 0.6.9 的到點規則。只在這裡做:解碼與 sanitized() 每次存檔都會跑,
+            // 放在那裡會把版本 2 的值一直改掉。有變動就立刻寫回,下次載入已經是版本 2
+            // (GFlyer-Suite docs/features/route-arrival-actions.md §5.3)。
+            let migrated = stored.playback.migratedToArrivalRulesV2()
+            if migrated != stored.playback {
+                snapshot.playback = migrated
+                persist()
+            }
         } else {
             snapshot = LocalDataSnapshot()
             persist()
