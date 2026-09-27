@@ -562,6 +562,7 @@ final class TransferTests: XCTestCase {
         let inputs = [
             "[\(backup)]", "\"text\"", "x \(backup)", "", "   ",
             "// note\n\(backup)", "/* note */\(backup)", "# note\n\(backup)", "{\"format\": \"GFlyer Backup\"",
+            "\u{0C}\(backup)", "\u{01}\(backup)",
         ]
         for json in inputs {
             XCTAssertThrowsError(try AppBackupCodec.decode(Data(json.utf8)), json) { error in
