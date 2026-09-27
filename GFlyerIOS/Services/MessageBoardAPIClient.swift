@@ -264,24 +264,20 @@ actor MessageBoardAPIClient {
     }
 
     /// 座標圖鑑「資料已過時」匿名回報（Worker 端依 IP 限流），不需要留言板登入。
+    /// 任何 2xx 都算成功,不看回應內容,和 Android 相同。
     func reportLibraryCoordinate(
         coordinateID: String,
-        coordinateName: String?,
+        coordinateName: String,
         reason: String,
-        message: String?
+        message: String
     ) async throws {
-        let trimmedMessage = message?.trimmingCharacters(in: .whitespacesAndNewlines)
-        let _: CoordReportResponse = try await request(
-            method: "POST",
-            path: "/v1/coord-reports",
-            body: CoordReportRequest(
-                clientRequestId: UUID().uuidString,
-                coordinateId: String(coordinateID.prefix(60)),
-                coordinateName: coordinateName.map { String($0.prefix(80)) },
-                reason: String(reason.prefix(40)),
-                message: trimmedMessage.flatMap { $0.isEmpty ? nil : String($0.prefix(300)) }
-            )
+        let body = CoordReportRequest(
+            coordinateID: coordinateID,
+            coordinateName: coordinateName,
+            reason: reason,
+            message: message
         )
+        _ = try await send(method: "POST", path: "/v1/coord-reports", token: nil, bodyData: encoder.encode(body))
     }
 
     private func request<Response: Decodable>(
@@ -307,6 +303,21 @@ actor MessageBoardAPIClient {
         token: String?,
         bodyData: Data?
     ) async throws -> Response {
+        let data = try await send(method: method, path: path, token: token, bodyData: bodyData)
+        do {
+            return try MessageBoardJSON.makeDecoder().decode(Response.self, from: data)
+        } catch {
+            throw MessageBoardAPIError("無法解析留言板回應：\(error.localizedDescription)")
+        }
+    }
+
+    /// 送出請求並回傳 2xx 回應的內容;不是 2xx 時丟出伺服器回應的 `error` 原文。
+    private func send(
+        method: String,
+        path: String,
+        token: String?,
+        bodyData: Data?
+    ) async throws -> Data {
         guard let baseURL, let url = URL(string: path, relativeTo: baseURL)?.absoluteURL else {
             throw MessageBoardAPIError("留言板伺服器尚未設定")
         }
@@ -335,11 +346,7 @@ actor MessageBoardAPIClient {
                     ?? "留言板連線失敗（HTTP \(httpResponse.statusCode)）"
                 throw MessageBoardAPIError(message, unauthorized: httpResponse.statusCode == 401)
             }
-            do {
-                return try MessageBoardJSON.makeDecoder().decode(Response.self, from: data)
-            } catch {
-                throw MessageBoardAPIError("無法解析留言板回應：\(error.localizedDescription)")
-            }
+            return data
         } catch let error as MessageBoardAPIError {
             throw error
         } catch {
@@ -392,16 +399,30 @@ private struct AuthenticationRequest: Encodable {
     let deviceLabel: String
 }
 
-private struct CoordReportRequest: Encodable {
+/// `POST /v1/coord-reports` 的內容,和 Android 的 `MessageBoardRepository.reportCoordinate` 相同
+/// (GFlyer-Suite docs/features/coordinate-stale-report.md):座標編號與名稱原樣送出(截斷後的編號
+/// 會指到別的座標;名稱在解析圖鑑時已經截到 80),原因與說明以 code point 截斷,說明不去空白、
+/// 空白時送 ""、一律帶這個鍵(伺服器會自己去空白)。
+struct CoordReportRequest: Encodable, Equatable {
     let clientRequestId: String
     let coordinateId: String
-    let coordinateName: String?
+    let coordinateName: String
     let reason: String
-    let message: String?
-}
+    let message: String
 
-private struct CoordReportResponse: Decodable {
-    let ok: Bool
+    init(
+        coordinateID: String,
+        coordinateName: String,
+        reason: String,
+        message: String,
+        clientRequestID: String = UUID().uuidString
+    ) {
+        clientRequestId = clientRequestID
+        coordinateId = coordinateID
+        self.coordinateName = coordinateName
+        self.reason = reason.prefixCodePoints(BoardTextLimits.reportReason)
+        self.message = message.prefixCodePoints(BoardTextLimits.reportMessage)
+    }
 }
 
 private struct AuthenticationResponse: Decodable {

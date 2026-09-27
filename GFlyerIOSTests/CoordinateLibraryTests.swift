@@ -310,6 +310,38 @@ final class CoordinateLibraryTests: XCTestCase {
         }
     }
 
+    /// 只有明信片有「回報資料已過時」,文字和 Android 一字不差(coordinate-stale-report.md)。
+    func testOnlyPostcardsCanBeReportedAsOutdated() throws {
+        let library = try CoordinateLibrary.parse(Data(fixture.utf8))
+        XCTAssertEqual(library.coordinates.map(\.canReportOutdated), [false, true])
+        XCTAssertEqual(OutdatedReport.reasons, ["座標位置錯誤", "地點已消失", "資訊過時"])
+        XCTAssertEqual(OutdatedReport.successMessage, "已送出回報，謝謝你！")
+        XCTAssertEqual(OutdatedReport.failureMessage, "回報送出失敗，請稍後再試")
+    }
+
+    /// 任何失敗都顯示同一句,不附錯誤描述(這裡是留言板未設定)。
+    @MainActor
+    func testReportFailureShowsTheFixedMessage() async throws {
+        let suiteName = "gflyer.report-tests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let cacheDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("gflyer-report-tests-\(UUID().uuidString)", isDirectory: true)
+        let library = CoordinateLibraryController(
+            repository: CoordinateLibraryRepository(urlString: "", cacheDirectory: cacheDirectory),
+            markStore: CoordinateMarkStore(defaults: defaults),
+            apiClient: MessageBoardAPIClient(baseURLString: "")
+        )
+        let coordinate = try XCTUnwrap(CoordinateLibrary.parse(Data(fixture.utf8)).coordinates.last)
+
+        library.reportOutdated(coordinate, reason: OutdatedReport.reasons[0], message: "")
+        for _ in 0..<200 where library.errorMessage == nil {
+            try await Task.sleep(nanoseconds: 10_000_000)
+        }
+        XCTAssertEqual(library.errorMessage, "回報送出失敗，請稍後再試")
+        XCTAssertNil(library.infoMessage)
+    }
+
     /// 陣列裡混進非物件元素時只略過那一個,和 Android 相同(DRIFT D17)。
     func testParseSkipsNonObjectElementsInsteadOfDroppingTheList() throws {
         let json = """

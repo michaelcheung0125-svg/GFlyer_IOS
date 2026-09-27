@@ -164,6 +164,7 @@ final class CoordinateLibraryController: ObservableObject {
 
     // MARK: - 回報
 
+    /// 失敗一律顯示同一句,不附錯誤描述(伺服器的 429 / 409 原因也不顯示),和 Android 相同。
     func reportOutdated(_ coordinate: LibraryCoordinate, reason: String, message: String) {
         Task { [weak self] in
             guard let self else { return }
@@ -174,9 +175,9 @@ final class CoordinateLibraryController: ObservableObject {
                     reason: reason,
                     message: message
                 )
-                infoMessage = "已送出回報，謝謝你！"
+                infoMessage = OutdatedReport.successMessage
             } catch {
-                errorMessage = "回報送出失敗：\(error.localizedDescription)"
+                errorMessage = OutdatedReport.failureMessage
             }
         }
     }

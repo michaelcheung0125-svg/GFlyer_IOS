@@ -36,6 +36,20 @@ struct LibraryCoordinate: Equatable, Identifiable {
     var geoCoordinate: GeoCoordinate? {
         GeoCoordinate.validated(latitude: latitude, longitude: longitude)
     }
+
+    /// 只有明信片可以回報資料已過時,和 Android 相同。`"postcard"` 是圖鑑資料與兩個 App 之間
+    /// 的約定,圖鑑改分類代號時兩邊都要跟著改。
+    var canReportOutdated: Bool { categoryID == OutdatedReport.categoryID }
+}
+
+/// 座標圖鑑「回報資料已過時」的選項與訊息,三個平台一字不差
+/// (GFlyer-Suite docs/features/coordinate-stale-report.md)。
+enum OutdatedReport {
+    static let categoryID = "postcard"
+    static let reasons = ["座標位置錯誤", "地點已消失", "資訊過時"]
+    static let successMessage = "已送出回報，謝謝你！"
+    /// 任何失敗(網路、400、409、429、留言板未設定)都是這一句,不附伺服器的錯誤文字。
+    static let failureMessage = "回報送出失敗，請稍後再試"
 }
 
 struct LibraryFormatError: LocalizedError, Equatable {

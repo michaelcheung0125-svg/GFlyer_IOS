@@ -189,7 +189,7 @@ struct CoordinateLibraryView: View {
 
     private func use(_ coordinate: LibraryCoordinate, startImmediately: Bool) {
         guard let geo = coordinate.geoCoordinate else {
-            library.errorMessage = "這筆座標資料無效。"
+            library.errorMessage = "這筆座標資料無效"
             return
         }
         if simulation.previewExternalCoordinate(geo, startImmediately: startImmediately, sourceLabel: "圖鑑") {
@@ -238,10 +238,12 @@ private struct LibraryCoordinateRow: View {
                                 Label("清除到訪標記", systemImage: "xmark.circle")
                             }
                         }
-                        Button {
-                            onReport()
-                        } label: {
-                            Label("回報資料過期", systemImage: "flag")
+                        if coordinate.canReportOutdated {
+                            Button {
+                                onReport()
+                            } label: {
+                                Label("回報資料已過時", systemImage: "exclamationmark.triangle")
+                            }
                         }
                     } label: {
                         Image(systemName: "ellipsis.circle")
@@ -299,14 +301,14 @@ private struct LibraryCoordinateRow: View {
     }
 }
 
+/// 文字、原因與預設值照 Android 的詳情彈窗(GFlyer-Suite docs/features/coordinate-stale-report.md)。
+/// 每次打開都是預設值;送出後立刻關閉,在背景送出。
 private struct ReportOutdatedSheet: View {
     let coordinate: LibraryCoordinate
     let onSubmit: (String, String) -> Void
     @Environment(\.dismiss) private var dismiss
-    @State private var reason = "資料過期"
+    @State private var reason = OutdatedReport.reasons[0]
     @State private var message = ""
-
-    private let reasons = ["資料過期", "位置錯誤", "重複或無效", "其他"]
 
     var body: some View {
         NavigationStack {
@@ -314,25 +316,25 @@ private struct ReportOutdatedSheet: View {
                 Section("回報座標") {
                     Text(coordinate.name)
                     Picker("原因", selection: $reason) {
-                        ForEach(reasons, id: \.self) { Text($0).tag($0) }
+                        ForEach(OutdatedReport.reasons, id: \.self) { Text($0).tag($0) }
                     }
                     TextField("補充說明（選填）", text: $message, axis: .vertical)
                         .lineLimit(3...5)
-                }
-                Section {
-                    Text("回報是匿名的，只會送出座標編號、原因與說明，協助作者更新圖鑑資料。")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .onChange(of: message) { _, value in
+                            if let capped = value.codePointsCapped(at: BoardTextLimits.reportMessage) {
+                                message = capped
+                            }
+                        }
                 }
             }
-            .navigationTitle("回報資料過期")
+            .navigationTitle("回報資料已過時")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("取消") { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("送出") {
+                    Button("送出回報") {
                         onSubmit(reason, message)
                         dismiss()
                     }

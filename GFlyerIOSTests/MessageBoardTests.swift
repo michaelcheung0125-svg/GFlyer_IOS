@@ -211,6 +211,59 @@ final class MessageBoardTests: XCTestCase {
         XCTAssertEqual(SavedRoute.normalizedName(String(repeating: walker, count: 90)), String(repeating: walker, count: 80))
     }
 
+    /// 回報資料已過時送出的內容,和 Android 相同(coordinate-stale-report.md):
+    /// 座標編號與名稱原樣、說明不去空白、空白時是 "",五個鍵一律都在。
+    func testOutdatedReportBodyMatchesAndroid() throws {
+        let walker = "\u{1F6B6}"
+        let longID = String(repeating: "x", count: 70)
+        let body = CoordReportRequest(
+            coordinateID: longID,
+            coordinateName: "明信片",
+            reason: "座標位置錯誤",
+            message: "",
+            clientRequestID: "request-1"
+        )
+        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(body)) as? [String: Any])
+        XCTAssertEqual(Set(json.keys), ["clientRequestId", "coordinateId", "coordinateName", "reason", "message"])
+        XCTAssertEqual(json["coordinateId"] as? String, longID, "不截斷,讓伺服器拒絕,不要回報到別的座標")
+        XCTAssertEqual(json["coordinateName"] as? String, "明信片")
+        XCTAssertEqual(json["reason"] as? String, "座標位置錯誤")
+        XCTAssertEqual(json["message"] as? String, "")
+        XCTAssertEqual(json["clientRequestId"] as? String, "request-1")
+
+        let spaced = CoordReportRequest(coordinateID: "pc-483", coordinateName: "A", reason: "資訊過時", message: "  說明  ")
+        XCTAssertEqual(spaced.message, "  說明  ")
+        let long = CoordReportRequest(
+            coordinateID: "pc-483",
+            coordinateName: "A",
+            reason: String(repeating: walker, count: 41),
+            message: String(repeating: walker, count: 301)
+        )
+        XCTAssertEqual(long.message, String(repeating: walker, count: 300))
+        XCTAssertEqual(long.reason, String(repeating: walker, count: 40))
+        XCTAssertNotEqual(long.clientRequestId, spaced.clientRequestId, "每次送出都是新的識別碼")
+    }
+
+    /// 任何 2xx 都算成功,不要求回應是 {ok: Bool};不是 2xx 時丟出伺服器的訊息。
+    func testOutdatedReportSucceedsOnAnyTwoHundredResponse() async throws {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [StubURLProtocol.self]
+        let session = URLSession(configuration: configuration)
+        let api = MessageBoardAPIClient(baseURLString: "https://board.example.com", session: session)
+        defer { StubURLProtocol.response = nil }
+
+        StubURLProtocol.response = (201, Data())
+        try await api.reportLibraryCoordinate(coordinateID: "pc-483", coordinateName: "A", reason: "資訊過時", message: "")
+
+        StubURLProtocol.response = (429, Data(#"{"error": "回報次數過多，請稍後再試"}"#.utf8))
+        do {
+            try await api.reportLibraryCoordinate(coordinateID: "pc-483", coordinateName: "A", reason: "資訊過時", message: "")
+            XCTFail("429 應該丟出錯誤")
+        } catch {
+            XCTAssertEqual((error as? MessageBoardAPIError)?.message, "回報次數過多，請稍後再試")
+        }
+    }
+
     @MainActor
     func testControllerLoadsAndSavesSharedBoardContent() {
         let suiteName = "gflyer.message-board-tests.\(UUID().uuidString)"
@@ -284,4 +337,33 @@ final class MessageBoardTests: XCTestCase {
             replies: replies
         )
     }
+}
+
+/// 回傳固定狀態碼與內容的 URLProtocol,不連網路。
+private final class StubURLProtocol: URLProtocol {
+    static var response: (statusCode: Int, body: Data)?
+
+    override class func canInit(with request: URLRequest) -> Bool { true }
+
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+
+    override func startLoading() {
+        guard let url = request.url,
+              let stub = Self.response,
+              let httpResponse = HTTPURLResponse(
+                  url: url,
+                  statusCode: stub.statusCode,
+                  httpVersion: "HTTP/1.1",
+                  headerFields: nil
+              )
+        else {
+            client?.urlProtocol(self, didFailWithError: URLError(.badServerResponse))
+            return
+        }
+        client?.urlProtocol(self, didReceive: httpResponse, cacheStoragePolicy: .notAllowed)
+        client?.urlProtocol(self, didLoad: stub.body)
+        client?.urlProtocolDidFinishLoading(self)
+    }
+
+    override func stopLoading() {}
 }
