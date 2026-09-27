@@ -107,6 +107,50 @@ C:\Project\GFlyer
   - `0.4.0 (6)` 已發佈到公開的 `GFlyer-updates`（release `ios-v0.4.0`）並
     確認可以從 SideStore 來源安裝到實機。來源檔必須維持舊版 AltStore 扁平
     格式，細節見 `docs/ALTSTORE_DISTRIBUTION.md`
+- `0.6.9`（準備中，分支 `release-0.6.9-prep`，尚未升版、尚未發佈）：和 Android 0.8.7
+  一起發版，規格在 GFlyer-Suite `docs/features/*.md`，Android 是參考實作。這一段是
+  「小修正、留言板字數、資料過時回報、D8 文件」那一批；其他功能各自補在下面。
+  - **速度比較**（`contracts/fixtures/speed/preset-speed-values.json`）：一律用 km/h 的
+    Double、容差 0.01 km/h（`SpeedScale.isSameSpeed` / `isBelow` / `isAtMost`）。內建
+    預設改用 `QuickSpeedPreset.isBuiltIn`（名稱完全相同 + isSameSpeed），還原 Android
+    備份後「正常走路」「腳踏車」「汽車」不再出現刪除鈕；種花警告改成
+    `!isAtMost(v, 20)`，文字改成 Android 的「注意: 超過 20 km/h 將無法種花」。
+  - **舊版走路預設**（`backup/legacy-walk-preset.json`）：還原備份時名稱完全等於
+    「正常走路」且 |m/s − 1.4| < 0.001 的換成 5.0 km/h；`LocalDataSnapshot` 解碼時對
+    已經存著的 5.04 km/h 做同一件事（冪等，不加資料版本，下一次存檔寫回）。
+  - **收藏**（`docs/features/name-limits.md`）：新增與改名都是 N2（去空白 → 80 個
+    code point → 去結尾空白），改名成空白不動、對話框的「儲存」停用。讀取時不改名。
+    收藏按鈕照 Android：座標已經收藏過時顯示「此座標已經收藏過」、不再取代那一筆；
+    沒有名稱時是「收藏 <座標>」（原本「位置 <座標>」）；成功是「收藏成功」。留言板
+    存成收藏時，只有空白的座標名稱與留言也會跳過。
+  - **座標圖鑑型別**（`coordinate-library/type-strictness.*`）：布林不是數字、數字不是
+    布林（`isBoolean`，和備份相同）；分類圖示、頂層 `updatedAt` / `source` 原樣保留、
+    不去空白（照 Android）。
+  - **GPX 匯入**（`docs/features/gpx-import.md`）：讀不到的檔案略過、整批只有一則訊息
+    （全部都讀不到時是「找不到可用路線」），沒有路線的檔案不再另外跳錯誤。載入第一條
+    匯入路線時不動循環設定；模擬中也可以按「匯入 GPX 路線」，路線照存、不載入。
+    載入條件抽成 `SimulationController.shouldLoadImportedRoute`。
+  - **留言板字數**（`docs/features/message-board-limits.md`，I1–I15、I17）：全部以
+    code point 計算，常數在 `BoardTextLimits`（以 fixture id 為鍵）。搜尋框補上 80、
+    公告標籤輸入框補上 120；分享收藏座標與路線時送出前正規化名稱（本機不改）。
+    標籤去重改成區分大小寫。本機訊息照 Android：必填是「請輸入使用者名稱及共用邀請碼」
+    ／「…及管理員啟用碼」，邀請碼、啟用碼、「請先加入留言板」、「留言板伺服器尚未設定」
+    等去掉句號；管理員設定邀請碼時長度（「共用邀請碼需為 4 至 32 個字元」）與字元分開
+    檢查。I16（N/300 計數器，選做）沒有做。**Worker 必須在 App 之前部署。**
+  - **資料過時回報**（`docs/features/coordinate-stale-report.md`，C-I1–C-I8）：只有明信片
+    有「回報資料已過時」；原因、預設值、「送出回報」、300 code point 上限照 Android；
+    送出內容 `coordinateId` / `coordinateName` 原樣、`message` 不去空白且一律帶鍵；任何
+    2xx 都算成功；失敗一律「回報送出失敗，請稍後再試」。「這筆座標資料無效」去掉句號。
+  - **D8 文件**：`docs/RELEASE_PROCESS.md` 第 5–7 步改用 GFlyer-Suite 的
+    `tools/release/release_manifest.py`（`build ios` → `project --dry-run` → `project`，
+    投影前先 rebase，`git add altstore.json releases.json`，發佈後跑 `check`）；
+    `ALTSTORE_DISTRIBUTION.md`、`README.md`、`TROUBLESHOOTING_CASES.md` 同步。
+    文件原本說 `GFlyer_IOS` 是私有 repo，實際是**公開**的（標準 runner 不計費），一併
+    改正。`scripts/update_altstore_source.py` 留到升版 commit 再刪。
+  - **尚待驗證**（實機）：還原 Android 備份後速度預設沒有刪除鈕；收藏重複時的提示；
+    複選 3 個 GPX（含一個壞檔）；留言板 30 個 emoji 的使用者名稱、300 個 emoji 的回覆；
+    明信片回報成功與關網路時的失敗訊息。
+
 - `0.6.8 (21)`：0.6.7 實機回報的四件事。
   - 已發佈 `ios-v0.6.8`；CI 兩個 job 通過（97 個測試），IPA 拆檢通過
     （`Assets.car`、AppIcon、版本號 0.6.8 (21)），線上 `altstore.json` 為

@@ -18,9 +18,22 @@ This is a separate SwiftUI prototype for personal sideloading. It does not modif
 - In-app foreground joystick with Android-parity displacement speed dynamics,
   edge continuous acceleration, and an independent speed cap
 - Reusable built-in and custom speed presets (at most 6, the same limit as
-  Android; people who already saved more than 6 keep them but cannot add more)
-- Local favorites, history, favorite folders, named routes, and route-draft recovery
-- GPX 1.1 import (tracks, routes, and loose waypoints) and all-routes export
+  Android; people who already saved more than 6 keep them but cannot add more).
+  Speeds are compared like Android, as km/h with a 0.01 km/h tolerance: built-in
+  presets restored from an Android backup stay built-in (no delete button), and
+  the 「注意: 超過 20 km/h 將無法種花」 warning appears only above 20 km/h. The old
+  Android walk preset (1.4 m/s) restores as 5.0 km/h, and a 5.04 km/h walk preset
+  saved by an earlier restore is corrected when the app loads
+- Local favorites, history, favorite folders, named routes, and route-draft recovery.
+  Favorite names are trimmed and cut to 80 Unicode code points when added or
+  renamed, a blank rename is refused, and, like Android, an unnamed favorite is
+  called 「收藏 <座標>」 and a coordinate that is already a favorite is not added
+  again (「此座標已經收藏過」)
+- GPX 1.1 import (tracks, routes, and loose waypoints; several files at once)
+  and all-routes export. Like Android, an unreadable file is skipped, one
+  message reports the total, import works while simulating, and the first
+  imported route is loaded into the editor only when no simulation is running
+  and the draft has at most one point, without changing the loop setting
 - Cross-platform backup/restore in the Android-compatible `GFlyer Backup` v1
   JSON format (favorites, history, folders, routes, speed presets). Settings
   keys iOS does not use are kept and written back on export, so an
@@ -31,8 +44,11 @@ This is a separate SwiftUI prototype for personal sideloading. It does not modif
   point, shared settings missing from the file reset to their defaults, and a
   non-option auto-stop value rounds to the nearest option (ties go up)
 - Coordinate library (座標圖鑑) downloaded from the GFlyer-updates Pages JSON,
-  with favorites, visit reminders, and anonymous stale-data reports; unlike
-  Android there is no bundled seed, so the first load needs network access
+  with favorites, visit reminders, and anonymous 「回報資料已過時」 reports for
+  postcards (the same reasons, request and single failure message as Android);
+  unlike Android there is no bundled seed, so the first load needs network
+  access. The parser keeps JSON booleans and numbers apart like the backup
+  import
 - Interrupted-session snapshots with a relaunch resume prompt (10-minute window)
 - Manual step logging through a user-supplied Shortcut, with 1000/3000/5000
   presets, a custom amount, and a seven-day history. GFlyer never touches
@@ -182,6 +198,13 @@ the local iOS library. Administrators can publish announcements, pin posts,
 replace/revoke the shared invite, promote members, and revoke individual
 devices. The board refreshes when the App becomes active and shows an unread
 badge without treating the user's own posts or replies as unread.
+
+Every length limit is counted in Unicode code points, the same unit as the
+Worker and Android (GFlyer-Suite `docs/features/message-board-limits.md`): user
+name 30, replies, remarks and announcements 300, tags 20, the tag inputs 120,
+the search field 80. Favorite and route names are normalized to 80 code points
+before sharing, so names saved by older versions no longer get rejected. Tag
+de-duplication is case-sensitive and the local messages use Android's wording.
 
 This HTTPS service is independent from the device-location transport. The
 message-board client never reads or uploads the Pairing File, DDI, Apple signing

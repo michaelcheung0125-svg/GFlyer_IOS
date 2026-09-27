@@ -86,7 +86,11 @@ Status: feature implementation complete; macOS/Xcode and target-iPhone regressio
 - Map selection and static teleport
 - Single-point and multi-point straight-line routes
 - Nonlinear 1.8-900 km/h speed scale and reusable presets (at most 6 after
-  `0.6.8`, aligned with Android; existing lists above 6 are kept)
+  `0.6.8`, aligned with Android; existing lists above 6 are kept). For `0.6.9`:
+  speed comparisons use Android's 0.01 km/h tolerance (built-in preset
+  recognition, flower warning with Android's text), and the old Android walk
+  preset restores as 5.0 km/h (GFlyer-Suite `speed/preset-speed-values.json`,
+  `backup/legacy-walk-preset.json`; covered by `SharedContractTests`)
 - Pause, resume, stop
 - Loop route with walk-back or instant return
 - Foreground joystick and spiral exploration
@@ -105,11 +109,17 @@ Exit criterion: a 30-minute foreground route completes without losing the tunnel
 - Preview, start and save Android-shared coordinates/routes in the iOS local
   library (implemented; target-iPhone validation pending)
 - Place and coordinate search (implemented; validation pending)
-- Favorites, favorite folders, and local history (implemented; validation pending)
+- Favorites, favorite folders, and local history (implemented; validation pending).
+  For `0.6.9`: favorite names follow `docs/features/name-limits.md` (N2 on add
+  and rename, blank rename refused), and the star button follows Android
+  (「收藏 <座標>」 default, no duplicate favorites)
 - Named routes and route-draft recovery after relaunch (implemented; validation pending)
 - GPX import and export (implemented in `0.3.0 (5)`: multi-track import into
   saved routes with unique naming, all-routes export; device validation
-  pending)
+  pending). For `0.6.9` the batch flow follows GFlyer-Suite
+  `docs/features/gpx-import.md` and Android: unreadable files are skipped, one
+  message per batch, import allowed while simulating, the loop setting is left
+  alone when the first route is loaded
 - Route playback options ported from Android (implemented in `0.3.0 (5)`:
   per-point teleport travel mode, dwell seconds, orbit (skippable) and
   micro-move arrival actions, manual advance, start countdown, auto-stop
@@ -137,7 +147,14 @@ Exit criterion: a 30-minute foreground route completes without losing the tunnel
 - Coordinate library (座標圖鑑) downloaded from the GFlyer-updates Pages JSON
   with favorites, visit reminders, and anonymous stale-data reports
   (implemented in `0.3.0 (5)`; unlike Android there is no bundled seed, the
-  first load requires network; validation pending)
+  first load requires network; validation pending). For `0.6.9`: strict JSON
+  types (`coordinate-library/type-strictness.*`), and the stale-data report
+  follows Android (`docs/features/coordinate-stale-report.md`: postcards only,
+  Android's reasons, request body and single failure message)
+- Message-board length limits counted in Unicode code points with Android's
+  local messages (`0.6.9`, `docs/features/message-board-limits.md`; the Worker
+  must be deployed first; covered by `SharedContractTests` and
+  `MessageBoardTests`)
 - Interrupted-session resume: periodic active-session snapshots with a
   10-minute expiry and a relaunch resume prompt (implemented in `0.3.0 (5)`;
   validation pending)
