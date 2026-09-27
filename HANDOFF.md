@@ -84,7 +84,10 @@ C:\Project\GFlyer
     建立資料夾時先截斷到 40 個字再比對同名，不會再建出兩個同名資料夾；資料夾最多 30 個，
     和 Android 相同（原本沒有上限，但兩個平台還原備份都只取前 30 個），已經超過的保留。
     路線名稱儲存時一律「去掉前後空白 → 截斷到 80 → 再去掉結尾空白」
-    （`SavedRoute.normalizedName`），另存留言板路線不會再無聲覆蓋同名路線
+    （`SavedRoute.normalizedName`），另存留言板路線不會再無聲覆蓋同名路線。
+    GPX 匯入的路線名稱補讀 CDATA（原本 `<name><![CDATA[...]]></name>` 會變成「匯入路線」），
+    儲存時比對同名改用 `lowercased()`，和產生名稱時同一條規則（DRIFT D18；Android 已改成和 iOS
+    相同的匯入命名）
   - 座標圖鑑：從 GFlyer-updates Pages 下載 `coordinates.json`、分類／子分類
     瀏覽、搜尋、星號最愛、到訪提醒、匿名過期回報；iOS 不內建種子資料，
     第一次載入需要網路
