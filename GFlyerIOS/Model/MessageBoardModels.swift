@@ -176,6 +176,57 @@ enum MessageBoardUnreadCounter {
     }
 }
 
+/// 留言板每個字串欄位的上限,單位是 Unicode code point(伺服器先去掉前後空白再數),
+/// 和 Android、Worker 相同(GFlyer-Suite docs/features/message-board-limits.md)。
+/// 截斷用 `prefixCodePoints`、計數用 `unicodeScalars.count`,不要用 `prefix` / `count`(字素)。
+enum BoardTextLimits {
+    static let inviteCode = 32
+    static let inviteCodeMinimum = 4
+    static let adminCode = 4
+    static let username = 30
+    static let deviceLabel = 80
+    static let clientRequestID = 80
+    static let reportCoordinateID = 60
+    static let reportCoordinateName = 80
+    static let reportReason = 40
+    static let reportMessage = 300
+    static let remark = 300
+    static let tag = 20
+    static let maxTags = 5
+    static let sharedCoordinateName = 80
+    static let routeName = 80
+    static let reply = 300
+    /// 只在客戶端的輸入框上限(伺服器不檢查)。
+    static let tagsInput = 120
+    static let boardSearch = 80
+
+    /// 以 contracts/fixtures/text/message-board-limits.json 的 `id` 為鍵(`fields[]` 與
+    /// `clientInputCaps[]`)。iOS CI 看不到 Suite,SharedContractTests 照抄 fixture 逐一比對,
+    /// 改 fixture 時兩邊都要跟著改。
+    static let maxLengthByFixtureID: [String: Int] = [
+        "auth.inviteCode": inviteCode,
+        "auth.adminCode": adminCode,
+        "auth.username": username,
+        "auth.deviceLabel": deviceLabel,
+        "coordReport.clientRequestId": clientRequestID,
+        "coordReport.coordinateId": reportCoordinateID,
+        "coordReport.coordinateName": reportCoordinateName,
+        "coordReport.reason": reportReason,
+        "coordReport.message": reportMessage,
+        "post.clientRequestId": clientRequestID,
+        "post.remark": remark,
+        "post.tag": tag,
+        "post.coordinate.name": sharedCoordinateName,
+        "post.route.name": routeName,
+        "reply.message": reply,
+        "invite.code": inviteCode,
+        "ui.tagsInput": tagsInput,
+        "ui.boardSearch": boardSearch,
+    ]
+}
+
+/// 和 Android 的 `normalizeBoardTags` 相同:逗號分隔 → 去前後空白 → 去掉開頭一個 # → 截到 20 個
+/// code point → 略過空白 → 去重(區分大小寫,和 Android、伺服器相同)→ 前 5 個。
 enum BoardTagNormalizer {
     static func normalize(_ value: String) -> [String] {
         var result: [String] = []
@@ -183,13 +234,15 @@ enum BoardTagNormalizer {
             let tag = String(rawTag)
                 .trimmingCharacters(in: .whitespacesAndNewlines)
                 .replacingOccurrences(of: "^#", with: "", options: .regularExpression)
-            let shortened = String(tag.prefix(20))
-            guard !shortened.isEmpty,
-                  !result.contains(where: { $0.caseInsensitiveCompare(shortened) == .orderedSame }) else {
+            let shortened = tag.prefixCodePoints(BoardTextLimits.tag)
+            // 截斷後可能只剩空白(「#」後面接一串空白),伺服器會回「請輸入標籤」
+            guard !shortened.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                  // 逐個 code point 比:String 的 == 會把正規等價的字當成相同,伺服器不會
+                  !result.contains(where: { $0.unicodeScalars.elementsEqual(shortened.unicodeScalars) }) else {
                 continue
             }
             result.append(shortened)
-            if result.count == 5 { break }
+            if result.count == BoardTextLimits.maxTags { break }
         }
         return result
     }
@@ -198,11 +251,12 @@ enum BoardTagNormalizer {
 enum BoardInviteCodeNormalizer {
     private static let allowedCharacters = Set("ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_")
 
-    static func normalize(_ value: String, limit: Int = 32) -> String {
+    /// 過濾之後只剩 ASCII,字素、code point、UTF-16 三種數法相同。
+    static func normalize(_ value: String, limit: Int = BoardTextLimits.inviteCode) -> String {
         String(value.uppercased().filter { allowedCharacters.contains($0) }.prefix(limit))
     }
 
     static func normalizeAdminCode(_ value: String) -> String {
-        String(value.filter { ("0"..."9").contains($0) }.prefix(4))
+        String(value.filter { ("0"..."9").contains($0) }.prefix(BoardTextLimits.adminCode))
     }
 }

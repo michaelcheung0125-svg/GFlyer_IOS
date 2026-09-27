@@ -40,7 +40,7 @@ actor MessageBoardAPIClient {
             isConfigured = false
         }
         self.session = session
-        self.deviceLabel = String(deviceLabel.prefix(80))
+        self.deviceLabel = deviceLabel.prefixCodePoints(BoardTextLimits.deviceLabel)
     }
 
     func authenticateInvite(code: String, username: String) async throws -> BoardAuthentication {
@@ -102,7 +102,7 @@ actor MessageBoardAPIClient {
                 coordinate: SharedCoordinateRequest(
                     latitude: coordinate.latitude,
                     longitude: coordinate.longitude,
-                    name: name
+                    name: Self.sharedCoordinateName(name)
                 ),
                 route: nil
             )
@@ -128,10 +128,25 @@ actor MessageBoardAPIClient {
                 durationHours: duration.hours,
                 tags: tags,
                 coordinate: nil,
-                route: SharedRouteRequest(name: route.name, loop: route.loop, points: route.points)
+                // 只正規化送出的名稱,本機存的名稱不動。0.6.8 以前存的路線名稱以字素截斷,
+                // 可能超過 80 個 code point,原樣送出會被伺服器拒絕(「路線名稱最多 80 個字元」)
+                route: SharedRouteRequest(
+                    name: SavedRoute.normalizedName(route.name),
+                    loop: route.loop,
+                    points: route.points
+                )
             )
         )
         return response.post
+    }
+
+    /// 分享收藏座標時的名稱:去掉前後空白、截斷到 80 個 code point,空字串送 null,和 Android 相同。
+    /// 收藏改名以前不截斷,0.6.8 從留言板收藏時又是以字素截斷,存下的名稱可能超過上限。
+    static func sharedCoordinateName(_ name: String?) -> String? {
+        guard let name else { return nil }
+        let normalized = name.trimmingCharacters(in: .whitespacesAndNewlines)
+            .prefixCodePoints(BoardTextLimits.sharedCoordinateName)
+        return normalized.isEmpty ? nil : normalized
     }
 
     func createAnnouncement(
@@ -293,7 +308,7 @@ actor MessageBoardAPIClient {
         bodyData: Data?
     ) async throws -> Response {
         guard let baseURL, let url = URL(string: path, relativeTo: baseURL)?.absoluteURL else {
-            throw MessageBoardAPIError("留言板伺服器尚未設定。")
+            throw MessageBoardAPIError("留言板伺服器尚未設定")
         }
         var request = URLRequest(url: url)
         request.httpMethod = method
@@ -310,7 +325,7 @@ actor MessageBoardAPIClient {
         do {
             let (data, response) = try await session.data(for: request)
             guard data.count <= 2 * 1_024 * 1_024 else {
-                throw MessageBoardAPIError("留言板回應內容過大。")
+                throw MessageBoardAPIError("留言板回應內容過大")
             }
             guard let httpResponse = response as? HTTPURLResponse else {
                 throw MessageBoardAPIError("留言板伺服器沒有傳回有效回應。")

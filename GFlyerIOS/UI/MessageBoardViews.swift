@@ -94,6 +94,9 @@ struct MessageBoardView: View {
                     TextField("搜尋留言、分享者、座標或路線", text: $query)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
+                        .onChange(of: query) { _, value in
+                            if let capped = value.codePointsCapped(at: BoardTextLimits.boardSearch) { query = capped }
+                        }
                     if !query.isEmpty {
                         Button { query = "" } label: { Image(systemName: "xmark.circle.fill") }
                             .buttonStyle(.plain)
@@ -188,7 +191,7 @@ private struct MessageBoardAccessView: View {
                 TextField("使用者名稱", text: $board.username)
                     .textInputAutocapitalization(.never)
                     .onChange(of: board.username) { _, value in
-                        if value.count > 30 { board.username = String(value.prefix(30)) }
+                        if let capped = value.codePointsCapped(at: BoardTextLimits.username) { board.username = capped }
                     }
                 if adminMode {
                     SecureField("管理員啟用碼（4 位數字）", text: $code)
@@ -345,7 +348,7 @@ private struct MessageBoardPostRow: View {
                         TextField("輸入回覆", text: $replyText, axis: .vertical)
                             .lineLimit(1...3)
                             .onChange(of: replyText) { _, value in
-                                if value.count > 300 { replyText = String(value.prefix(300)) }
+                                if let capped = value.codePointsCapped(at: BoardTextLimits.reply) { replyText = capped }
                             }
                         Button {
                             let message = replyText
@@ -494,11 +497,11 @@ struct ShareToMessageBoardView: View {
                 TextField("留言或備註（選填）", text: $remark, axis: .vertical)
                     .lineLimit(3...5)
                     .onChange(of: remark) { _, value in
-                        if value.count > 300 { remark = String(value.prefix(300)) }
+                        if let capped = value.codePointsCapped(at: BoardTextLimits.remark) { remark = capped }
                     }
                 TextField("標籤，以逗號分隔（最多 5 個）", text: $tags)
                     .onChange(of: tags) { _, value in
-                        if value.count > 120 { tags = String(value.prefix(120)) }
+                        if let capped = value.codePointsCapped(at: BoardTextLimits.tagsInput) { tags = capped }
                     }
             }
 
@@ -681,7 +684,7 @@ private struct BoardAnnouncementView: View {
                     TextField("輸入公告", text: $message, axis: .vertical)
                         .lineLimit(3...6)
                         .onChange(of: message) { _, value in
-                            if value.count > 300 { message = String(value.prefix(300)) }
+                            if let capped = value.codePointsCapped(at: BoardTextLimits.remark) { message = capped }
                         }
                 }
                 Section("設定") {
@@ -689,6 +692,9 @@ private struct BoardAnnouncementView: View {
                         ForEach(BoardShareDuration.allCases) { item in Text(item.label).tag(item) }
                     }.pickerStyle(.segmented)
                     TextField("標籤，以逗號分隔", text: $tags)
+                        .onChange(of: tags) { _, value in
+                            if let capped = value.codePointsCapped(at: BoardTextLimits.tagsInput) { tags = capped }
+                        }
                 }
             }
             .navigationTitle("發布公告")

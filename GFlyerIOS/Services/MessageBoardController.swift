@@ -54,14 +54,17 @@ final class MessageBoardController: ObservableObject {
 
     func authenticate(code: String, username: String, asAdmin: Bool) {
         let normalizedName = username.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !normalizedName.isEmpty else {
-            errorMessage = "請輸入使用者名稱。"
+        let normalizedCode = code.trimmingCharacters(in: .whitespacesAndNewlines)
+        // 本機訊息和 Android 一字不差;長度不足的兩句和 Android 送出後顯示的伺服器訊息相同
+        guard !normalizedName.isEmpty, !normalizedCode.isEmpty else {
+            errorMessage = asAdmin ? "請輸入使用者名稱及管理員啟用碼" : "請輸入使用者名稱及共用邀請碼"
             return
         }
-        let normalizedCode = code.trimmingCharacters(in: .whitespacesAndNewlines)
-        let validAdminCode = normalizedCode.count == 4 && normalizedCode.allSatisfy { ("0"..."9").contains($0) }
-        guard asAdmin ? validAdminCode : normalizedCode.count >= 4 else {
-            errorMessage = asAdmin ? "管理員啟用碼必須是 4 位數字。" : "共用邀請碼至少需要 4 個字元。"
+        // 輸入框已經只收 ASCII,count 與 code point 數相同
+        let validAdminCode = normalizedCode.count == BoardTextLimits.adminCode
+            && normalizedCode.allSatisfy { ("0"..."9").contains($0) }
+        guard asAdmin ? validAdminCode : normalizedCode.count >= BoardTextLimits.inviteCodeMinimum else {
+            errorMessage = asAdmin ? "管理員啟用碼必須是 4 位數字" : "共用邀請碼至少需要 4 個字元"
             return
         }
         isSubmitting = true
@@ -148,7 +151,7 @@ final class MessageBoardController: ObservableObject {
         duration: BoardShareDuration,
         tags: [String]
     ) {
-        guard let token = sessionStore.token else { errorMessage = "請先加入留言板。"; return }
+        guard let token = sessionStore.token else { errorMessage = "請先加入留言板"; return }
         submit {
             try await self.api.shareCoordinate(
                 token: token,
@@ -167,21 +170,21 @@ final class MessageBoardController: ObservableObject {
         duration: BoardShareDuration,
         tags: [String]
     ) {
-        guard let token = sessionStore.token else { errorMessage = "請先加入留言板。"; return }
+        guard let token = sessionStore.token else { errorMessage = "請先加入留言板"; return }
         submit {
             try await self.api.shareRoute(token: token, route: route, remark: remark, duration: duration, tags: tags)
         }
     }
 
     func createAnnouncement(message: String, duration: BoardShareDuration, tags: [String]) {
-        guard let token = sessionStore.token else { errorMessage = "請先加入留言板。"; return }
+        guard let token = sessionStore.token else { errorMessage = "請先加入留言板"; return }
         submit {
             try await self.api.createAnnouncement(token: token, message: message, duration: duration, tags: tags)
         }
     }
 
     func reply(to postID: String, message: String) {
-        guard let token = sessionStore.token else { errorMessage = "請先加入留言板。"; return }
+        guard let token = sessionStore.token else { errorMessage = "請先加入留言板"; return }
         let normalized = message.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !normalized.isEmpty else { return }
         isSubmitting = true
@@ -250,9 +253,8 @@ final class MessageBoardController: ObservableObject {
     func createInvitation(code: String) {
         guard let token = sessionStore.token else { return }
         let normalized = code.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
-        guard normalized.count >= 4, normalized.count <= 32,
-              BoardInviteCodeNormalizer.normalize(normalized) == normalized else {
-            errorMessage = "共用邀請碼只可使用 4 至 32 個英文字母、數字、- 或 _。"
+        if let problem = Self.invitationCodeProblem(normalized) {
+            errorMessage = problem
             return
         }
         isSubmitting = true
@@ -269,6 +271,21 @@ final class MessageBoardController: ObservableObject {
                 handle(error)
             }
         }
+    }
+
+    /// 管理員設定邀請碼前的本機檢查,輸入是去空白、轉大寫之後的邀請碼;沒問題時是 nil。
+    /// 長度與字元分開檢查:長度的訊息和 Android 一字不差,字元的訊息是伺服器的原文
+    /// (Android 不在本機檢查字元,送出後顯示的就是它)。長度數轉大寫之後的 code point,
+    /// 和伺服器相同(「ß」轉大寫會變成兩個字)。
+    static func invitationCodeProblem(_ normalized: String) -> String? {
+        let length = normalized.unicodeScalars.count
+        guard length >= BoardTextLimits.inviteCodeMinimum, length <= BoardTextLimits.inviteCode else {
+            return "共用邀請碼需為 4 至 32 個字元"
+        }
+        guard BoardInviteCodeNormalizer.normalize(normalized) == normalized else {
+            return "共用邀請碼只可使用英文字母、數字、- 或 _"
+        }
+        return nil
     }
 
     func clearGeneratedInviteCode() { generatedInviteCode = nil }

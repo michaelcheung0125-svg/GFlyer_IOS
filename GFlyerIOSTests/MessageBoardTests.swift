@@ -147,12 +147,68 @@ final class MessageBoardTests: XCTestCase {
     }
 
     func testTagAndInviteCodeNormalizationMatchesBackendLimits() {
+        // 去重區分大小寫,和 Android 的 distinct() 與伺服器相同
         XCTAssertEqual(
             BoardTagNormalizer.normalize("#Raid, raid， night ,abcdefghijklmnopqrstuvw,extra,ignored"),
-            ["Raid", "night", "abcdefghijklmnopqrst", "extra", "ignored"]
+            ["Raid", "raid", "night", "abcdefghijklmnopqrst", "extra"]
         )
+        XCTAssertEqual(BoardTagNormalizer.normalize("Raid,#Raid,raid"), ["Raid", "raid"])
+        // 20 個 code point:emoji 不被切成一半
+        let walker = "\u{1F6B6}"
+        XCTAssertEqual(
+            BoardTagNormalizer.normalize(String(repeating: walker, count: 25)),
+            [String(repeating: walker, count: 20)]
+        )
+        // 截斷後只剩空白的標籤略過,伺服器會回「請輸入標籤」
+        XCTAssertEqual(BoardTagNormalizer.normalize("#" + String(repeating: " ", count: 20) + "x,ok"), ["ok"])
         XCTAssertEqual(BoardInviteCodeNormalizer.normalize(" ab-c_12!? "), "AB-C_12")
         XCTAssertEqual(BoardInviteCodeNormalizer.normalizeAdminCode("a1２3-45"), "1345")
+    }
+
+    /// 本機訊息和 Android(或 Android 送出後顯示的伺服器訊息)一字不差,不加句號。
+    @MainActor
+    func testAuthenticationMessagesMatchAndroid() {
+        let suiteName = "gflyer.board-auth-tests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let board = MessageBoardController(
+            api: MessageBoardAPIClient(baseURLString: ""),
+            sessionStore: MessageBoardSessionStore(defaults: defaults, service: suiteName)
+        )
+
+        board.authenticate(code: "ABCD", username: "  ", asAdmin: false)
+        XCTAssertEqual(board.errorMessage, "請輸入使用者名稱及共用邀請碼")
+        board.authenticate(code: " ", username: "Amy", asAdmin: false)
+        XCTAssertEqual(board.errorMessage, "請輸入使用者名稱及共用邀請碼")
+        board.authenticate(code: "", username: "Amy", asAdmin: true)
+        XCTAssertEqual(board.errorMessage, "請輸入使用者名稱及管理員啟用碼")
+        board.authenticate(code: "ABC", username: "Amy", asAdmin: false)
+        XCTAssertEqual(board.errorMessage, "共用邀請碼至少需要 4 個字元")
+        board.authenticate(code: "123", username: "Amy", asAdmin: true)
+        XCTAssertEqual(board.errorMessage, "管理員啟用碼必須是 4 位數字")
+
+        XCTAssertEqual(MessageBoardController.invitationCodeProblem("ABC"), "共用邀請碼需為 4 至 32 個字元")
+        XCTAssertEqual(
+            MessageBoardController.invitationCodeProblem(String(repeating: "A", count: 33)),
+            "共用邀請碼需為 4 至 32 個字元"
+        )
+        XCTAssertEqual(MessageBoardController.invitationCodeProblem("AB CD"), "共用邀請碼只可使用英文字母、數字、- 或 _")
+        XCTAssertNil(MessageBoardController.invitationCodeProblem("AB-C_12"))
+        // 伺服器數轉大寫之後的 code point:「ßß」變成「SSSS」,長度與字元都合法
+        XCTAssertNil(MessageBoardController.invitationCodeProblem("ßß".uppercased()))
+    }
+
+    /// 分享收藏座標與路線時,送出前把名稱正規化到 80 個 code point(舊資料可能超過)。
+    func testSharedNamesAreLimitedBeforeSending() {
+        let walker = "\u{1F6B6}"
+        XCTAssertNil(MessageBoardAPIClient.sharedCoordinateName(nil))
+        XCTAssertNil(MessageBoardAPIClient.sharedCoordinateName("   "))
+        XCTAssertEqual(MessageBoardAPIClient.sharedCoordinateName("  旺角  "), "旺角")
+        XCTAssertEqual(
+            MessageBoardAPIClient.sharedCoordinateName(String(repeating: walker, count: 90)),
+            String(repeating: walker, count: 80)
+        )
+        XCTAssertEqual(SavedRoute.normalizedName(String(repeating: walker, count: 90)), String(repeating: walker, count: 80))
     }
 
     @MainActor

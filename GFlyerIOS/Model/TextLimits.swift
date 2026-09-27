@@ -11,4 +11,11 @@ extension String {
         guard limit > 0 else { return "" }
         return String(String.UnicodeScalarView(unicodeScalars.prefix(limit)))
     }
+
+    /// 超過 `limit` 個 code point 時回傳截斷後的字串,沒超過時是 nil。給輸入框的 `onChange` 用:
+    /// 只有真的超過時才改寫綁定的值。留言板的輸入框上限也以 code point 計算
+    /// (GFlyer-Suite docs/features/message-board-limits.md)。
+    func codePointsCapped(at limit: Int) -> String? {
+        unicodeScalars.count > limit ? prefixCodePoints(limit) : nil
+    }
 }
