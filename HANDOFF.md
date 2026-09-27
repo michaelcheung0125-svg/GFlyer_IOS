@@ -150,6 +150,40 @@ C:\Project\GFlyer
   - **尚待驗證**（實機）：還原 Android 備份後速度預設沒有刪除鈕；收藏重複時的提示；
     複選 3 個 GPX（含一個壞檔）；留言板 30 個 emoji 的使用者名稱、300 個 emoji 的回覆；
     明信片回報成功與關網路時的失敗訊息。
+  - **多點路線到點動作**（另一批，`docs/features/route-arrival-actions.md` 的 I1–I12，
+    照 Android；決定：Q1 舊的「定點傳送 + 無動作」保留、Q2 一次性提示、Q3 半徑照 Android
+    去重、Q5 「瞬間跳轉」循環不回第 1 點、Q6 手動前進說明不寫「懸浮」）：
+    - 到點動作、手動前進、停留只在多點「定點傳送」使用；「模擬移動」到點不停。手動前進時
+      停留一律 0。倒數只在多點模式按「開始」時有；單點路線與留言板路線直接開始是純走路、
+      不倒數（只預覽、自己按「開始」照多點處理）。決定都在 `Model/RouteArrival.swift`
+      （`RoutePlaybackOptions.effective`、`RouteArrivalSteps`、`RouteArrivalPlan.lap`），
+      `SimulationController.startRoute` 照它播放。
+    - `RouteTravelMode` / `RoutePointAction` / `LoopTransitionMode` 的 rawValue 是存檔
+      與中斷快照裡的值，**不能改**；畫面用 `label`（定點傳送、繞圈、向東走 20 米、瞬間跳轉）。
+    - `PlaybackSettings`：停留 1〜300（原本 0〜300、步進 5 → 1）；到點動作預設繞圈；
+      繞圈半徑照 Android 整理（範圍外丟掉、去重、前 4 個、空的用 [20, 30]），新增一圈 40 米、
+      可刪任一圈；新增 `arrivalRulesVersion`（新安裝 2，0.6.8 的資料沒有這個鍵 = 1）與
+      `pendingArrivalRulesNotice`。
+    - **遷移**（§5.3）：`LocalDataStore.init` 解碼成功後呼叫
+      `migratedToArrivalRulesV2()`，有變就立刻寫回。模擬移動 + 無動作 → 繞圈；定點傳送 +
+      無動作保留（兩個選項都不選取）；模擬移動 + 繞圈／微動或手動前進 → 值保留、設提示旗標。
+      提示「多點路線設定已調整」在主畫面等其他 alert 都關掉才出現，按「知道了」清掉並存檔。
+      遷移**不在** `init(from:)` / `sanitized()` 裡（那兩個每次存檔都跑）。降級到 0.6.8 再升級
+      會重跑一次，規格說可以接受。
+    - 播放：繞圈半徑每次開始繞圈才讀目前設定、速度每圈讀一次；狀態文字照 Android（「正在前往第
+      2 點」、「已到達第 N 點」、「第 N 點 · X 秒後開始動作…」、每圈一次的「正在繞圈 · 第 i/n 圈 ·
+      半徑 r 米」、「開始下一輪循環」），逐步的傳送（走路、繞圈、微動）不再蓋掉事件訊息；拿掉
+      每圈結束時「瞬間跳轉」先送第 1 點的那一步。走路每步是「速度 × 0.25 秒」，拿掉 0.5 公尺
+      下限（最低速 1.8 km/h 原本快 4 倍）。
+    - 畫面：循環選項只在多點模式出現（單點路線一律不循環，存路線時也不存看不到的循環）；
+      「進階播放選項」路線播放中整組停用（`SimulationStatus.isPlayingRoute`）；設定頁改成
+      「多點路線倒數」（不用／3／5／10 秒＋說明）、「傳送到點停留」、「繞圈設定」。
+    - 測試：`SharedContractTests` 照抄 `route/arrival-actions.json` 全部段落（offset、orbit、
+      microMove、orbitRadii、orbitRadiiEdits、dwellSeconds、arrivalPlan）；`PlaybackFeatureTests`
+      有 §5.3 每一列的遷移測試、版本 2 存檔不被改寫、提示只出現一次。
+    - **尚待驗證**（實機）：§6 的上機清單 —— 模擬移動多點路線到點不停；定點傳送 + 繞圈 +
+      停留 3 秒；定點傳送 + 向東走 20 米 + 手動前進（最後一點不等）；跳過繞圈與跳過倒數；單點
+      與留言板路線直接開始不倒數；從 0.6.8 升上來，§5.3 每種舊設定各一次。
 
 - `0.6.8 (21)`：0.6.7 實機回報的四件事。
   - 已發佈 `ios-v0.6.8`；CI 兩個 job 通過（97 個測試），IPA 拆檢通過

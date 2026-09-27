@@ -10,11 +10,23 @@ This is a separate SwiftUI prototype for personal sideloading. It does not modif
 - Multi-point route playback with a nonlinear 1.8-900 km/h speed scale
 - Route playback options ported from GFlyer Android: per-point teleport travel
   mode, dwell seconds, orbit (skippable) and micro-move arrival actions,
-  manual "next point" advance, start countdown, and an auto-stop timer
+  manual "next point" advance, start countdown, and an auto-stop timer. They
+  behave exactly like Android (GFlyer-Suite
+  `docs/features/route-arrival-actions.md`): arrival actions, manual advance and
+  dwell apply only to 「定點傳送」 on multi-point routes (a 「模擬移動」 route walks
+  straight on), manual advance means no dwell, the countdown applies only to
+  multi-point routes, and single-point routes and message-board routes started
+  directly are a plain walk. Dwell is 1-300 seconds; orbit radii keep Android's
+  cleanup (5-500 m, duplicates dropped, at most 4 laps, a new lap is 40 m) and
+  are read when each orbit starts. Status texts match Android word for word,
+  and a walk advances speed x 0.25 s per step (no 0.5 m minimum). Settings saved
+  by 0.6.8 are migrated once when the app loads; people who used an arrival
+  action or manual advance with 「模擬移動」 see a one-time notice
 - Cross-date teleport reminder using the Android longitude-based offline
   UTC-offset estimate
 - Visible iOS 17 background location activity for route and exploration playback
-- Pause, resume, stop, looping, and return behavior
+- Pause, resume, stop, looping, and return behavior. Like Android, only
+  multi-point routes loop; the return options are 「走回起點」 and 「瞬間跳轉」
 - In-app foreground joystick with Android-parity displacement speed dynamics,
   edge continuous acceleration, and an independent speed cap
 - Reusable built-in and custom speed presets (at most 6, the same limit as

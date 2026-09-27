@@ -92,7 +92,8 @@ Status: feature implementation complete; macOS/Xcode and target-iPhone regressio
   preset restores as 5.0 km/h (GFlyer-Suite `speed/preset-speed-values.json`,
   `backup/legacy-walk-preset.json`; covered by `SharedContractTests`)
 - Pause, resume, stop
-- Loop route with walk-back or instant return
+- Loop route with walk-back or instant return (for `0.6.9`, like Android:
+  multi-point routes only, and the instant return is labelled 「瞬間跳轉」)
 - Foreground joystick and spiral exploration
 - Visible backend and connection state
 
@@ -123,7 +124,19 @@ Exit criterion: a 30-minute foreground route completes without losing the tunnel
 - Route playback options ported from Android (implemented in `0.3.0 (5)`:
   per-point teleport travel mode, dwell seconds, orbit (skippable) and
   micro-move arrival actions, manual advance, start countdown, auto-stop
-  timer; device validation pending)
+  timer; device validation pending). For `0.6.9` they follow GFlyer-Suite
+  `docs/features/route-arrival-actions.md` and Android exactly: the options
+  used by a run come from `RoutePlaybackOptions.effective` (arrival actions,
+  manual advance and dwell only for multi-point 「定點傳送」, countdown only for
+  multi-point starts, board routes started directly walk plainly), each
+  arrival from `RouteArrivalSteps`, orbit and micro-move steps from
+  `OrbitPlanner.lap` / `MicroMovePlanner`; Android's status texts, dwell
+  1-300 s, orbit-radius cleanup and editor (±5, delete any lap, add 40 m),
+  no 0.5 m per-step walking minimum. 0.6.8 settings are migrated once
+  (`PlaybackSettings.migratedToArrivalRulesV2`, spec §5.3) with a one-time
+  notice for 「模擬移動」 users who lose an arrival action or manual advance.
+  The whole `route/arrival-actions.json` fixture is copied into
+  `SharedContractTests`; the migration rows are in `PlaybackFeatureTests`
 
   The `0.3.0 (5)` additions above and below passed both macOS CI jobs at
   commit `ada19c5` (workflow run 33500571429: 38 simulator unit tests with 0
