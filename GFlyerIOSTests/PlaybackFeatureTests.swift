@@ -486,4 +486,325 @@ final class PlaybackFeatureTests: XCTestCase {
         )
         XCTAssertLessThanOrEqual(nearPole.latitude, 90)
     }
+
+    // MARK: - 蛇形探索(GFlyer-Suite docs/features/serpentine-exploration.md)
+
+    private let activeSessionKey = "gflyer.active-session.v1"
+
+    /// §4.3 的 0.6.8 探索快照(螺旋),原樣照抄。
+    private let legacySpiralSnapshot = """
+    {"mode":"探索","coordinate":{"latitude":22.331,"longitude":114.171},"routePoints":[],"remainingPoints":[],\
+    "loop":false,"transition":"走回起點","speedKilometresPerHour":19,\
+    "spiralCenter":{"latitude":22.3193,"longitude":114.1694},"spiralAngleRadians":12.5,"savedAt":780000000}
+    """
+
+    /// 要貼近上面的 savedAt,否則 `load(now:)` 會因為過期(600 秒)而不是因為解碼失敗回傳 nil。
+    private let legacySnapshotNow = Date(timeIntervalSinceReferenceDate: 780_000_060)
+
+    /// 把快照 JSON 放進一個獨立的 UserDefaults,再用它建立 ActiveSessionStore。
+    private func withSessionStore(
+        json: String,
+        _ body: (ActiveSessionStore) throws -> Void
+    ) throws {
+        let suiteName = "gflyer.serpentine-tests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        defaults.set(Data(json.utf8), forKey: activeSessionKey)
+        try body(ActiveSessionStore(defaults: defaults))
+    }
+
+    /// §4.3 第 5 點:0.6.8 的螺旋快照照樣解得開,恢復成從 `coordinate` 開始的一輪新蛇形
+    /// (進度 (0, 0)、Y 1000、EAST),不是從螺旋的中心出發。
+    func testLegacySpiralSnapshotResumesAsAFreshSerpentineAtItsCoordinate() throws {
+        try withSessionStore(json: legacySpiralSnapshot) { store in
+            let snapshot = try XCTUnwrap(store.load(now: legacySnapshotNow))
+            XCTAssertEqual(snapshot.mode, .explore)
+            XCTAssertEqual(snapshot.coordinate, GeoCoordinate(latitude: 22.331, longitude: 114.171))
+            XCTAssertEqual(snapshot.speedKilometresPerHour, 19)
+            XCTAssertNil(snapshot.explorationCenter)
+            XCTAssertNil(snapshot.explorationState)
+            XCTAssertNil(snapshot.explorationVerticalLengthMetres)
+            XCTAssertNil(snapshot.explorationDirection)
+
+            let run = snapshot.resumedExploration
+            XCTAssertEqual(run.current, GeoCoordinate(latitude: 22.331, longitude: 114.171))
+            XCTAssertEqual(run.center, GeoCoordinate(latitude: 22.331, longitude: 114.171))
+            XCTAssertEqual(run.state, SerpentineState())
+            XCTAssertEqual(run.verticalLengthMetres, 1_000)
+            XCTAssertEqual(run.direction, .east)
+        }
+    }
+
+    /// 上機驗證的「用 0.6.8 在探索中結束 App,10 分鐘內升級再開」:提示可以恢復,不當機。
+    @MainActor
+    func testControllerOffersToResumeALegacySpiralSnapshot() throws {
+        let suiteName = "gflyer.serpentine-tests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let savedAt = Date().timeIntervalSinceReferenceDate
+        let json = legacySpiralSnapshot.replacingOccurrences(
+            of: "\"savedAt\":780000000",
+            with: "\"savedAt\":\(savedAt)"
+        )
+        XCTAssertNotEqual(json, legacySpiralSnapshot)
+        defaults.set(Data(json.utf8), forKey: activeSessionKey)
+
+        let controller = SimulationController(
+            backend: PreviewLocationSimulationBackend(),
+            dataStore: LocalDataStore(defaults: defaults),
+            sessionStore: ActiveSessionStore(defaults: defaults)
+        )
+        let pending = try XCTUnwrap(controller.pendingResumeSession)
+        XCTAssertEqual(pending.mode, .explore)
+        XCTAssertEqual(pending.resumedExploration.current, GeoCoordinate(latitude: 22.331, longitude: 114.171))
+    }
+
+    /// 方向認不得時只有方向變成 nil(對照 Android `ActiveSessionStoreTest.unknownEnumsFallBackWithoutLosingSnapshot`);
+    /// 恢復時從中斷的位置以快照的進度接著走,不跳回這一輪的起點(§4.2)。
+    func testUnknownExplorationDirectionOnlyDropsThatField() throws {
+        let json = """
+        {"mode":"探索","coordinate":{"latitude":22.331,"longitude":114.171},"routePoints":[],"remainingPoints":[],\
+        "loop":false,"transition":"走回起點","speedKilometresPerHour":19,\
+        "explorationCenter":{"latitude":22.3193,"longitude":114.1694},\
+        "explorationState":{"segmentIndex":7,"distanceAlongSegmentMetres":12.25},\
+        "explorationVerticalLengthMetres":2500,"explorationDirection":"UPWARDS","savedAt":780000000}
+        """
+        try withSessionStore(json: json) { store in
+            let snapshot = try XCTUnwrap(store.load(now: legacySnapshotNow))
+            XCTAssertNil(snapshot.explorationDirection)
+            XCTAssertEqual(snapshot.explorationCenter, GeoCoordinate(latitude: 22.3193, longitude: 114.1694))
+            XCTAssertEqual(snapshot.explorationState, SerpentineState(segmentIndex: 7, distanceAlongSegmentMetres: 12.25))
+            XCTAssertEqual(snapshot.explorationVerticalLengthMetres, 2_500)
+
+            let run = snapshot.resumedExploration
+            XCTAssertEqual(run.current, GeoCoordinate(latitude: 22.331, longitude: 114.171), "從中斷的位置接著走")
+            XCTAssertEqual(run.center, GeoCoordinate(latitude: 22.3193, longitude: 114.1694))
+            XCTAssertEqual(run.state, SerpentineState(segmentIndex: 7, distanceAlongSegmentMetres: 12.25))
+            XCTAssertEqual(run.verticalLengthMetres, 2_500)
+            XCTAssertEqual(run.direction, .east)
+        }
+    }
+
+    /// 每個探索欄位各自寬鬆:型別不對只讓那一個欄位變成 nil,整份快照照樣讀得到。
+    func testMalformedExplorationFieldsDoNotLoseTheSnapshot() throws {
+        let json = """
+        {"mode":"探索","coordinate":{"latitude":22.331,"longitude":114.171},"routePoints":[],"remainingPoints":[],\
+        "loop":false,"transition":"走回起點","speedKilometresPerHour":19,\
+        "explorationCenter":"here","explorationState":{"segmentIndex":"seven"},\
+        "explorationVerticalLengthMetres":"long","explorationDirection":7,"savedAt":780000000}
+        """
+        try withSessionStore(json: json) { store in
+            let snapshot = try XCTUnwrap(store.load(now: legacySnapshotNow))
+            XCTAssertEqual(snapshot.mode, .explore)
+            XCTAssertNil(snapshot.explorationCenter)
+            XCTAssertNil(snapshot.explorationState)
+            XCTAssertNil(snapshot.explorationVerticalLengthMetres)
+            XCTAssertNil(snapshot.explorationDirection)
+            let run = snapshot.resumedExploration
+            XCTAssertEqual(run.current, snapshot.coordinate)
+            XCTAssertEqual(run.state, SerpentineState())
+            XCTAssertEqual(run.verticalLengthMetres, 1_000)
+            XCTAssertEqual(run.direction, .east)
+        }
+    }
+
+    /// 0.6.8 寫的路線快照解碼與內容不受影響。
+    func testLegacyRouteSnapshotIsUnaffected() throws {
+        let json = """
+        {"mode":"多點","coordinate":{"latitude":22.3,"longitude":114.1},\
+        "routePoints":[{"latitude":22.3,"longitude":114.1},{"latitude":22.4,"longitude":114.2}],\
+        "remainingPoints":[{"latitude":22.4,"longitude":114.2}],"loop":true,"transition":"直接返回",\
+        "speedKilometresPerHour":50,"savedAt":780000000}
+        """
+        try withSessionStore(json: json) { store in
+            let snapshot = try XCTUnwrap(store.load(now: legacySnapshotNow))
+            XCTAssertEqual(snapshot.mode, .multiRoute)
+            XCTAssertEqual(snapshot.routePoints, [
+                GeoCoordinate(latitude: 22.3, longitude: 114.1),
+                GeoCoordinate(latitude: 22.4, longitude: 114.2),
+            ])
+            XCTAssertEqual(snapshot.remainingPoints, [GeoCoordinate(latitude: 22.4, longitude: 114.2)])
+            XCTAssertTrue(snapshot.loop)
+            XCTAssertEqual(snapshot.transition, .teleportToStart)
+            XCTAssertEqual(snapshot.speedKilometresPerHour, 50)
+            XCTAssertNil(snapshot.explorationState)
+        }
+    }
+
+    /// 0.6.8 解碼時要求的鍵(沒有 `spiralCenter` 也行)一定寫出,降版後照樣讀得到(§4.3 第 7 點)。
+    func testExplorationSnapshotRoundTripsAndKeepsTheKeysThat068Needs() throws {
+        let suiteName = "gflyer.serpentine-tests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let store = ActiveSessionStore(defaults: defaults)
+        store.save(
+            ActiveSessionSnapshot(
+                mode: .explore,
+                coordinate: GeoCoordinate(latitude: 35.0, longitude: 139.0),
+                speedKilometresPerHour: 50,
+                explorationCenter: GeoCoordinate(latitude: 34.99, longitude: 139.0),
+                explorationState: SerpentineState(segmentIndex: 7, distanceAlongSegmentMetres: 12.25),
+                explorationVerticalLengthMetres: 250,
+                explorationDirection: .west,
+                savedAt: Date()
+            )
+        )
+
+        let restored = try XCTUnwrap(store.load())
+        XCTAssertEqual(restored.mode, .explore)
+        XCTAssertEqual(restored.explorationCenter, GeoCoordinate(latitude: 34.99, longitude: 139.0))
+        XCTAssertEqual(restored.explorationState, SerpentineState(segmentIndex: 7, distanceAlongSegmentMetres: 12.25))
+        XCTAssertEqual(restored.explorationVerticalLengthMetres, 250)
+        XCTAssertEqual(restored.explorationDirection, .west)
+
+        let data = try XCTUnwrap(defaults.data(forKey: activeSessionKey))
+        let object = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        for key in [
+            "mode", "coordinate", "routePoints", "remainingPoints", "loop", "transition",
+            "speedKilometresPerHour", "savedAt",
+        ] {
+            XCTAssertNotNil(object[key], key)
+        }
+        XCTAssertEqual(object["explorationDirection"] as? String, "WEST")
+    }
+
+    /// §4.3 第 4 點與 §4.2:用之前清理,非有限值不可以一路傳到 `GeoMath.destination`。
+    func testResumedExplorationSanitizesSavedValues() {
+        let coordinate = GeoCoordinate(latitude: 22.331, longitude: 114.171)
+        func resumed(state: SerpentineState?, verticalLength: Double?) -> ExplorationRun {
+            ActiveSessionSnapshot(
+                mode: .explore,
+                coordinate: coordinate,
+                speedKilometresPerHour: 19,
+                explorationState: state,
+                explorationVerticalLengthMetres: verticalLength,
+                savedAt: Date()
+            ).resumedExploration
+        }
+        XCTAssertEqual(
+            resumed(state: SerpentineState(segmentIndex: -3, distanceAlongSegmentMetres: -10), verticalLength: nil).state,
+            SerpentineState()
+        )
+        for distance in [Double.nan, Double.infinity, -Double.infinity] {
+            XCTAssertEqual(
+                resumed(state: SerpentineState(segmentIndex: 4, distanceAlongSegmentMetres: distance), verticalLength: nil).state,
+                SerpentineState(segmentIndex: 4, distanceAlongSegmentMetres: 0),
+                "\(distance)"
+            )
+        }
+        for invalid in [0, -5, Double.nan, Double.infinity, -Double.infinity] {
+            XCTAssertEqual(resumed(state: nil, verticalLength: invalid).verticalLengthMetres, 1_000, "\(invalid)")
+        }
+        XCTAssertEqual(resumed(state: nil, verticalLength: 50).verticalLengthMetres, 200)
+        XCTAssertEqual(resumed(state: nil, verticalLength: 9_000).verticalLengthMetres, 5_000)
+        XCTAssertEqual(resumed(state: nil, verticalLength: 1_234.5).verticalLengthMetres, 1_234.5, "範圍內的非整數照用")
+        XCTAssertEqual(resumed(state: nil, verticalLength: nil).center, coordinate, "沒有起點就用中斷的位置")
+    }
+
+    /// §3.7:Y 預設 1000、夾在 200〜5000;方向預設 EAST。0.6.8 的設定沒有這兩個鍵,解碼成預設值。
+    func testExplorationSettingsDefaultsAndLenientDecoding() throws {
+        try withLegacyStore(playback: legacyPlayback(travelMode: "模擬移動", pointAction: "繞圈")) { store, _ in
+            XCTAssertEqual(store.snapshot.playback.explorationVerticalLengthMetres, 1_000)
+            XCTAssertEqual(store.snapshot.playback.explorationDirection, .east)
+        }
+        let cases: [(json: String, verticalLength: Int, direction: ExplorationDirection)] = [
+            (#"{"explorationVerticalLengthMetres": 150, "explorationDirection": "WEST"}"#, 200, .west),
+            (#"{"explorationVerticalLengthMetres": 6000, "explorationDirection": "NORTH"}"#, 5_000, .east),
+            (#"{"explorationVerticalLengthMetres": "long", "explorationDirection": 1}"#, 1_000, .east),
+            (#"{"explorationVerticalLengthMetres": 2300}"#, 2_300, .east),
+        ]
+        for testCase in cases {
+            let decoded = try JSONDecoder().decode(PlaybackSettings.self, from: Data(testCase.json.utf8))
+            XCTAssertEqual(decoded.explorationVerticalLengthMetres, testCase.verticalLength, testCase.json)
+            XCTAssertEqual(decoded.explorationDirection, testCase.direction, testCase.json)
+        }
+    }
+
+    /// 新欄位在明確列出的 CodingKeys 裡:存得進去,重開 App 讀得回來。
+    func testExplorationSettingsArePersisted() throws {
+        let suiteName = "gflyer.serpentine-tests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        var settings = PlaybackSettings()
+        settings.explorationVerticalLengthMetres = 2_300
+        settings.explorationDirection = .west
+        LocalDataStore(defaults: defaults).savePlaybackSettings(settings)
+
+        let restored = LocalDataStore(defaults: defaults).snapshot.playback
+        XCTAssertEqual(restored.explorationVerticalLengthMetres, 2_300)
+        XCTAssertEqual(restored.explorationDirection, .west)
+        let stored = try storedPlayback(in: defaults)
+        XCTAssertEqual(stored["explorationVerticalLengthMetres"] as? Int, 2_300)
+        XCTAssertEqual(stored["explorationDirection"] as? String, "WEST")
+    }
+
+    func testVerticalLengthStepsBy100WithinTheRange() {
+        XCTAssertEqual(SerpentinePath.adjustedVerticalLength(1_000, by: 1), 1_100)
+        XCTAssertEqual(SerpentinePath.adjustedVerticalLength(1_000, by: -1), 900)
+        XCTAssertEqual(SerpentinePath.adjustedVerticalLength(200, by: -1), 200)
+        XCTAssertEqual(SerpentinePath.adjustedVerticalLength(5_000, by: 1), 5_000)
+        XCTAssertEqual(SerpentinePath.adjustedVerticalLength(1_000, by: 5), 1_100, "方向只取 -1 / +1")
+        XCTAssertEqual(SerpentinePath.adjustedVerticalLength(1_000, by: -7), 900)
+        XCTAssertEqual(SerpentinePath.adjustedVerticalLength(1_000, by: 0), 1_000)
+    }
+
+    /// 沒有在探索時:預覽線從選取點、進度 (0, 0)、設定的 Y 與方向畫;Y 與方向改了立刻存。
+    @MainActor
+    func testIdleExplorationControlsAndPreview() throws {
+        let suiteName = "gflyer.serpentine-tests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let controller = SimulationController(
+            backend: PreviewLocationSimulationBackend(),
+            dataStore: LocalDataStore(defaults: defaults),
+            sessionStore: ActiveSessionStore(defaults: defaults)
+        )
+        XCTAssertTrue(controller.explorationPreview.isEmpty, "只在探索模式畫")
+        controller.setMode(.explore)
+        let start = GeoCoordinate(latitude: 22.3193, longitude: 114.1694)
+        controller.select(start)
+        XCTAssertFalse(controller.isExploring)
+        XCTAssertEqual(controller.explorationStart, start)
+        let preview = controller.explorationPreview
+        XCTAssertEqual(preview.count, 308, "serpentine-path.json 的 default-v1000-east-from-start")
+        XCTAssertEqual(preview.first, start)
+
+        controller.adjustExplorationVerticalLength(by: 1)
+        controller.setExplorationDirection(.west)
+        XCTAssertEqual(controller.playbackSettings.explorationVerticalLengthMetres, 1_100)
+        XCTAssertEqual(controller.playbackSettings.explorationDirection, .west)
+        XCTAssertEqual(
+            controller.explorationPreview,
+            SerpentinePath.preview(current: start, state: SerpentineState(), verticalLengthMetres: 1_100, direction: .west)
+        )
+        let restored = LocalDataStore(defaults: defaults).snapshot.playback
+        XCTAssertEqual(restored.explorationVerticalLengthMetres, 1_100)
+        XCTAssertEqual(restored.explorationDirection, .west)
+
+        for _ in 0..<60 { controller.adjustExplorationVerticalLength(by: 1) }
+        XCTAssertEqual(controller.playbackSettings.explorationVerticalLengthMetres, 5_000)
+        for _ in 0..<60 { controller.adjustExplorationVerticalLength(by: -1) }
+        XCTAssertEqual(controller.playbackSettings.explorationVerticalLengthMetres, 200)
+    }
+
+    /// §3.9:三平台一字不差,括號是全形;數字固定照繁體中文地區的樣子。
+    func testExplorationTextsMatchAndroid() {
+        XCTAssertEqual(ExplorationTexts.idleTitle, "探索中心")
+        XCTAssertEqual(ExplorationTexts.activeTitle, "虛擬定位已啟用")
+        XCTAssertEqual(ExplorationTexts.widthHint, "預設路線寬度為鳥瞰地圖縮至最遠的寬度")
+        XCTAssertEqual(ExplorationTexts.horizontalSpacing, "X 固定 530 米")
+        XCTAssertEqual(ExplorationTexts.verticalLengthLabel, "Y")
+        XCTAssertEqual(ExplorationTexts.decreaseVerticalLength, "減少 Y 值 100 米")
+        XCTAssertEqual(ExplorationTexts.increaseVerticalLength, "增加 Y 值 100 米")
+        XCTAssertEqual(ExplorationTexts.startButton, "開始探索")
+        XCTAssertEqual(ExplorationTexts.exploring, "正在蛇形探索")
+        XCTAssertEqual(ExplorationDirection.allCases.map(\.label), ["左\u{FF08}西\u{FF09}", "右\u{FF08}東\u{FF09}"])
+        XCTAssertEqual(ExplorationTexts.verticalLength(200), "200 米")
+        XCTAssertEqual(ExplorationTexts.verticalLength(1_000), "1,000 米")
+        XCTAssertEqual(ExplorationTexts.verticalLength(5_000), "5,000 米")
+        XCTAssertEqual(ExplorationTexts.verticalLength(1_234_567), "1,234,567 米")
+        XCTAssertEqual(ExplorationTexts.previewDistance(verticalLengthMetres: 200), "預覽 4.12 公里")
+        XCTAssertEqual(ExplorationTexts.previewDistance(verticalLengthMetres: 1_000), "預覽 12.12 公里")
+        XCTAssertEqual(ExplorationTexts.previewDistance(verticalLengthMetres: 5_000), "預覽 52.12 公里")
+    }
 }

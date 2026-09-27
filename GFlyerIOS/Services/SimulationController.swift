@@ -26,6 +26,8 @@ final class SimulationController: ObservableObject {
     @Published private(set) var playbackSettings = PlaybackSettings()
     @Published private(set) var pendingCrossDateWarning: CrossDateWarning?
     @Published private(set) var pendingResumeSession: ActiveSessionSnapshot?
+    /// 執行中那一輪探索(含暫停)。停止、切到其他移動方式、搖桿接管或推送失敗時清掉。
+    @Published private(set) var exploration: ExplorationRun?
     @Published var lastError: String?
 
     let pairingStore = PairingFileStore()
@@ -50,8 +52,7 @@ final class SimulationController: ObservableObject {
     private var advanceRequested = false
     private var countdownSkipRequested = false
     private var orbitSkipRequested = false
-    private var spiralState = SpiralState()
-    private var spiralCenter: GeoCoordinate?
+    private var explorationPreviewCache: ExplorationPreviewCache?
     private let tickNanoseconds: UInt64 = 250_000_000
     private let tickSeconds = 0.25
 
@@ -88,11 +89,57 @@ final class SimulationController: ObservableObject {
     var canControlDeviceLocation: Bool { backend.canControlDeviceLocation }
     var isMotionActive: Bool { status.isActive }
 
+    var isExploring: Bool { exploration != nil }
+
+    /// 開始探索的起點:模擬中(包含靜態傳送)是目前的模擬座標,沒有模擬時是選取點。
+    /// 和 Android 的 `mockStatus.coordinate ?: selected` 相同(GFlyer-Suite docs/features/serpentine-exploration.md §3.3)。
+    var explorationStart: GeoCoordinate {
+        if status.isActive, let coordinate = status.coordinate { return coordinate }
+        return selectedCoordinate
+    }
+
+    /// 地圖上的探索預覽線(規格 §3.5):沒有在探索時從起點、進度 (0, 0)、設定的 Y 與方向畫;探索中從目前位置、
+    /// 目前進度、這一輪實際在用的 Y 與方向畫。SwiftUI 每次重算 body 都會讀它,Y = 5000 時一條約 1,300 點,
+    /// 所以輸入沒變就用上一次的結果。
     var explorationPreview: [GeoCoordinate] {
         guard mode == .explore else { return [] }
-        let center = spiralCenter ?? selectedCoordinate
-        let current = status.coordinate ?? selectedCoordinate
-        return SpiralPath.preview(center: center, current: current, state: spiralState)
+        let request: ExplorationPreviewRequest
+        if let exploration {
+            request = ExplorationPreviewRequest(
+                start: exploration.current,
+                state: exploration.state,
+                verticalLengthMetres: exploration.verticalLengthMetres,
+                direction: exploration.direction
+            )
+        } else {
+            request = ExplorationPreviewRequest(
+                start: explorationStart,
+                state: SerpentineState(),
+                verticalLengthMetres: Double(playbackSettings.explorationVerticalLengthMetres),
+                direction: playbackSettings.explorationDirection
+            )
+        }
+        if let cache = explorationPreviewCache, cache.request == request { return cache.points }
+        let points = SerpentinePath.preview(
+            current: request.start,
+            state: request.state,
+            verticalLengthMetres: request.verticalLengthMetres,
+            direction: request.direction
+        )
+        explorationPreviewCache = ExplorationPreviewCache(request: request, points: points)
+        return points
+    }
+
+    private struct ExplorationPreviewRequest: Equatable {
+        let start: GeoCoordinate
+        let state: SerpentineState
+        let verticalLengthMetres: Double
+        let direction: ExplorationDirection
+    }
+
+    private struct ExplorationPreviewCache {
+        let request: ExplorationPreviewRequest
+        let points: [GeoCoordinate]
     }
 
     func setMode(_ newMode: SimulationMode) {
@@ -113,9 +160,9 @@ final class SimulationController: ObservableObject {
             routePoints = []
             persistDraft()
         case .explore:
+            // 起點是選取點(模擬中不能切模式)。Android 這時把選取點換成地圖中心,iOS 沒有地圖中心可用,
+            // 保留目前的選取點(規格 §3.3,只影響預設起點)
             routePoints = []
-            spiralCenter = selectedCoordinate
-            spiralState = SpiralState()
             dataStore.clearDraft()
         }
         lastError = nil
@@ -135,9 +182,8 @@ final class SimulationController: ObservableObject {
             routePoints.append(coordinate)
             persistDraft()
         case .explore:
-            guard !status.isActive else { return }
-            spiralCenter = coordinate
-            spiralState = SpiralState()
+            // 只改選取點;探索中也可以點,不會重新開始(和 Android 相同)
+            break
         }
         lastError = nil
     }
@@ -194,6 +240,7 @@ final class SimulationController: ObservableObject {
         }
         pendingCrossDateWarning = nil
         playbackTask?.cancel()
+        exploration = nil
         joystickTask?.cancel()
         joystickTask = nil
         deviceLocation.stopBackgroundRouteActivity()
@@ -239,7 +286,17 @@ final class SimulationController: ObservableObject {
                 lastError = deviceLocation.backgroundPermissionMessage
                 return
             }
-            startExplore()
+            // 探索中再按一次 = 從目前位置、進度 (0, 0) 重新開始,不是錯誤(規格 §3.3)。
+            // 探索不寫「最近前往」,和 Android 相同
+            let origin = explorationStart
+            startExplore(
+                ExplorationRun(
+                    center: origin,
+                    current: origin,
+                    verticalLengthMetres: Double(playbackSettings.explorationVerticalLengthMetres),
+                    direction: playbackSettings.explorationDirection
+                )
+            )
             scheduleAutoStop()
         }
     }
@@ -293,16 +350,16 @@ final class SimulationController: ObservableObject {
             startRoute(kind: routeStartKind, resumingFrom: firstLap.count >= 2 ? firstLap : nil)
             scheduleAutoStop()
         case .explore:
+            // 從中斷的位置以快照的進度接著走,不跳回這一輪的起點;0.6.8 的螺旋快照變成一輪新的蛇形
+            // (GFlyer-Suite docs/features/serpentine-exploration.md §4.2、§4.3)
             mode = .explore
             routePoints = []
-            spiralCenter = snapshot.spiralCenter ?? snapshot.coordinate
-            spiralState = SpiralState(angleRadians: snapshot.spiralAngleRadians ?? 0)
             selectedCoordinate = snapshot.coordinate
             guard deviceLocation.startBackgroundRouteActivity() else {
                 lastError = deviceLocation.backgroundPermissionMessage
                 return
             }
-            startExplore(preserveState: true)
+            startExplore(snapshot.resumedExploration)
             scheduleAutoStop()
         }
     }
@@ -330,6 +387,8 @@ final class SimulationController: ObservableObject {
         } else {
             remaining = []
         }
+        // 探索的進度在 send() 之前就換成這一個 tick 的結果,所以和 coordinate 成對
+        let run = snapshotMode == .explore ? exploration : nil
         sessionStore.save(
             ActiveSessionSnapshot(
                 mode: snapshotMode,
@@ -339,11 +398,28 @@ final class SimulationController: ObservableObject {
                 loop: loopRoute,
                 transition: loopTransitionMode,
                 speedKilometresPerHour: speedKilometresPerHour,
-                spiralCenter: snapshotMode == .explore ? spiralCenter : nil,
-                spiralAngleRadians: snapshotMode == .explore ? spiralState.angleRadians : nil,
+                explorationCenter: run?.center,
+                explorationState: run?.state,
+                explorationVerticalLengthMetres: run?.verticalLengthMetres,
+                explorationDirection: run?.direction,
                 savedAt: now
             )
         )
+    }
+
+    /// 探索的 Y 加減鈕(規格 §3.7)。探索中(含暫停)不能改,和 Android 一樣直接忽略。
+    func adjustExplorationVerticalLength(by direction: Int) {
+        guard !isExploring else { return }
+        let adjusted = SerpentinePath.adjustedVerticalLength(
+            playbackSettings.explorationVerticalLengthMetres,
+            by: direction
+        )
+        updatePlayback { $0.explorationVerticalLengthMetres = adjusted }
+    }
+
+    func setExplorationDirection(_ direction: ExplorationDirection) {
+        guard !isExploring else { return }
+        updatePlayback { $0.explorationDirection = direction }
     }
 
     func updatePlayback(_ mutate: (inout PlaybackSettings) -> Void) {
@@ -540,6 +616,7 @@ final class SimulationController: ObservableObject {
         let motionTasks = [playbackTask, joystickTask].compactMap { $0 }
         playbackTask?.cancel()
         playbackTask = nil
+        exploration = nil
         joystickTask?.cancel()
         joystickTask = nil
         autoStopTask?.cancel()
@@ -642,6 +719,7 @@ final class SimulationController: ObservableObject {
         // 搖桿接管移動：結束路線／探索播放，避免兩個任務同時推送座標
         playbackTask?.cancel()
         playbackTask = nil
+        exploration = nil
         playbackGeneration += 1
         deviceLocation.stopBackgroundRouteActivity()
         currentLapPoints = []
@@ -1192,36 +1270,43 @@ final class SimulationController: ObservableObject {
         try? await Task.sleep(nanoseconds: nanoseconds)
     }
 
-    private func startExplore(preserveState: Bool = false) {
-        guard !status.isActive || preserveState else {
-            lastError = SimulationError.exploreAlreadyActive.localizedDescription
-            return
-        }
-        if !preserveState {
-            spiralCenter = selectedCoordinate
-            spiralState = SpiralState()
-        }
+    /// 蛇形探索,和 Android `MockLocationService.startExploration` 相同(GFlyer-Suite
+    /// docs/features/serpentine-exploration.md §3.4):每 0.25 秒從上一次的位置與進度走「速度 × 0.25 秒」,
+    /// 沒有最小移動距離(0.6.8 螺旋的 0.5 公尺下限會讓 7.2 km/h 以下全部變成 7.2 km/h)。速度每個 tick 重新讀。
+    /// 沒有終點,只會因為停止、自動停止、推送失敗或換成其他移動方式而結束。
+    private func startExplore(_ run: ExplorationRun) {
+        exploration = run
+        status.isActive = true
+        status.isPaused = false
+        status.mode = .explore
+        status.message = ExplorationTexts.exploring
         playbackGeneration += 1
         let generation = playbackGeneration
         playbackTask = Task { [weak self] in
-            guard let self, let center = spiralCenter else { return }
+            guard let self else { return }
             defer {
                 if generation == playbackGeneration {
                     deviceLocation.stopBackgroundRouteActivity()
                 }
             }
-            var current = selectedCoordinate
+            var running = run
             while !Task.isCancelled {
-                let step = SpiralPath.advance(
-                    center: center,
-                    current: current,
-                    state: spiralState,
-                    distanceMetres: max(speedKilometresPerHour / 3.6 * tickSeconds, 0.5)
-                )
-                spiralState = step.state
-                current = step.coordinate
-                guard await send(current, message: "螺旋探索中") else { return }
-                await sleepThroughPause(nanoseconds: tickNanoseconds)
+                // 暫停時不前進、不推送,進度不變;繼續後從同一個進度接著走
+                if !status.isPaused {
+                    let step = SerpentinePath.advance(
+                        current: running.current,
+                        state: running.state,
+                        distanceMetres: routeSpeedMetresPerSecond * tickSeconds,
+                        verticalLengthMetres: running.verticalLengthMetres,
+                        direction: running.direction
+                    )
+                    running.state = step.state
+                    running.current = step.coordinate
+                    // 先換進度再呼叫會順便存快照的 send(),快照的座標與進度才是同一個 tick 的結果(規格 §4.2)
+                    exploration = running
+                    guard await send(step.coordinate, message: ExplorationTexts.exploring) else { return }
+                }
+                try? await Task.sleep(nanoseconds: tickNanoseconds)
             }
         }
     }
@@ -1270,6 +1355,7 @@ final class SimulationController: ObservableObject {
             guard !Task.isCancelled else { return false }
             lastError = error.localizedDescription
             playbackTask?.cancel()
+            exploration = nil
             joystickTask?.cancel()
             joystickTask = nil
             autoStopTask?.cancel()

@@ -96,14 +96,20 @@ struct PlaybackSettings: Codable, Equatable {
     var arrivalRulesVersion = currentArrivalRulesVersion
     /// 遷移時設定、按「知道了」後清掉的一次性提示(`SimulationController.arrivalRulesNoticeMessage`)。
     var pendingArrivalRulesNotice = false
+    /// 蛇形探索的縱向長度 Y(公尺),200〜5000、步進 100(GFlyer-Suite docs/features/serpentine-exploration.md §3.7)。
+    /// 和方向一樣只影響下一次開始,也不在備份裡(`AppBackupCodec` 只寫兩個共用設定)。
+    var explorationVerticalLengthMetres = SerpentinePath.defaultVerticalLengthMetres
+    var explorationDirection: ExplorationDirection = .east
 
     init() {}
 
+    // 新欄位一定要加在這裡,否則不會寫進存檔,重開 App 就回到預設值
     private enum CodingKeys: String, CodingKey {
         case travelMode, pointAction, manualAdvance, dwellSeconds
         case orbitRadiiMetres, startDelaySeconds, autoStopMinutes, crossDateWarningEnabled
         case joystickMaxSpeedKilometresPerHour
         case arrivalRulesVersion, pendingArrivalRulesNotice
+        case explorationVerticalLengthMetres, explorationDirection
     }
 
     // 缺欄位或型別不符時退回屬性宣告上的預設值（單一定義處）。
@@ -126,6 +132,12 @@ struct PlaybackSettings: Codable, Equatable {
         settings.arrivalRulesVersion = (try? container.decode(Int.self, forKey: .arrivalRulesVersion)) ?? 1
         settings.pendingArrivalRulesNotice =
             (try? container.decode(Bool.self, forKey: .pendingArrivalRulesNotice)) ?? settings.pendingArrivalRulesNotice
+        // 0.6.8 以前沒有這兩個鍵;方向認不得(不是 "EAST" / "WEST")也退回 EAST
+        settings.explorationVerticalLengthMetres =
+            (try? container.decode(Int.self, forKey: .explorationVerticalLengthMetres))
+            ?? settings.explorationVerticalLengthMetres
+        settings.explorationDirection =
+            (try? container.decode(ExplorationDirection.self, forKey: .explorationDirection)) ?? settings.explorationDirection
         self = settings.sanitized()
     }
 
@@ -142,6 +154,7 @@ struct PlaybackSettings: Codable, Equatable {
             max(joystickMaxSpeedKilometresPerHour, Self.joystickMaxSpeedRange.lowerBound),
             Self.joystickMaxSpeedRange.upperBound
         )
+        copy.explorationVerticalLengthMetres = SerpentinePath.clampedVerticalLength(explorationVerticalLengthMetres)
         return copy
     }
 
@@ -463,7 +476,6 @@ enum SimulationError: LocalizedError {
     case connectionFailed(String)
     case developerDiskImage(String)
     case routeNeedsTwoPoints
-    case exploreAlreadyActive
 
     var errorDescription: String? {
         switch self {
@@ -479,8 +491,6 @@ enum SimulationError: LocalizedError {
             return message
         case .routeNeedsTwoPoints:
             return "路線至少需要兩個座標。"
-        case .exploreAlreadyActive:
-            return "探索已經在執行中。"
         }
     }
 }
@@ -574,63 +584,232 @@ enum SpeedScale {
     }
 }
 
-struct SpiralState: Equatable {
-    var angleRadians = 0.0
-}
+/// 蛇形探索往哪一邊推進。rawValue 和 Android 的 enum 名稱相同,是設定與中斷快照裡存的值。
+enum ExplorationDirection: String, CaseIterable, Identifiable, Codable {
+    case west = "WEST"
+    case east = "EAST"
 
-struct SpiralStep {
-    let state: SpiralState
-    let coordinate: GeoCoordinate
-}
+    var id: Self { self }
 
-enum SpiralPath {
-    static let ringSpacingMetres = 1_000.0
-    private static let radiusPerRadian = ringSpacingMetres / (2.0 * Double.pi)
-
-    static func advance(
-        center: GeoCoordinate,
-        current: GeoCoordinate,
-        state: SpiralState,
-        distanceMetres: Double
-    ) -> SpiralStep {
-        let distance = max(distanceMetres, 0)
-        let arcLengthPerRadian = radiusPerRadian * sqrt(1 + state.angleRadians * state.angleRadians)
-        let nextAngle = state.angleRadians + distance / arcLengthPerRadian
-        let radius = radiusPerRadian * nextAngle
-        let next = GeoMath.destination(
-            from: center,
-            bearingDegrees: nextAngle.radiansToDegrees,
-            distanceMetres: radius
-        )
-        _ = current
-        return SpiralStep(state: SpiralState(angleRadians: nextAngle), coordinate: next)
+    var horizontalBearingDegrees: Double {
+        switch self {
+        case .west: return 270
+        case .east: return 90
+        }
     }
 
-    static func preview(
-        center: GeoCoordinate,
+    /// 括號是全形,和 Android 一字不差。
+    var label: String {
+        switch self {
+        case .west: return "左（西）"
+        case .east: return "右（東）"
+        }
+    }
+}
+
+/// 蛇形路線上的進度:第幾段、這一段走了多少公尺。起始值 (0, 0)。
+struct SerpentineState: Codable, Equatable {
+    var segmentIndex: Int64 = 0
+    var distanceAlongSegmentMetres = 0.0
+
+    /// 中斷快照讀回來的進度在用之前先清理(GFlyer-Suite docs/features/serpentine-exploration.md §4.3
+    /// 第 4 點):段號負數當 0,距離非有限值或負數當 0。非有限值一路傳到 `GeoMath.destination`
+    /// 會在 `GeoCoordinate.init` 的 precondition 當機。
+    func sanitized() -> SerpentineState {
+        SerpentineState(
+            segmentIndex: max(segmentIndex, 0),
+            distanceAlongSegmentMetres: distanceAlongSegmentMetres.isFinite ? max(distanceAlongSegmentMetres, 0) : 0
+        )
+    }
+}
+
+struct SerpentineStep: Equatable {
+    let state: SerpentineState
+    let coordinate: GeoCoordinate
+    /// idevice 後端不傳方位角;照 Android 算出來(fixture 會驗),但不使用。
+    let bearingDegrees: Double
+}
+
+/// 探索模式的蛇形路線,逐行對應 Android 的 `SerpentinePath`(GFlyer-Suite
+/// docs/features/serpentine-exploration.md §3.1、§3.2、§3.5;contracts/fixtures/explore/serpentine-path.json)。
+/// 第 0 段向北走 Y,奇數段朝推進方向橫移 530 公尺,偶數段縱向走 2Y、(段號 / 2) 是奇數時向南。
+/// 每一步都從上一個座標用大圓 `destination` 走出去。state 全是 Double 的加減與比較,**不要改運算順序**:
+/// 同樣的順序在每個平台得到一模一樣的位元,fixture 的段號才會完全相等。
+enum SerpentinePath {
+    static let horizontalSpacingMetres = 530.0
+    static let defaultVerticalLengthMetres = 1_000
+    static let verticalLengthStepMetres = 100
+    static let minVerticalLengthMetres = 200
+    static let maxVerticalLengthMetres = 5_000
+    static let defaultPreviewSegmentLengthMetres = 40.0
+    static let distanceEpsilon = 0.000_001
+
+    /// 前五段(Y + 530 + 2Y + 530 + 2Y)的兩倍 = 10Y + 2120。
+    static func previewDistanceMetres(verticalLengthMetres: Double) -> Double {
+        2.0 * (5.0 * normalizedVerticalLength(verticalLengthMetres) + 2.0 * horizontalSpacingMetres)
+    }
+
+    /// 從 `current` 沿路線走 `distanceMetres`。一次可以跨過好幾個轉角;剛好停在轉角時 state 已是下一段、
+    /// 進度 0,但回傳的方位角還是剛走完那一段的。距離 ≤ 1e-6 不移動,只回傳正規化後的 state。
+    static func advance(
         current: GeoCoordinate,
-        state: SpiralState,
-        distanceMetres: Double = 5_000,
-        segmentLengthMetres: Double = 40
-    ) -> [GeoCoordinate] {
-        guard distanceMetres > 0 else { return [current] }
-        var points = [current]
-        var nextState = state
+        state: SerpentineState,
+        distanceMetres: Double,
+        verticalLengthMetres: Double,
+        direction: ExplorationDirection
+    ) -> SerpentineStep {
+        let verticalLength = normalizedVerticalLength(verticalLengthMetres)
+        var nextState = normalizeState(state, verticalLengthMetres: verticalLength)
         var nextCoordinate = current
-        var remaining = distanceMetres
-        while remaining > 0 {
+        var remaining = max(distanceMetres, 0)
+        var bearing = bearingDegrees(segmentIndex: nextState.segmentIndex, direction: direction)
+
+        while remaining > distanceEpsilon {
+            let length = segmentLength(segmentIndex: nextState.segmentIndex, verticalLengthMetres: verticalLength)
+            let available = length - nextState.distanceAlongSegmentMetres
+            if available <= distanceEpsilon {
+                nextState = SerpentineState(segmentIndex: nextState.segmentIndex &+ 1)
+                continue
+            }
+
+            let travelled = min(remaining, available)
+            bearing = bearingDegrees(segmentIndex: nextState.segmentIndex, direction: direction)
+            nextCoordinate = GeoMath.destination(from: nextCoordinate, bearingDegrees: bearing, distanceMetres: travelled)
+            remaining -= travelled
+            let progress = nextState.distanceAlongSegmentMetres + travelled
+            if progress >= length - distanceEpsilon {
+                nextState = SerpentineState(segmentIndex: nextState.segmentIndex &+ 1)
+            } else {
+                nextState.distanceAlongSegmentMetres = progress
+            }
+        }
+
+        return SerpentineStep(state: nextState, coordinate: nextCoordinate, bearingDegrees: bearing)
+    }
+
+    /// 地圖上的預覽線:每次最多走 `segmentLengthMetres`(小於 1 用 1),而且每個轉角都是折線的一個頂點。
+    /// `distanceMetres` 是 nil 時用 `previewDistanceMetres`;≤ 0 只回傳 `[current]`。
+    static func preview(
+        current: GeoCoordinate,
+        state: SerpentineState,
+        verticalLengthMetres: Double,
+        direction: ExplorationDirection,
+        distanceMetres: Double? = nil,
+        segmentLengthMetres: Double = defaultPreviewSegmentLengthMetres
+    ) -> [GeoCoordinate] {
+        let distance = distanceMetres ?? previewDistanceMetres(verticalLengthMetres: verticalLengthMetres)
+        guard distance > 0 else { return [current] }
+        let stepLength = max(segmentLengthMetres, 1)
+        let verticalLength = normalizedVerticalLength(verticalLengthMetres)
+        var points = [current]
+        var previewState = normalizeState(state, verticalLengthMetres: verticalLength)
+        var previewCoordinate = current
+        var remaining = distance
+        while remaining > distanceEpsilon {
+            let distanceToCorner = segmentLength(segmentIndex: previewState.segmentIndex, verticalLengthMetres: verticalLength)
+                - previewState.distanceAlongSegmentMetres
+            let travelled = min(stepLength, min(remaining, distanceToCorner))
             let step = advance(
-                center: center,
-                current: nextCoordinate,
-                state: nextState,
-                distanceMetres: min(segmentLengthMetres, remaining)
+                current: previewCoordinate,
+                state: previewState,
+                distanceMetres: travelled,
+                verticalLengthMetres: verticalLength,
+                direction: direction
             )
-            nextState = step.state
-            nextCoordinate = step.coordinate
-            points.append(nextCoordinate)
-            remaining -= segmentLengthMetres
+            previewState = step.state
+            previewCoordinate = step.coordinate
+            points.append(step.coordinate)
+            remaining -= travelled
         }
         return points
+    }
+
+    /// Y 加減鈕:一次 ±100 公尺(方向只取 -1 / +1),夾在 200〜5000。
+    static func adjustedVerticalLength(_ metres: Int, by direction: Int) -> Int {
+        clampedVerticalLength(metres + min(max(direction, -1), 1) * verticalLengthStepMetres)
+    }
+
+    /// 設定裡的 Y(整數公尺)讀寫都夾到 200〜5000,和 Android 的 SettingsStore 相同。
+    static func clampedVerticalLength(_ metres: Int) -> Int {
+        min(max(metres, minVerticalLengthMetres), maxVerticalLengthMetres)
+    }
+
+    static func segmentLength(segmentIndex: Int64, verticalLengthMetres: Double) -> Double {
+        if segmentIndex == 0 { return verticalLengthMetres }
+        if segmentIndex % 2 == 1 { return horizontalSpacingMetres }
+        return verticalLengthMetres * 2.0
+    }
+
+    static func bearingDegrees(segmentIndex: Int64, direction: ExplorationDirection) -> Double {
+        if segmentIndex == 0 { return 0 }
+        if segmentIndex % 2 == 1 { return direction.horizontalBearingDegrees }
+        if (segmentIndex / 2) % 2 == 1 { return 180 }
+        return 0
+    }
+
+    /// 段號負數當 0、進度負數當 0;進度 >= 段長 - 1e-6 就進到下一段,可以連續進位好幾段。
+    /// 段號用 `&+`:和 Kotlin 的 Long 一樣溢位時不當機(實務上不會發生)。
+    private static func normalizeState(_ state: SerpentineState, verticalLengthMetres: Double) -> SerpentineState {
+        var segmentIndex = max(state.segmentIndex, 0)
+        var progress = max(state.distanceAlongSegmentMetres, 0)
+        var length = segmentLength(segmentIndex: segmentIndex, verticalLengthMetres: verticalLengthMetres)
+        while progress >= length - distanceEpsilon {
+            progress = max(progress - length, 0)
+            segmentIndex = segmentIndex &+ 1
+            length = segmentLength(segmentIndex: segmentIndex, verticalLengthMetres: verticalLengthMetres)
+        }
+        return SerpentineState(segmentIndex: segmentIndex, distanceAlongSegmentMetres: progress)
+    }
+
+    private static func normalizedVerticalLength(_ verticalLengthMetres: Double) -> Double {
+        min(max(verticalLengthMetres, Double(minVerticalLengthMetres)), Double(maxVerticalLengthMetres))
+    }
+}
+
+/// 一輪探索實際在用的起點、目前位置、進度與設定。開始時取當下設定的 Y 與方向(之後改設定只影響下一輪);
+/// 中斷恢復時由快照換成(`ActiveSessionSnapshot.resumedExploration`)。
+struct ExplorationRun: Equatable {
+    /// 這一輪的起點(Android 的 `explorationCenter`),存進快照;恢復時不從這裡出發。
+    var center: GeoCoordinate
+    /// 最近一次 `advance` 的結果,和 `state` 成對。
+    var current: GeoCoordinate
+    var state = SerpentineState()
+    var verticalLengthMetres: Double
+    var direction: ExplorationDirection
+}
+
+/// 探索面板與狀態列的文字,和 Android 一字不差(規格 §3.9)。數字固定照繁體中文地區的樣子,
+/// 不跟著裝置的地區設定變。
+enum ExplorationTexts {
+    static let idleTitle = "探索中心"
+    static let activeTitle = "虛擬定位已啟用"
+    static let widthHint = "預設路線寬度為鳥瞰地圖縮至最遠的寬度"
+    static let horizontalSpacing = "X 固定 530 米"
+    static let verticalLengthLabel = "Y"
+    static let decreaseVerticalLength = "減少 Y 值 100 米"
+    static let increaseVerticalLength = "增加 Y 值 100 米"
+    static let startButton = "開始探索"
+    static let exploring = "正在蛇形探索"
+
+    /// 例如「1,000 米」:整數、千分位逗號。
+    static func verticalLength(_ metres: Int) -> String {
+        "\(groupedThousands(metres)) 米"
+    }
+
+    /// 例如「預覽 12.12 公里」:用設定的 Y 算 `previewDistanceMetres`,四捨五入到兩位小數。
+    static func previewDistance(verticalLengthMetres metres: Int) -> String {
+        let kilometres = SerpentinePath.previewDistanceMetres(verticalLengthMetres: Double(metres)) / 1_000
+        return String(format: "預覽 %.2f 公里", kilometres)
+    }
+
+    private static func groupedThousands(_ value: Int) -> String {
+        let digits = String(value.magnitude)
+        var grouped = ""
+        for (index, digit) in digits.enumerated() {
+            if index > 0, (digits.count - index) % 3 == 0 { grouped.append(",") }
+            grouped.append(digit)
+        }
+        return value < 0 ? "-" + grouped : grouped
     }
 }
 
@@ -648,8 +827,4 @@ enum CooldownEstimator {
         default: return 7_200
         }
     }
-}
-
-private extension Double {
-    var radiansToDegrees: Double { self * 180 / .pi }
 }

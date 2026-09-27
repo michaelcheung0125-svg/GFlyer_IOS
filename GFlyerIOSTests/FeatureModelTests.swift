@@ -20,13 +20,6 @@ final class FeatureModelTests: XCTestCase {
         XCTAssertFalse(SpeedScale.exceedsFlowerLimit(20.000013))
     }
 
-    func testSpiralPreviewExpandsOutward() {
-        let center = GeoCoordinate(latitude: 22.3193, longitude: 114.1694)
-        let points = SpiralPath.preview(center: center, current: center, state: SpiralState(), distanceMetres: 1_000, segmentLengthMetres: 100)
-        XCTAssertGreaterThan(points.count, 2)
-        XCTAssertGreaterThan(GeoMath.distanceMetres(from: center, to: points.last!), GeoMath.distanceMetres(from: center, to: points[1]))
-    }
-
     func testTeleportLoopTransitionDoesNotAddWalkBackPoint() {
         let points = [
             GeoCoordinate(latitude: 22.3, longitude: 114.1),

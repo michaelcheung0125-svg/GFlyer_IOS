@@ -1111,4 +1111,981 @@ final class SharedContractTests: XCTestCase {
             XCTAssertEqual(lap, testCase.lap, testCase.name)
         }
     }
+
+    // MARK: - contracts/fixtures/explore/serpentine-path.json
+
+    private struct SerpentineExpectation {
+        let segmentIndex: Int64
+        let distanceAlongSegmentMetres: Double
+        let latitude: Double
+        let longitude: Double
+        let bearingDegrees: Double
+    }
+
+    /// 容差照 fixture 的 tolerance:經緯度 1e-8 度、段內距離 1e-6 公尺;段號與方位角必須完全相等。
+    private func assertSerpentineStep(
+        _ actual: SerpentineStep,
+        _ expected: SerpentineExpectation,
+        _ message: String,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        XCTAssertEqual(actual.state.segmentIndex, expected.segmentIndex, message, file: file, line: line)
+        XCTAssertEqual(
+            actual.state.distanceAlongSegmentMetres,
+            expected.distanceAlongSegmentMetres,
+            accuracy: 1e-6,
+            message,
+            file: file,
+            line: line
+        )
+        XCTAssertEqual(actual.coordinate.latitude, expected.latitude, accuracy: 1e-8, message, file: file, line: line)
+        XCTAssertEqual(actual.coordinate.longitude, expected.longitude, accuracy: 1e-8, message, file: file, line: line)
+        XCTAssertEqual(actual.bearingDegrees, expected.bearingDegrees, message, file: file, line: line)
+    }
+
+    /// constants
+    func testSerpentineConstantsMatchTheSharedFixture() {
+        XCTAssertEqual(SerpentinePath.horizontalSpacingMetres, 530.0)
+        XCTAssertEqual(SerpentinePath.defaultVerticalLengthMetres, 1000)
+        XCTAssertEqual(SerpentinePath.verticalLengthStepMetres, 100)
+        XCTAssertEqual(SerpentinePath.minVerticalLengthMetres, 200)
+        XCTAssertEqual(SerpentinePath.maxVerticalLengthMetres, 5000)
+        XCTAssertEqual(SerpentinePath.defaultPreviewSegmentLengthMetres, 40.0)
+        XCTAssertEqual(SerpentinePath.distanceEpsilon, 1e-06)
+        XCTAssertEqual(ExplorationDirection.west.horizontalBearingDegrees, 270.0)
+        XCTAssertEqual(ExplorationDirection.east.horizontalBearingDegrees, 90.0)
+        // 設定與快照裡存的值和 Android 的 enum 名稱相同
+        XCTAssertEqual(ExplorationDirection.allCases.map(\.rawValue), ["WEST", "EAST"])
+        let defaults = PlaybackSettings()
+        XCTAssertEqual(defaults.explorationVerticalLengthMetres, 1000)
+        XCTAssertEqual(defaults.explorationDirection, .east)
+    }
+
+    /// previewDistance:2 × (5 × clamp(Y) + 2 × 530),含夾限與非整數。
+    func testSerpentinePreviewDistanceMatchesTheSharedFixture() {
+        let cases: [(verticalLengthMetres: Double, expectedMetres: Double)] = [
+            (1000.0, 12120.0),
+            (200.0, 4120.0),
+            (5000.0, 52120.0),
+            (1100.0, 13120.0),
+            (150.0, 4120.0),
+            (6000.0, 52120.0),
+            (1234.5, 14465.0),
+        ]
+        XCTAssertEqual(cases.count, 7)
+        for testCase in cases {
+            XCTAssertEqual(
+                SerpentinePath.previewDistanceMetres(verticalLengthMetres: testCase.verticalLengthMetres),
+                testCase.expectedMetres,
+                accuracy: 1e-6,
+                "Y=\(testCase.verticalLengthMetres)"
+            )
+        }
+    }
+
+    /// segments:每組 (Y, 方向) 的段長與方位角,段號 0–8 與 999–1002。
+    func testSerpentineSegmentsMatchTheSharedFixture() {
+        let groups: [(verticalLengthMetres: Double, direction: ExplorationDirection,
+                      segments: [(index: Int64, lengthMetres: Double, bearingDegrees: Double)])] = [
+            (1000.0, .east, [
+                (0, 1000.0, 0.0),
+                (1, 530.0, 90.0),
+                (2, 2000.0, 180.0),
+                (3, 530.0, 90.0),
+                (4, 2000.0, 0.0),
+                (5, 530.0, 90.0),
+                (6, 2000.0, 180.0),
+                (7, 530.0, 90.0),
+                (8, 2000.0, 0.0),
+                (999, 530.0, 90.0),
+                (1000, 2000.0, 0.0),
+                (1001, 530.0, 90.0),
+                (1002, 2000.0, 180.0),
+            ]),
+            (1000.0, .west, [
+                (0, 1000.0, 0.0),
+                (1, 530.0, 270.0),
+                (2, 2000.0, 180.0),
+                (3, 530.0, 270.0),
+                (4, 2000.0, 0.0),
+                (5, 530.0, 270.0),
+                (6, 2000.0, 180.0),
+                (7, 530.0, 270.0),
+                (8, 2000.0, 0.0),
+                (999, 530.0, 270.0),
+                (1000, 2000.0, 0.0),
+                (1001, 530.0, 270.0),
+                (1002, 2000.0, 180.0),
+            ]),
+            (200.0, .east, [
+                (0, 200.0, 0.0),
+                (1, 530.0, 90.0),
+                (2, 400.0, 180.0),
+                (3, 530.0, 90.0),
+                (4, 400.0, 0.0),
+                (5, 530.0, 90.0),
+                (6, 400.0, 180.0),
+                (7, 530.0, 90.0),
+                (8, 400.0, 0.0),
+                (999, 530.0, 90.0),
+                (1000, 400.0, 0.0),
+                (1001, 530.0, 90.0),
+                (1002, 400.0, 180.0),
+            ]),
+            (5000.0, .west, [
+                (0, 5000.0, 0.0),
+                (1, 530.0, 270.0),
+                (2, 10000.0, 180.0),
+                (3, 530.0, 270.0),
+                (4, 10000.0, 0.0),
+                (5, 530.0, 270.0),
+                (6, 10000.0, 180.0),
+                (7, 530.0, 270.0),
+                (8, 10000.0, 0.0),
+                (999, 530.0, 270.0),
+                (1000, 10000.0, 0.0),
+                (1001, 530.0, 270.0),
+                (1002, 10000.0, 180.0),
+            ]),
+        ]
+        XCTAssertEqual(groups.count, 4)
+        for group in groups {
+            for segment in group.segments {
+                let name = "Y=\(group.verticalLengthMetres) \(group.direction.rawValue) #\(segment.index)"
+                XCTAssertEqual(
+                    SerpentinePath.segmentLength(segmentIndex: segment.index, verticalLengthMetres: group.verticalLengthMetres),
+                    segment.lengthMetres,
+                    name
+                )
+                XCTAssertEqual(
+                    SerpentinePath.bearingDegrees(segmentIndex: segment.index, direction: group.direction),
+                    segment.bearingDegrees,
+                    name
+                )
+            }
+        }
+    }
+
+    /// advance:單次 advance,涵蓋規格 §3.2 表格的每一列、高緯度、南半球、跨換日線。
+    func testSerpentineAdvanceMatchesTheSharedFixture() {
+        let cases: [(name: String, start: GeoCoordinate, state: SerpentineState, distanceMetres: Double,
+                     verticalLengthMetres: Double, direction: ExplorationDirection,
+                     expected: SerpentineExpectation)] = [
+            (
+                "first-tick-heads-north",
+                GeoCoordinate(latitude: 22.3193, longitude: 114.1694),
+                SerpentineState(segmentIndex: 0, distanceAlongSegmentMetres: 0.0),
+                62.5,
+                1000.0,
+                .east,
+                SerpentineExpectation(
+                    segmentIndex: 0,
+                    distanceAlongSegmentMetres: 62.5,
+                    latitude: 22.319862076,
+                    longitude: 114.1694,
+                    bearingDegrees: 0.0
+                )
+            ),
+            (
+                "exactly-to-first-corner-keeps-north-bearing",
+                GeoCoordinate(latitude: 22.3193, longitude: 114.1694),
+                SerpentineState(segmentIndex: 0, distanceAlongSegmentMetres: 0.0),
+                1000.0,
+                1000.0,
+                .east,
+                SerpentineExpectation(
+                    segmentIndex: 1,
+                    distanceAlongSegmentMetres: 0.0,
+                    latitude: 22.3282932161,
+                    longitude: 114.1694,
+                    bearingDegrees: 0.0
+                )
+            ),
+            (
+                "within-epsilon-of-corner-counts-as-corner",
+                GeoCoordinate(latitude: 22.3193, longitude: 114.1694),
+                SerpentineState(segmentIndex: 0, distanceAlongSegmentMetres: 0.0),
+                999.9999995,
+                1000.0,
+                .east,
+                SerpentineExpectation(
+                    segmentIndex: 1,
+                    distanceAlongSegmentMetres: 0.0,
+                    latitude: 22.3282932161,
+                    longitude: 114.1694,
+                    bearingDegrees: 0.0
+                )
+            ),
+            (
+                "crossing-first-corner-turns-east",
+                GeoCoordinate(latitude: 22.3193, longitude: 114.1694),
+                SerpentineState(segmentIndex: 0, distanceAlongSegmentMetres: 990.0),
+                20.0,
+                1000.0,
+                .east,
+                SerpentineExpectation(
+                    segmentIndex: 1,
+                    distanceAlongSegmentMetres: 10.0,
+                    latitude: 22.3193899321,
+                    longitude: 114.1694972154,
+                    bearingDegrees: 90.0
+                )
+            ),
+            (
+                "crossing-first-corner-turns-west",
+                GeoCoordinate(latitude: 22.3193, longitude: 114.1694),
+                SerpentineState(segmentIndex: 0, distanceAlongSegmentMetres: 990.0),
+                20.0,
+                1000.0,
+                .west,
+                SerpentineExpectation(
+                    segmentIndex: 1,
+                    distanceAlongSegmentMetres: 10.0,
+                    latitude: 22.3193899321,
+                    longitude: 114.1693027846,
+                    bearingDegrees: 270.0
+                )
+            ),
+            (
+                "one-advance-crosses-three-corners",
+                GeoCoordinate(latitude: 22.3193, longitude: 114.1694),
+                SerpentineState(segmentIndex: 0, distanceAlongSegmentMetres: 0.0),
+                3555.0,
+                1000.0,
+                .east,
+                SerpentineExpectation(
+                    segmentIndex: 3,
+                    distanceAlongSegmentMetres: 25.0,
+                    latitude: 22.3103067023,
+                    longitude: 114.1747957687,
+                    bearingDegrees: 90.0
+                )
+            ),
+            (
+                "second-vertical-heads-south",
+                GeoCoordinate(latitude: 22.3193, longitude: 114.1694),
+                SerpentineState(segmentIndex: 2, distanceAlongSegmentMetres: 0.0),
+                100.0,
+                1000.0,
+                .east,
+                SerpentineExpectation(
+                    segmentIndex: 2,
+                    distanceAlongSegmentMetres: 100.0,
+                    latitude: 22.3184006784,
+                    longitude: 114.1694,
+                    bearingDegrees: 180.0
+                )
+            ),
+            (
+                "third-vertical-heads-north",
+                GeoCoordinate(latitude: 22.3193, longitude: 114.1694),
+                SerpentineState(segmentIndex: 4, distanceAlongSegmentMetres: 0.0),
+                100.0,
+                1000.0,
+                .west,
+                SerpentineExpectation(
+                    segmentIndex: 4,
+                    distanceAlongSegmentMetres: 100.0,
+                    latitude: 22.3201993216,
+                    longitude: 114.1694,
+                    bearingDegrees: 0.0
+                )
+            ),
+            (
+                "fourth-vertical-heads-south-then-turns",
+                GeoCoordinate(latitude: 22.3193, longitude: 114.1694),
+                SerpentineState(segmentIndex: 6, distanceAlongSegmentMetres: 1999.5),
+                1.0,
+                1000.0,
+                .east,
+                SerpentineExpectation(
+                    segmentIndex: 7,
+                    distanceAlongSegmentMetres: 0.5,
+                    latitude: 22.3192955034,
+                    longitude: 114.1694048608,
+                    bearingDegrees: 90.0
+                )
+            ),
+            (
+                "zero-distance-does-not-move",
+                GeoCoordinate(latitude: 22.3193, longitude: 114.1694),
+                SerpentineState(segmentIndex: 3, distanceAlongSegmentMetres: 100.0),
+                0.0,
+                1000.0,
+                .east,
+                SerpentineExpectation(
+                    segmentIndex: 3,
+                    distanceAlongSegmentMetres: 100.0,
+                    latitude: 22.3193,
+                    longitude: 114.1694,
+                    bearingDegrees: 90.0
+                )
+            ),
+            (
+                "negative-distance-is-zero",
+                GeoCoordinate(latitude: 22.3193, longitude: 114.1694),
+                SerpentineState(segmentIndex: 3, distanceAlongSegmentMetres: 100.0),
+                -5.0,
+                1000.0,
+                .east,
+                SerpentineExpectation(
+                    segmentIndex: 3,
+                    distanceAlongSegmentMetres: 100.0,
+                    latitude: 22.3193,
+                    longitude: 114.1694,
+                    bearingDegrees: 90.0
+                )
+            ),
+            (
+                "distance-below-epsilon-does-not-move",
+                GeoCoordinate(latitude: 22.3193, longitude: 114.1694),
+                SerpentineState(segmentIndex: 3, distanceAlongSegmentMetres: 100.0),
+                5e-07,
+                1000.0,
+                .east,
+                SerpentineExpectation(
+                    segmentIndex: 3,
+                    distanceAlongSegmentMetres: 100.0,
+                    latitude: 22.3193,
+                    longitude: 114.1694,
+                    bearingDegrees: 90.0
+                )
+            ),
+            (
+                "overflowing-state-is-normalized-without-moving",
+                GeoCoordinate(latitude: 22.3193, longitude: 114.1694),
+                SerpentineState(segmentIndex: 0, distanceAlongSegmentMetres: 1600.0),
+                0.0,
+                1000.0,
+                .east,
+                SerpentineExpectation(
+                    segmentIndex: 2,
+                    distanceAlongSegmentMetres: 70.0,
+                    latitude: 22.3193,
+                    longitude: 114.1694,
+                    bearingDegrees: 180.0
+                )
+            ),
+            (
+                "state-at-corner-within-epsilon-is-normalized",
+                GeoCoordinate(latitude: 22.3193, longitude: 114.1694),
+                SerpentineState(segmentIndex: 0, distanceAlongSegmentMetres: 999.9999995),
+                0.0,
+                1000.0,
+                .west,
+                SerpentineExpectation(
+                    segmentIndex: 1,
+                    distanceAlongSegmentMetres: 0.0,
+                    latitude: 22.3193,
+                    longitude: 114.1694,
+                    bearingDegrees: 270.0
+                )
+            ),
+            (
+                "negative-state-is-clamped-to-start",
+                GeoCoordinate(latitude: 22.3193, longitude: 114.1694),
+                SerpentineState(segmentIndex: -3, distanceAlongSegmentMetres: -10.0),
+                50.0,
+                1000.0,
+                .east,
+                SerpentineExpectation(
+                    segmentIndex: 0,
+                    distanceAlongSegmentMetres: 50.0,
+                    latitude: 22.3197496608,
+                    longitude: 114.1694,
+                    bearingDegrees: 0.0
+                )
+            ),
+            (
+                "vertical-below-minimum-uses-200",
+                GeoCoordinate(latitude: 22.3193, longitude: 114.1694),
+                SerpentineState(segmentIndex: 0, distanceAlongSegmentMetres: 0.0),
+                250.0,
+                50.0,
+                .east,
+                SerpentineExpectation(
+                    segmentIndex: 1,
+                    distanceAlongSegmentMetres: 50.0,
+                    latitude: 22.3210986425,
+                    longitude: 114.169886083,
+                    bearingDegrees: 90.0
+                )
+            ),
+            (
+                "vertical-above-maximum-uses-5000",
+                GeoCoordinate(latitude: 22.3193, longitude: 114.1694),
+                SerpentineState(segmentIndex: 0, distanceAlongSegmentMetres: 0.0),
+                5100.0,
+                9000.0,
+                .west,
+                SerpentineExpectation(
+                    segmentIndex: 1,
+                    distanceAlongSegmentMetres: 100.0,
+                    latitude: 22.3642660774,
+                    longitude: 114.1684275328,
+                    bearingDegrees: 270.0
+                )
+            ),
+            (
+                "large-even-index-heads-south",
+                GeoCoordinate(latitude: 22.3193, longitude: 114.1694),
+                SerpentineState(segmentIndex: 1000002, distanceAlongSegmentMetres: 5.0),
+                10.0,
+                1000.0,
+                .east,
+                SerpentineExpectation(
+                    segmentIndex: 1000002,
+                    distanceAlongSegmentMetres: 15.0,
+                    latitude: 22.3192100678,
+                    longitude: 114.1694,
+                    bearingDegrees: 180.0
+                )
+            ),
+            (
+                "large-odd-index-is-horizontal",
+                GeoCoordinate(latitude: 22.3193, longitude: 114.1694),
+                SerpentineState(segmentIndex: 1000001, distanceAlongSegmentMetres: 5.0),
+                10.0,
+                1000.0,
+                .west,
+                SerpentineExpectation(
+                    segmentIndex: 1000001,
+                    distanceAlongSegmentMetres: 15.0,
+                    latitude: 22.3193,
+                    longitude: 114.1693027846,
+                    bearingDegrees: 270.0
+                )
+            ),
+            (
+                "high-latitude-west",
+                GeoCoordinate(latitude: 64.1466, longitude: -21.9426),
+                SerpentineState(segmentIndex: 0, distanceAlongSegmentMetres: 0.0),
+                5630.0,
+                5000.0,
+                .west,
+                SerpentineExpectation(
+                    segmentIndex: 2,
+                    distanceAlongSegmentMetres: 100.0,
+                    latitude: 64.1906663487,
+                    longitude: -21.9535481,
+                    bearingDegrees: 180.0
+                )
+            ),
+            (
+                "southern-hemisphere-east",
+                GeoCoordinate(latitude: -33.8688, longitude: 151.2093),
+                SerpentineState(segmentIndex: 1, distanceAlongSegmentMetres: 500.0),
+                40.0,
+                2500.0,
+                .east,
+                SerpentineExpectation(
+                    segmentIndex: 2,
+                    distanceAlongSegmentMetres: 10.0,
+                    latitude: -33.8688899317,
+                    longitude: 151.2096249323,
+                    bearingDegrees: 180.0
+                )
+            ),
+            (
+                "east-across-antimeridian-wraps",
+                GeoCoordinate(latitude: -16.5, longitude: 179.997),
+                SerpentineState(segmentIndex: 1, distanceAlongSegmentMetres: 0.0),
+                530.0,
+                1000.0,
+                .east,
+                SerpentineExpectation(
+                    segmentIndex: 2,
+                    distanceAlongSegmentMetres: 0.0,
+                    latitude: -16.4999999413,
+                    longitude: -179.9980288836,
+                    bearingDegrees: 90.0
+                )
+            ),
+        ]
+        XCTAssertEqual(cases.count, 22)
+        for testCase in cases {
+            let step = SerpentinePath.advance(
+                current: testCase.start,
+                state: testCase.state,
+                distanceMetres: testCase.distanceMetres,
+                verticalLengthMetres: testCase.verticalLengthMetres,
+                direction: testCase.direction
+            )
+            assertSerpentineStep(step, testCase.expected, testCase.name)
+        }
+    }
+
+    /// walks:模擬 tick 迴圈,每次以上一次的結果呼叫 advance。每步距離直接用 fixture 的
+    /// distancePerAdvanceMetres(Android 的速度是 Float m/s,自己由速度換算會差一點點)。
+    func testSerpentineWalksMatchTheSharedFixture() {
+        let walks: [(name: String, start: GeoCoordinate, state: SerpentineState, verticalLengthMetres: Double,
+                     direction: ExplorationDirection, distancePerAdvanceMetres: Double, advances: Int,
+                     samples: [(afterAdvances: Int, expected: SerpentineExpectation)])] = [
+            (
+                "bicycle-19kmh-east-v1000",
+                GeoCoordinate(latitude: 22.3193, longitude: 114.1694),
+                SerpentineState(segmentIndex: 0, distanceAlongSegmentMetres: 0.0),
+                1000.0,
+                .east,
+                1.3194444444444444,
+                3600,
+                [
+                    (400, SerpentineExpectation(
+                        segmentIndex: 0,
+                        distanceAlongSegmentMetres: 527.777777778,
+                        latitude: 22.3240464196,
+                        longitude: 114.1694,
+                        bearingDegrees: 0.0
+                    )),
+                    (800, SerpentineExpectation(
+                        segmentIndex: 1,
+                        distanceAlongSegmentMetres: 55.555555556,
+                        latitude: 22.328293216,
+                        longitude: 114.1699401201,
+                        bearingDegrees: 90.0
+                    )),
+                    (1200, SerpentineExpectation(
+                        segmentIndex: 2,
+                        distanceAlongSegmentMetres: 53.333333333,
+                        latitude: 22.3278135777,
+                        longitude: 114.1745527459,
+                        bearingDegrees: 180.0
+                    )),
+                    (1600, SerpentineExpectation(
+                        segmentIndex: 2,
+                        distanceAlongSegmentMetres: 581.111111111,
+                        latitude: 22.3230671581,
+                        longitude: 114.1745527459,
+                        bearingDegrees: 180.0
+                    )),
+                    (2000, SerpentineExpectation(
+                        segmentIndex: 2,
+                        distanceAlongSegmentMetres: 1108.888888889,
+                        latitude: 22.3183207385,
+                        longitude: 114.1745527459,
+                        bearingDegrees: 180.0
+                    )),
+                    (2400, SerpentineExpectation(
+                        segmentIndex: 2,
+                        distanceAlongSegmentMetres: 1636.666666667,
+                        latitude: 22.3135743189,
+                        longitude: 114.1745527459,
+                        bearingDegrees: 180.0
+                    )),
+                    (2800, SerpentineExpectation(
+                        segmentIndex: 3,
+                        distanceAlongSegmentMetres: 164.444444444,
+                        latitude: 22.3103067837,
+                        longitude: 114.1761512955,
+                        bearingDegrees: 90.0
+                    )),
+                    (3200, SerpentineExpectation(
+                        segmentIndex: 4,
+                        distanceAlongSegmentMetres: 162.222222222,
+                        latitude: 22.311765683,
+                        longitude: 114.1797048279,
+                        bearingDegrees: 0.0
+                    )),
+                    (3600, SerpentineExpectation(
+                        segmentIndex: 4,
+                        distanceAlongSegmentMetres: 690.0,
+                        latitude: 22.3165121026,
+                        longitude: 114.1797048279,
+                        bearingDegrees: 0.0
+                    )),
+                ]
+            ),
+            (
+                "airplane-900kmh-west-v200",
+                GeoCoordinate(latitude: 25.033964, longitude: 121.564468),
+                SerpentineState(segmentIndex: 0, distanceAlongSegmentMetres: 0.0),
+                200.0,
+                .west,
+                62.5,
+                480,
+                [
+                    (60, SerpentineExpectation(
+                        segmentIndex: 8,
+                        distanceAlongSegmentMetres: 230.0,
+                        latitude: 25.0342337545,
+                        longitude: 121.5434255978,
+                        bearingDegrees: 0.0
+                    )),
+                    (120, SerpentineExpectation(
+                        segmentIndex: 16,
+                        distanceAlongSegmentMetres: 260.0,
+                        latitude: 25.034503509,
+                        longitude: 121.5223831956,
+                        bearingDegrees: 0.0
+                    )),
+                    (180, SerpentineExpectation(
+                        segmentIndex: 24,
+                        distanceAlongSegmentMetres: 290.0,
+                        latitude: 25.0347732635,
+                        longitude: 121.5013407934,
+                        bearingDegrees: 0.0
+                    )),
+                    (240, SerpentineExpectation(
+                        segmentIndex: 32,
+                        distanceAlongSegmentMetres: 320.0,
+                        latitude: 25.035043018,
+                        longitude: 121.4802983912,
+                        bearingDegrees: 0.0
+                    )),
+                    (300, SerpentineExpectation(
+                        segmentIndex: 40,
+                        distanceAlongSegmentMetres: 350.0,
+                        latitude: 25.0353127726,
+                        longitude: 121.4592559891,
+                        bearingDegrees: 0.0
+                    )),
+                    (360, SerpentineExpectation(
+                        segmentIndex: 48,
+                        distanceAlongSegmentMetres: 380.0,
+                        latitude: 25.0355825271,
+                        longitude: 121.4382135869,
+                        bearingDegrees: 0.0
+                    )),
+                    (420, SerpentineExpectation(
+                        segmentIndex: 57,
+                        distanceAlongSegmentMetres: 10.0,
+                        latitude: 25.0357623494,
+                        longitude: 121.4170719267,
+                        bearingDegrees: 270.0
+                    )),
+                    (480, SerpentineExpectation(
+                        segmentIndex: 65,
+                        distanceAlongSegmentMetres: 40.0,
+                        latitude: 25.035762307,
+                        longitude: 121.3957317503,
+                        bearingDegrees: 270.0
+                    )),
+                ]
+            ),
+            (
+                "walk-5kmh-east-v200-high-latitude",
+                GeoCoordinate(latitude: 64.1466, longitude: -21.9426),
+                SerpentineState(segmentIndex: 0, distanceAlongSegmentMetres: 0.0),
+                200.0,
+                .east,
+                0.3472222222222222,
+                2400,
+                [
+                    (300, SerpentineExpectation(
+                        segmentIndex: 0,
+                        distanceAlongSegmentMetres: 104.166666667,
+                        latitude: 64.1475367933,
+                        longitude: -21.9426,
+                        bearingDegrees: 0.0
+                    )),
+                    (600, SerpentineExpectation(
+                        segmentIndex: 1,
+                        distanceAlongSegmentMetres: 8.333333333,
+                        latitude: 64.1483986432,
+                        longitude: -21.9424281278,
+                        bearingDegrees: 90.0
+                    )),
+                    (900, SerpentineExpectation(
+                        segmentIndex: 1,
+                        distanceAlongSegmentMetres: 112.5,
+                        latitude: 64.1483986432,
+                        longitude: -21.940279725,
+                        bearingDegrees: 90.0
+                    )),
+                    (1200, SerpentineExpectation(
+                        segmentIndex: 1,
+                        distanceAlongSegmentMetres: 216.666666667,
+                        latitude: 64.1483986431,
+                        longitude: -21.9381313222,
+                        bearingDegrees: 90.0
+                    )),
+                    (1500, SerpentineExpectation(
+                        segmentIndex: 1,
+                        distanceAlongSegmentMetres: 320.833333333,
+                        latitude: 64.1483986431,
+                        longitude: -21.9359829194,
+                        bearingDegrees: 90.0
+                    )),
+                    (1800, SerpentineExpectation(
+                        segmentIndex: 1,
+                        distanceAlongSegmentMetres: 425.0,
+                        latitude: 64.148398643,
+                        longitude: -21.9338345166,
+                        bearingDegrees: 90.0
+                    )),
+                    (2100, SerpentineExpectation(
+                        segmentIndex: 1,
+                        distanceAlongSegmentMetres: 529.166666667,
+                        latitude: 64.1483986429,
+                        longitude: -21.9316861138,
+                        bearingDegrees: 90.0
+                    )),
+                    (2400, SerpentineExpectation(
+                        segmentIndex: 2,
+                        distanceAlongSegmentMetres: 103.333333333,
+                        latitude: 64.147469344,
+                        longitude: -21.9316689266,
+                        bearingDegrees: 180.0
+                    )),
+                ]
+            ),
+            (
+                "car-50kmh-west-v5000-continues-saved-state",
+                GeoCoordinate(latitude: -33.8688, longitude: 151.2093),
+                SerpentineState(segmentIndex: 6, distanceAlongSegmentMetres: 7000.25),
+                5000.0,
+                .west,
+                3.4722222222222223,
+                3000,
+                [
+                    (375, SerpentineExpectation(
+                        segmentIndex: 6,
+                        distanceAlongSegmentMetres: 8302.333333333,
+                        latitude: -33.8805099167,
+                        longitude: 151.2093,
+                        bearingDegrees: 180.0
+                    )),
+                    (750, SerpentineExpectation(
+                        segmentIndex: 6,
+                        distanceAlongSegmentMetres: 9604.416666667,
+                        latitude: -33.8922198335,
+                        longitude: 151.2093,
+                        bearingDegrees: 180.0
+                    )),
+                    (1125, SerpentineExpectation(
+                        segmentIndex: 8,
+                        distanceAlongSegmentMetres: 376.5,
+                        latitude: -33.8923914532,
+                        longitude: 151.2035577133,
+                        bearingDegrees: 0.0
+                    )),
+                    (1500, SerpentineExpectation(
+                        segmentIndex: 8,
+                        distanceAlongSegmentMetres: 1678.583333334,
+                        latitude: -33.8806815364,
+                        longitude: 151.2035577133,
+                        bearingDegrees: 0.0
+                    )),
+                    (1875, SerpentineExpectation(
+                        segmentIndex: 8,
+                        distanceAlongSegmentMetres: 2980.666666667,
+                        latitude: -33.8689716197,
+                        longitude: 151.2035577133,
+                        bearingDegrees: 0.0
+                    )),
+                    (2250, SerpentineExpectation(
+                        segmentIndex: 8,
+                        distanceAlongSegmentMetres: 4282.75,
+                        latitude: -33.8572617029,
+                        longitude: 151.2035577133,
+                        bearingDegrees: 0.0
+                    )),
+                    (2625, SerpentineExpectation(
+                        segmentIndex: 8,
+                        distanceAlongSegmentMetres: 5584.833333334,
+                        latitude: -33.8455517862,
+                        longitude: 151.2035577133,
+                        bearingDegrees: 0.0
+                    )),
+                    (3000, SerpentineExpectation(
+                        segmentIndex: 8,
+                        distanceAlongSegmentMetres: 6886.916666667,
+                        latitude: -33.8338418694,
+                        longitude: 151.2035577133,
+                        bearingDegrees: 0.0
+                    )),
+                ]
+            ),
+            (
+                "airplane-900kmh-east-across-antimeridian",
+                GeoCoordinate(latitude: -16.5, longitude: 179.997),
+                SerpentineState(segmentIndex: 1, distanceAlongSegmentMetres: 0.0),
+                1000.0,
+                .east,
+                62.5,
+                100,
+                [
+                    (20, SerpentineExpectation(
+                        segmentIndex: 2,
+                        distanceAlongSegmentMetres: 720.0,
+                        latitude: -16.5064751088,
+                        longitude: -179.9980288836,
+                        bearingDegrees: 180.0
+                    )),
+                    (40, SerpentineExpectation(
+                        segmentIndex: 2,
+                        distanceAlongSegmentMetres: 1970.0,
+                        latitude: -16.5177166289,
+                        longitude: -179.9980288836,
+                        bearingDegrees: 180.0
+                    )),
+                    (60, SerpentineExpectation(
+                        segmentIndex: 4,
+                        distanceAlongSegmentMetres: 690.0,
+                        latitude: -16.5117810996,
+                        longitude: -179.9930573047,
+                        bearingDegrees: 0.0
+                    )),
+                    (80, SerpentineExpectation(
+                        segmentIndex: 4,
+                        distanceAlongSegmentMetres: 1940.0,
+                        latitude: -16.5005395795,
+                        longitude: -179.9930573047,
+                        bearingDegrees: 0.0
+                    )),
+                    (100, SerpentineExpectation(
+                        segmentIndex: 6,
+                        distanceAlongSegmentMetres: 660.0,
+                        latitude: -16.5059355025,
+                        longitude: -179.9880861882,
+                        bearingDegrees: 180.0
+                    )),
+                ]
+            ),
+        ]
+        XCTAssertEqual(walks.count, 5)
+        for walk in walks {
+            var step = SerpentineStep(state: walk.state, coordinate: walk.start, bearingDegrees: 0)
+            var samples = walk.samples[...]
+            for advance in 1...walk.advances {
+                step = SerpentinePath.advance(
+                    current: step.coordinate,
+                    state: step.state,
+                    distanceMetres: walk.distancePerAdvanceMetres,
+                    verticalLengthMetres: walk.verticalLengthMetres,
+                    direction: walk.direction
+                )
+                if let sample = samples.first, sample.afterAdvances == advance {
+                    assertSerpentineStep(step, sample.expected, "\(walk.name) after \(advance)")
+                    samples = samples.dropFirst()
+                }
+            }
+            XCTAssertTrue(samples.isEmpty, "\(walk.name): 取樣點沒有全部比對到")
+        }
+    }
+
+    /// previews:點數與取樣點,含預設參數、從中途 state、每個轉角都有點、步長小於 1、距離 0。
+    func testSerpentinePreviewsMatchTheSharedFixture() {
+        let cases: [(name: String, start: GeoCoordinate, state: SerpentineState, verticalLengthMetres: Double,
+                     direction: ExplorationDirection, distanceMetres: Double?, segmentLengthMetres: Double?,
+                     pointCount: Int, samples: [(index: Int, latitude: Double, longitude: Double)])] = [
+            (
+                "default-v1000-east-from-start",
+                GeoCoordinate(latitude: 22.3193, longitude: 114.1694),
+                SerpentineState(segmentIndex: 0, distanceAlongSegmentMetres: 0.0),
+                1000.0,
+                .east,
+                nil,
+                nil,
+                308,
+                [
+                    (0, 22.3193, 114.1694),
+                    (1, 22.3196597286, 114.1694),
+                    (25, 22.3282932161, 114.1694),
+                    (39, 22.32829321, 114.1745527459),
+                    (89, 22.3103067779, 114.1745527459),
+                    (295, 22.3282931858, 114.1951624016),
+                    (306, 22.3243361707, 114.1951624016),
+                    (307, 22.3240663742, 114.1951624016),
+                ]
+            ),
+            (
+                "default-v2500-west-mid-route",
+                GeoCoordinate(latitude: 25.033964, longitude: 121.564468),
+                SerpentineState(segmentIndex: 3, distanceAlongSegmentMetres: 100.0),
+                2500.0,
+                .west,
+                nil,
+                nil,
+                683,
+                [
+                    (0, 25.033964, 121.564468),
+                    (1, 25.0339639995, 121.5640709735),
+                    (341, 25.05266987, 121.549676834),
+                    (681, 25.0749730321, 121.5391537024),
+                    (682, 25.0750629642, 121.5391537024),
+                ]
+            ),
+            (
+                "stops-at-every-corner",
+                GeoCoordinate(latitude: 22.3193, longitude: 114.1694),
+                SerpentineState(segmentIndex: 0, distanceAlongSegmentMetres: 990.0),
+                1000.0,
+                .east,
+                100.0,
+                40.0,
+                5,
+                [
+                    (0, 22.3193, 114.1694),
+                    (1, 22.3193899322, 114.1694),
+                    (2, 22.3193899317, 114.1697888617),
+                    (3, 22.3193899312, 114.1701777233),
+                    (4, 22.3193899312, 114.1702749388),
+                ]
+            ),
+            (
+                "sub-metre-step-is-raised-to-one-metre",
+                GeoCoordinate(latitude: 22.3193, longitude: 114.1694),
+                SerpentineState(segmentIndex: 0, distanceAlongSegmentMetres: 0.0),
+                1000.0,
+                .east,
+                3.5,
+                0.5,
+                5,
+                [
+                    (0, 22.3193, 114.1694),
+                    (1, 22.3193089932, 114.1694),
+                    (2, 22.3193179864, 114.1694),
+                    (3, 22.3193269796, 114.1694),
+                    (4, 22.3193314763, 114.1694),
+                ]
+            ),
+            (
+                "zero-distance-returns-current-only",
+                GeoCoordinate(latitude: 22.3193, longitude: 114.1694),
+                SerpentineState(segmentIndex: 2, distanceAlongSegmentMetres: 10.0),
+                1000.0,
+                .east,
+                0.0,
+                40.0,
+                1,
+                [
+                    (0, 22.3193, 114.1694),
+                ]
+            ),
+        ]
+        XCTAssertEqual(cases.count, 5)
+        for testCase in cases {
+            let points: [GeoCoordinate]
+            if let segmentLength = testCase.segmentLengthMetres {
+                points = SerpentinePath.preview(
+                    current: testCase.start,
+                    state: testCase.state,
+                    verticalLengthMetres: testCase.verticalLengthMetres,
+                    direction: testCase.direction,
+                    distanceMetres: testCase.distanceMetres,
+                    segmentLengthMetres: segmentLength
+                )
+            } else {
+                // 預設參數:距離 previewDistanceMetres(Y)、步長 40
+                points = SerpentinePath.preview(
+                    current: testCase.start,
+                    state: testCase.state,
+                    verticalLengthMetres: testCase.verticalLengthMetres,
+                    direction: testCase.direction
+                )
+            }
+            XCTAssertEqual(points.count, testCase.pointCount, testCase.name)
+            for sample in testCase.samples {
+                guard points.indices.contains(sample.index) else {
+                    XCTFail("\(testCase.name): missing point \(sample.index)")
+                    continue
+                }
+                let point = points[sample.index]
+                XCTAssertEqual(point.latitude, sample.latitude, accuracy: 1e-8, "\(testCase.name) #\(sample.index)")
+                XCTAssertEqual(point.longitude, sample.longitude, accuracy: 1e-8, "\(testCase.name) #\(sample.index)")
+            }
+        }
+    }
 }
