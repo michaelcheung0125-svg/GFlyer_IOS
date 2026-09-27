@@ -76,6 +76,31 @@ final class SharedContractTests: XCTestCase {
         }
     }
 
+    /// contracts/fixtures/gpx/import-names.json(DRIFT D18)
+    @MainActor
+    func testGpxImportNamesMatchTheSharedFixture() {
+        XCTAssertEqual(SimulationController.gpxImportFallbackName, "匯入路線")
+        let road80 = String(repeating: "路", count: 80)
+        let road85 = String(repeating: "路", count: 85)
+        let road78Numbered = String(repeating: "路", count: 78) + " 2"
+        let cases: [(name: String, existing: [String], gpxNames: [String?], expected: [String])] = [
+            ("names-come-from-the-gpx", [], ["台北一日遊", "需要 & 跳脫的 <名稱>"], ["台北一日遊", "需要 & 跳脫的 <名稱>"]),
+            ("missing-names-use-the-fallback", [], [nil, nil, nil], ["匯入路線", "匯入路線 2", "匯入路線 3"]),
+            ("never-overwrites-an-existing-route", ["台北一日遊", "匯入路線"], ["台北一日遊", nil], ["台北一日遊 2", "匯入路線 2"]),
+            ("same-name-twice-in-one-import", [], ["Loop", "Loop"], ["Loop", "Loop 2"]),
+            ("comparison-ignores-case", ["harbour"], ["Harbour", "HARBOUR"], ["Harbour 2", "HARBOUR 3"]),
+            ("long-name-is-truncated", [], [road85], [road80]),
+            ("long-name-makes-room-for-the-number", [road80], [road85], [road78Numbered]),
+        ]
+        for testCase in cases {
+            let names = SimulationController.importedRouteNames(
+                for: testCase.gpxNames,
+                existingLowercased: Set(testCase.existing.map { $0.lowercased() })
+            )
+            XCTAssertEqual(names, testCase.expected, testCase.name)
+        }
+    }
+
     func testStartDelayKeepsPreferringTheSmallerOptionOnTie() {
         var settings = PlaybackSettings()
         settings.startDelaySeconds = 4

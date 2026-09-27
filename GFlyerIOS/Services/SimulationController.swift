@@ -815,13 +815,12 @@ final class SimulationController: ObservableObject {
             lastError = "GPX 檔案中找不到可用路線（每條路線至少需要兩個座標）。"
             return 0
         }
-        var existingNames = Set(savedRoutes.map { $0.name.lowercased() })
-        var namedRoutes: [(name: String, points: [GeoCoordinate], loop: Bool)] = []
-        for route in imported {
-            let base = route.name.map { $0.prefixCodePoints(80) } ?? "匯入路線"
-            let name = Self.uniqueRouteName(base: base, existingLowercased: existingNames)
-            existingNames.insert(name.lowercased())
-            namedRoutes.append((name: name, points: route.points, loop: false))
+        let names = Self.importedRouteNames(
+            for: imported.map(\.name),
+            existingLowercased: Set(savedRoutes.map { $0.name.lowercased() })
+        )
+        let namedRoutes: [(name: String, points: [GeoCoordinate], loop: Bool)] = zip(names, imported).map { name, route in
+            (name: name, points: route.points, loop: false)
         }
         dataStore.saveRoutes(namedRoutes)
         refreshStoredData()
@@ -864,6 +863,23 @@ final class SimulationController: ObservableObject {
         } catch {
             lastError = error.localizedDescription
             return nil
+        }
+    }
+
+    /// GPX 裡的路線沒有 `<name>` 時的名稱。
+    static let gpxImportFallbackName = "匯入路線"
+
+    /// GPX 匯入的路線名稱,依 `names` 的順序:用 GPX 裡的 `<name>`,沒有時是「匯入路線」;
+    /// 和既有路線或同一次匯入裡前面的路線同名(不分大小寫)時加上編號,不覆蓋既有路線。
+    /// Android 的 `RouteNames.forImport` 已改成相同的規則(GFlyer-Suite docs/DRIFT.md D18、
+    /// contracts/fixtures/gpx/import-names.json)。
+    static func importedRouteNames(for names: [String?], existingLowercased: Set<String>) -> [String] {
+        var used = existingLowercased
+        return names.map { name in
+            let base = name.map { $0.prefixCodePoints(80) } ?? gpxImportFallbackName
+            let unique = uniqueRouteName(base: base, existingLowercased: used)
+            used.insert(unique.lowercased())
+            return unique
         }
     }
 
