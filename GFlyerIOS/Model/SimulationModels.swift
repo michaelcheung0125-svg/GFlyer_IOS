@@ -201,6 +201,12 @@ struct SavedPlace: Codable, Equatable, Identifiable {
         self.createdAt = createdAt
         self.folderID = folderID
     }
+
+    /// 新增與改名時的收藏名稱:和路線名稱同一條規則(上限同樣是 80),GFlyer-Suite
+    /// docs/features/name-limits.md 的 N2。讀取時不套用:舊資料原樣讀回,下一次改名才正規化。
+    static func normalizedName(_ name: String) -> String {
+        SavedRoute.normalizedName(name)
+    }
 }
 
 extension SavedRoute {

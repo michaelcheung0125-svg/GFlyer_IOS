@@ -54,8 +54,10 @@ final class LocalDataStore {
         }
     }
 
+    /// 同一個座標已經收藏過時取代那一筆(移到最前面)。使用者按「收藏」時,
+    /// `SimulationController.addFavorite` 會先擋下重複的座標,和 Android 相同。
     func addFavorite(name: String, coordinate: GeoCoordinate) {
-        let place = SavedPlace(name: name.trimmingCharacters(in: .whitespacesAndNewlines), coordinate: coordinate)
+        let place = SavedPlace(name: SavedPlace.normalizedName(name), coordinate: coordinate)
         snapshot.favorites = [place] + Array(snapshot.favorites.filter { $0.coordinate != coordinate }.prefix(99))
         persist()
     }
@@ -65,9 +67,12 @@ final class LocalDataStore {
         persist()
     }
 
+    /// 空白名稱不改,保持原名(和 Android 相同;原本會存成空字串)。
     func renameFavorite(_ id: UUID, name: String) {
-        guard let index = snapshot.favorites.firstIndex(where: { $0.id == id }) else { return }
-        snapshot.favorites[index].name = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalized = SavedPlace.normalizedName(name)
+        guard !normalized.isEmpty,
+              let index = snapshot.favorites.firstIndex(where: { $0.id == id }) else { return }
+        snapshot.favorites[index].name = normalized
         persist()
     }
 

@@ -704,12 +704,22 @@ final class SimulationController: ObservableObject {
         select(result.coordinate)
     }
 
-    func addFavorite(name: String? = nil) {
-        let title = name?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
-            ? name!.trimmingCharacters(in: .whitespacesAndNewlines)
-            : "位置 \(selectedCoordinate.display)"
-        dataStore.addFavorite(name: title, coordinate: selectedCoordinate)
+    static let favoriteAddedMessage = "收藏成功"
+    static let favoriteAlreadyExistsMessage = "此座標已經收藏過"
+
+    /// 和 Android 的 `MainViewModel.addFavorite` 相同:座標已經收藏過就不新增(原本會取代那一筆),
+    /// 沒有名稱時用「收藏 <座標>」。回傳要顯示的訊息。
+    @discardableResult
+    func addFavorite(name: String? = nil) -> String {
+        let coordinate = selectedCoordinate
+        guard !favorites.contains(where: { $0.coordinate == coordinate }) else {
+            return Self.favoriteAlreadyExistsMessage
+        }
+        let trimmed = name?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let title = trimmed.isEmpty ? "收藏 \(coordinate.display)" : trimmed
+        dataStore.addFavorite(name: title, coordinate: coordinate)
         refreshStoredData()
+        return Self.favoriteAddedMessage
     }
 
     func removeFavorite(_ id: UUID) { dataStore.removeFavorite(id); refreshStoredData() }

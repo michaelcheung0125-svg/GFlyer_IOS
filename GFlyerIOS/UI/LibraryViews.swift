@@ -68,6 +68,8 @@ struct SavedPlacesView: View {
                     renamingPlaceID = nil
                     placeName = ""
                 }
+                // 空白名稱不能儲存,和 Android 相同;真正把關的是 LocalDataStore.renameFavorite
+                .disabled(placeName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 Button("取消", role: .cancel) { renamingPlaceID = nil }
             }
         }

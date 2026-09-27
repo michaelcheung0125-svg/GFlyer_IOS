@@ -165,8 +165,11 @@ struct MessageBoardView: View {
 
     private func save(_ post: BoardPost) {
         if let coordinate = post.coordinate {
-            let remark = post.remark.trimmingCharacters(in: .whitespacesAndNewlines)
-            let name = post.payload.name ?? (remark.isEmpty ? "\(post.authorName) 分享的位置" : remark)
+            // 座標名稱 → 留言 → 「<作者> 分享的位置」,只有空白的跳過,和 Android 的 saveBoardPost 相同
+            let name = [post.payload.name, post.remark]
+                .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .first { !$0.isEmpty }
+                ?? "\(post.authorName) 分享的位置"
             simulation.saveBoardCoordinate(coordinate, name: name)
         } else if let route = post.route {
             simulation.saveBoardRoute(route, authorName: post.authorName)

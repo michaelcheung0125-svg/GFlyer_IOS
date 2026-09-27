@@ -564,8 +564,7 @@ private struct MapToolBar: View {
             HStack(spacing: Spacing.xs) {
                 let isFavorite = controller.favorites.contains { $0.coordinate == controller.selectedCoordinate }
                 mapButton(isFavorite ? "star.fill" : "star", label: "收藏目前位置") {
-                    controller.addFavorite()
-                    onFeedback(isFavorite ? "已更新收藏位置" : "已加入收藏")
+                    onFeedback(controller.addFavorite())
                 }
                 mapButton("star.circle", label: "收藏與歷史") { showFavorites = true }
             }
