@@ -106,6 +106,12 @@ private final class GpxParserDelegate: NSObject, XMLParserDelegate {
         if isReadingRouteName { nameBuffer += string }
     }
 
+    // CDATA 只會送到這裡,不會送到 foundCharacters。有些 App(例如 OruxMaps)一律把名稱寫成 CDATA,
+    // 沒有這一段名稱會變成「匯入路線」;Android 會讀到(GFlyer-Suite docs/DRIFT.md D18)。
+    func parser(_ parser: XMLParser, foundCDATA CDATABlock: Data) {
+        if isReadingRouteName { nameBuffer += String(decoding: CDATABlock, as: UTF8.self) }
+    }
+
     func parser(
         _ parser: XMLParser,
         didEndElement elementName: String,

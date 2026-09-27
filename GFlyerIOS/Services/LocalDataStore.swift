@@ -136,7 +136,10 @@ final class LocalDataStore {
         guard points.count >= 2 else { return }
         let normalized = SavedRoute.normalizedName(name)
         guard !normalized.isEmpty else { return }
-        let old = snapshot.routes.first(where: { $0.name.caseInsensitiveCompare(normalized) == .orderedSame })
+        // 和 uniqueRouteName 用同一條大小寫規則(lowercased()),否則「Straße」和「STRASSE」這類名稱
+        // 在產生名稱時不同名、儲存時又被 caseInsensitiveCompare 當成同名,無聲覆蓋既有路線(DRIFT D18)
+        let key = normalized.lowercased()
+        let old = snapshot.routes.first(where: { $0.name.lowercased() == key })
         let route = SavedRoute(id: old?.id ?? UUID(), name: normalized, points: points, loop: loop, folderID: old?.folderID)
         snapshot.routes = [route] + Array(snapshot.routes.filter { $0.id != route.id }.prefix(49))
         if clearDraft { snapshot.draft = nil }

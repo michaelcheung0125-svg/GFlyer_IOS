@@ -101,6 +101,93 @@ final class SharedContractTests: XCTestCase {
         }
     }
 
+    /// contracts/fixtures/gpx/route-names.gpx 與 truncated.gpx(expected.json,DRIFT D18)
+    func testGpxParsingMatchesTheSharedFixtures() {
+        let routeNames = """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <gpx version="1.1" creator="GFlyer" xmlns="http://www.topografix.com/GPX/1/1">
+          <trk>
+            <name><![CDATA[Orux Track]]></name>
+            <trkseg>
+              <trkpt lat="25.0" lon="121.0"><name>點的名稱,不是路線名稱</name></trkpt>
+              <trkpt lat="25.1" lon="121.1"></trkpt>
+            </trkseg>
+          </trk>
+          <trk>
+            <name>  A &amp; <![CDATA[B]]>  </name>
+            <trkseg>
+              <trkpt lat="25.2" lon="121.2"></trkpt>
+              <trkpt lat="25.3" lon="121.3"></trkpt>
+            </trkseg>
+          </trk>
+          <trk>
+            <name>A<b>B</b></name>
+            <trkseg>
+              <trkpt lat="25.4" lon="121.4"></trkpt>
+              <trkpt lat="25.5" lon="121.5"></trkpt>
+            </trkseg>
+          </trk>
+          <trk>
+            <name>   </name>
+            <trkseg>
+              <trkpt lat="25.6" lon="121.6"></trkpt>
+              <trkpt lat="25.7" lon="121.7"></trkpt>
+            </trkseg>
+          </trk>
+          <rte>
+            <rtept lat="25.8" lon="121.8"></rtept>
+            <rtept lat="25.9" lon="121.9"></rtept>
+            <name>點之後才出現的名稱不算</name>
+          </rte>
+        </gpx>
+        """
+        let named = GpxCodec.readRoutes(from: Data(routeNames.utf8))
+        XCTAssertEqual(named.map(\.name), ["Orux Track", "A & B", "AB", nil, nil])
+        XCTAssertEqual(named.map(\.points.count), [2, 2, 2, 2, 2])
+
+        // 寫到一半就結束的檔案:保留錯誤之前已經完整讀完的路線
+        let truncated = """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <gpx version="1.1" creator="GFlyer" xmlns="http://www.topografix.com/GPX/1/1">
+          <trk>
+            <name>完整的路線</name>
+            <trkseg>
+              <trkpt lat="25.0" lon="121.0"></trkpt>
+              <trkpt lat="25.1" lon="121.1"></trkpt>
+            </trkseg>
+          </trk>
+          <trk>
+            <name>沒寫完的路線</name>
+            <trkseg>
+              <trkpt lat="26.0" lon="122.0"></trkpt>
+              <trkpt lat="26.1" lon="122.1"></trkpt>
+              <trkpt lat="26.2"
+        """
+        let partial = GpxCodec.readRoutes(from: Data(truncated.utf8))
+        XCTAssertEqual(partial.map(\.name), ["完整的路線"])
+        XCTAssertEqual(partial.first?.points, [
+            GeoCoordinate(latitude: 25.0, longitude: 121.0),
+            GeoCoordinate(latitude: 25.1, longitude: 121.1),
+        ])
+    }
+
+    /// 產生名稱與儲存時用同一條大小寫規則,不會把不同名的路線當成同名覆蓋掉(DRIFT D18)
+    @MainActor
+    func testSavingARouteUsesTheSameCaseRuleAsNaming() {
+        let suiteName = "gflyer.route-case-tests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let store = LocalDataStore(defaults: defaults)
+        let points = [GeoCoordinate(latitude: 1, longitude: 1), GeoCoordinate(latitude: 2, longitude: 2)]
+
+        store.saveRoute(name: "STRASSE", points: points, loop: false)
+        store.saveRoute(name: "Straße", points: points, loop: false)
+        store.saveRoute(name: "Harbour", points: points, loop: false)
+        store.saveRoute(name: "HARBOUR", points: points, loop: false)
+
+        XCTAssertEqual(Set(store.snapshot.routes.map(\.name)), ["STRASSE", "Straße", "HARBOUR"])
+    }
+
     func testStartDelayKeepsPreferringTheSmallerOptionOnTie() {
         var settings = PlaybackSettings()
         settings.startDelaySeconds = 4
