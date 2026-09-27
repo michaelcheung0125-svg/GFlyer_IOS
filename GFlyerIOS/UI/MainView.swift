@@ -736,7 +736,7 @@ private struct ControlPanel: View {
 
                 HStack(spacing: Spacing.md) {
                     Button { controller.start() } label: {
-                        Label(controller.status.isActive ? "重新開始" : "開始", systemImage: "play.fill")
+                        Label(startButtonTitle, systemImage: "play.fill")
                             .frame(maxWidth: .infinity)
                     }.buttonStyle(.borderedProminent)
                     Button { controller.togglePause() } label: {
@@ -872,10 +872,72 @@ private struct ControlPanel: View {
         }
     }
 
+    /// 探索模式和 Android 一樣是「開始探索」;探索中再按一次是從目前位置重新開始。
+    private var startButtonTitle: String {
+        if controller.mode == .explore { return ExplorationTexts.startButton }
+        return controller.status.isActive ? "重新開始" : "開始"
+    }
+
+    /// 蛇形探索的設定,文字和 Android 的 `ExplorationControls` 一字不差(GFlyer-Suite
+    /// docs/features/serpentine-exploration.md §2、§3.9)。探索中(含暫停)Y 與方向都停用,速度可以即時調整。
     private var exploreControls: some View {
-        VStack(alignment: .leading, spacing: Spacing.sm) {
-            Label("以選取位置為中心持續螺旋探索", systemImage: "arrow.triangle.2.circlepath")
-                .font(.caption).foregroundStyle(.secondary)
+        let verticalLength = controller.playbackSettings.explorationVerticalLengthMetres
+        let canEdit = !controller.isExploring
+        return VStack(alignment: .leading, spacing: Spacing.sm) {
+            VStack(alignment: .leading, spacing: Spacing.xs) {
+                Text(controller.status.isActive ? ExplorationTexts.activeTitle : ExplorationTexts.idleTitle)
+                    .font(.caption)
+                    .foregroundStyle(controller.status.isActive ? Color.statusActive : Color.secondary)
+                // Android 這裡是選取點,不是模擬座標
+                Text(controller.selectedCoordinate.display).font(.numericCaption)
+            }
+            HStack(alignment: .firstTextBaseline, spacing: Spacing.sm) {
+                Text(ExplorationTexts.widthHint)
+                    .font(.caption2)
+                    .foregroundStyle(Color.statusDanger)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+                Spacer(minLength: 0)
+                Text(ExplorationTexts.horizontalSpacing)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+            HStack(spacing: Spacing.sm) {
+                Text(ExplorationTexts.verticalLengthLabel).font(.labelEmphasis)
+                Button { controller.adjustExplorationVerticalLength(by: -1) } label: {
+                    Image(systemName: "minus")
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .disabled(!canEdit || verticalLength <= SerpentinePath.minVerticalLengthMetres)
+                .accessibilityLabel(ExplorationTexts.decreaseVerticalLength)
+                VStack(spacing: 0) {
+                    Text(ExplorationTexts.verticalLength(verticalLength))
+                        .font(.numericCaption)
+                    Text(ExplorationTexts.previewDistance(verticalLengthMetres: verticalLength))
+                        .font(.caption2.monospacedDigit())
+                        .foregroundStyle(.secondary)
+                }
+                .lineLimit(1)
+                .frame(minWidth: 84)
+                Button { controller.adjustExplorationVerticalLength(by: 1) } label: {
+                    Image(systemName: "plus")
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .disabled(!canEdit || verticalLength >= SerpentinePath.maxVerticalLengthMetres)
+                .accessibilityLabel(ExplorationTexts.increaseVerticalLength)
+                // 剩下的寬度都給方向切換;窄螢幕上固定寬度會把整列擠出面板
+                Picker("方向", selection: Binding(
+                    get: { controller.playbackSettings.explorationDirection },
+                    set: controller.setExplorationDirection
+                )) {
+                    ForEach(ExplorationDirection.allCases) { direction in Text(direction.label).tag(direction) }
+                }
+                .pickerStyle(.segmented)
+                .disabled(!canEdit)
+            }
             speedControls
         }
     }
