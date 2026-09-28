@@ -169,7 +169,10 @@ Exit criterion: a 30-minute foreground route completes without losing the tunnel
   geometry line by line, Y (200-5,000 m, step 100) and the direction live in
   `PlaybackSettings`, a run is an `ExplorationRun`, pressing 「開始探索」 while
   exploring restarts from the current position, there is no 0.5 m per-tick
-  minimum, and the map preview is cached. Interrupted explorations resume from
+  minimum, and the map preview is cached. While not exploring, the camera fits
+  the whole preview (between the search bar and the control panel,
+  `ExplorationCamera`) whenever the preview start changes, like Android's
+  `newLatLngBounds` fit (spec §3.5). Interrupted explorations resume from
   the interruption point with the saved progress; `ActiveSessionSnapshot`
   decodes 0.6.8 spiral snapshots and resumes them as a fresh serpentine. The
   whole `explore/serpentine-path.json` fixture is copied into

@@ -180,8 +180,9 @@ final class SimulationController: ObservableObject {
             routePoints = []
             persistDraft()
         case .explore:
-            // 起點是選取點(模擬中不能切模式)。Android 這時把選取點換成地圖中心,iOS 沒有地圖中心可用,
-            // 保留目前的選取點(規格 §3.3,只影響預設起點)
+            // 起點是選取點(模擬中不能切模式)。Android 這時把選取點換成 mapCenter(App 最後自己設定的
+            // 鏡頭中心,不是拖動後的畫面中心);iOS 保留目前的選取點,規格 §3.3 接受。切進來之後 MainView
+            // 會把鏡頭縮放到整條預覽(§3.5),起點在哪裡都看得到
             routePoints = []
             dataStore.clearDraft()
         }

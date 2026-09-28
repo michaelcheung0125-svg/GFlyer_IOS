@@ -34,7 +34,16 @@ struct MainView: View {
     @State private var isLocating = false
     @State private var locateTimeoutTask: Task<Void, Never>?
     @State private var cameraDistance: CLLocationDistance = 5_000
+    /// 上一次把鏡頭縮放到整條探索預覽時的起點;離開探索模式時清掉,所以每次切進來都縮放一次
+    /// (和 Android 的 `lastExplorationPreviewCenter` 相同)。
+    @State private var lastFittedExplorationStart: GeoCoordinate?
+    /// 地圖、搜尋列與控制面板在 `mapArea` 座標空間裡的位置,用來算出地圖上沒被蓋住的那一塊。
+    @State private var mapFrame: CGRect = .zero
+    @State private var searchBarFrame: CGRect = .zero
+    @State private var controlPanelFrame: CGRect = .zero
     @FocusState private var searchFieldFocused: Bool
+
+    private static let mapArea = "mapArea"
 
     /// CI 的截圖步驟用 `xcrun simctl launch … -GFlyerScreenshotMode` 啟動 App。
     /// 只用來關掉會發出網路請求的啟動動作，不影響任何版面——否則截圖會隨著
@@ -147,8 +156,11 @@ struct MainView: View {
                     suppressNextRecenter = false
                     return
                 }
+                // 探索模式沒有在探索時,選取點就是預覽的起點,鏡頭改由 fitExplorationPreviewIfNeeded 縮放
+                guard explorationFitStart != coordinate else { return }
                 position = .region(region(around: coordinate, span: 0.04))
             }
+            .onChange(of: explorationFitStart) { _, _ in fitExplorationPreviewIfNeeded() }
             .onChange(of: isPanelExpanded) { _, expanded in
                 if expanded { showJoystick = false }
             }
@@ -178,11 +190,13 @@ struct MainView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
             ControlPanel(controller: controller, isExpanded: $isPanelExpanded)
+                .reportFrame(in: Self.mapArea) { controlPanelFrame = $0 }
                 .padding(.horizontal, Spacing.md)
                 .padding(.bottom, Spacing.sm)
         }
         // 用 overlay 把搜尋列與工具列釘在最上面，不參與 ZStack 的底部對齊
         .overlay(alignment: .top) { searchAndToolsLayer }
+        .coordinateSpace(.named(Self.mapArea))
     }
 
     private var mapLayer: some View {
@@ -232,16 +246,23 @@ struct MainView: View {
                 // 點地圖同時收鍵盤，避免鍵盤佔住畫面又沒有明顯的關閉方式
                 searchFieldFocused = false
                 guard let coordinate = proxy.convert(point, from: .local) else { return }
+                // 一般點地圖不移動鏡頭;探索模式改了預覽起點時另外縮放到整條預覽(§3.5)
                 suppressNextRecenter = true
                 controller.select(GeoCoordinate(coordinate))
             }
         }
+        .reportFrame(in: Self.mapArea) { mapFrame = $0 }
     }
 
     private var searchAndToolsLayer: some View {
         VStack(spacing: 0) {
             SearchBar(controller: controller, isFocused: $searchFieldFocused) { coordinate in
+                guard explorationFitStart != coordinate else { return }
                 position = .region(region(around: coordinate, span: 0.04))
+            }
+            // 只記沒有搜尋結果時的高度:選了結果之後清單才收起來,縮放時要用收起來的高度
+            .reportFrame(in: Self.mapArea) { frame in
+                if controller.searchResults.isEmpty { searchBarFrame = frame }
             }
             if controller.searchResults.isEmpty {
                 HStack {
@@ -389,6 +410,31 @@ struct MainView: View {
     private func region(around coordinate: GeoCoordinate, span: CLLocationDegrees) -> MKCoordinateRegion {
         MKCoordinateRegion(center: coordinate.clLocationCoordinate,
                            span: MKCoordinateSpan(latitudeDelta: span, longitudeDelta: span))
+    }
+
+    /// 探索模式、沒有在探索時的預覽起點;其他時候是 nil(不縮放)。
+    private var explorationFitStart: GeoCoordinate? {
+        guard controller.mode == .explore, !controller.isExploring else { return nil }
+        return controller.explorationStart
+    }
+
+    /// 沒有在探索時,預覽的起點一改變就把鏡頭縮放到整條預覽:切進探索、在探索模式點地圖或選搜尋結果、
+    /// 模擬座標改變、探索停止後起點換回選取點都算。只改 Y 或方向不縮放,探索中也不縮放
+    /// (GFlyer-Suite docs/features/serpentine-exploration.md §3.5,和 Android `MainScreen.kt` 相同)。
+    private func fitExplorationPreviewIfNeeded() {
+        guard controller.mode == .explore else {
+            lastFittedExplorationStart = nil
+            return
+        }
+        guard let start = explorationFitStart, start != lastFittedExplorationStart,
+              let rect = ExplorationCamera.visibleRect(
+                  for: controller.explorationPreview,
+                  mapSize: mapFrame.size,
+                  coveredTop: searchBarFrame.maxY - mapFrame.minY,
+                  coveredBottom: mapFrame.maxY - controlPanelFrame.minY
+              ) else { return }
+        lastFittedExplorationStart = start
+        position = .rect(rect)
     }
 
     private func locateCurrentPosition() {
@@ -1009,5 +1055,19 @@ private struct JoystickPad: View {
                 })
         }
         .accessibilityLabel("搖桿")
+    }
+}
+
+private extension View {
+    /// 把這個 view 在 `space` 座標空間裡的框交給 `action`:出現時一次,之後每次改變一次。
+    func reportFrame(in space: String, _ action: @escaping (CGRect) -> Void) -> some View {
+        background {
+            GeometryReader { proxy in
+                let frame = proxy.frame(in: .named(space))
+                Color.clear
+                    .onAppear { action(frame) }
+                    .onChange(of: frame) { _, newFrame in action(newFrame) }
+            }
+        }
     }
 }

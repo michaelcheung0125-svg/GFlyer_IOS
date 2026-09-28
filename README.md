@@ -14,7 +14,10 @@ This is a separate SwiftUI prototype for personal sideloading. It does not modif
   1,000 m); Y and the direction are saved, apply to the next start, and are
   locked while exploring. The map previews 10Y + 2,120 m ahead from the start
   point (the simulated position while simulating, otherwise the selected
-  point). Pressing 「開始探索」 again restarts from the current position; each
+  point); while not exploring, the camera zooms to the whole preview whenever
+  that start changes, including on entering 探索 and on a map tap there (not
+  when only Y or the direction changes). Pressing 「開始探索」 again restarts
+  from the current position; each
   0.25 s tick moves speed x 0.25 s with no minimum. An interrupted exploration
   resumes where it stopped with its saved progress, and a spiral snapshot left
   by `0.6.8` resumes as a fresh serpentine at its position (Y 1,000 m, east)
