@@ -2593,4 +2593,33 @@ final class SharedContractTests: XCTestCase {
         XCTAssertTrue(LibraryTeleportHistory.summary(many, time: "T").unicodeScalars.contains("\u{00B7}"))
         XCTAssertTrue(LibraryTeleportHistory.allTeleportedEmpty.unicodeScalars.contains("\u{FF1B}"))
     }
+
+    /// contracts/fixtures/geo/normalize-longitude.json(DRIFT D28):任何有限的經度都落在 [−180, 180)
+    func testNormalizeLongitudeMatchesTheSharedFixture() {
+        let cases: [(input: Double, expected: Double)] = [
+            (0.0, 0.0),
+            (1.0, 1.0),
+            (-1.0, -1.0),
+            (179.9, 179.9),
+            (180.0, -180.0),
+            (-180.0, -180.0),
+            (180.1, -179.9),
+            (-180.1, 179.9),
+            (360.0, 0.0),
+            (-360.0, 0.0),
+            (540.0, -180.0),
+            (720.5, 0.5),
+            (-700.0, 20.0),
+            (-540.0, -180.0),
+            (-541.0, 179.0),
+            (-898.3, -178.3),
+            (1000000.0, -80.0),
+            (-1000000.0, 80.0),
+        ]
+        for testCase in cases {
+            let actual = GeoMath.normalizeLongitude(testCase.input)
+            XCTAssertEqual(actual, testCase.expected, accuracy: 1e-9, "input=\(testCase.input)")
+            XCTAssertTrue(actual >= -180 && actual < 180, "input=\(testCase.input) -> \(actual)")
+        }
+    }
 }
