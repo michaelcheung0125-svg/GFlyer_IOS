@@ -470,10 +470,11 @@ final class SimulationController: ObservableObject {
         orbitSkipRequested = true
     }
 
+    /// 文字和 Android 相同(GFlyer-Suite docs/features/route-arrival-actions.md §3、I14)。
     func togglePause() {
         guard status.isActive, status.mode == .singleRoute || status.mode == .multiRoute || status.mode == .explore else { return }
         status.isPaused.toggle()
-        status.message = status.isPaused ? "已暫停" : "模擬中"
+        status.message = status.isPaused ? RoutePlaybackMessages.paused : RoutePlaybackMessages.resumed
     }
 
     func stop(reason: String? = nil) {
@@ -1314,7 +1315,8 @@ final class SimulationController: ObservableObject {
                     running.current = step.coordinate
                     // 先換進度再呼叫會順便存快照的 send(),快照的座標與進度才是同一個 tick 的結果(規格 §4.2)
                     exploration = running
-                    guard await send(step.coordinate, message: ExplorationTexts.exploring) else { return }
+                    // 逐步的傳送不改狀態文字:「正在蛇形探索」開始時寫一次,暫停 / 繼續的文字留到下一個事件
+                    guard await send(step.coordinate, message: nil) else { return }
                 }
                 try? await Task.sleep(nanoseconds: tickNanoseconds)
             }

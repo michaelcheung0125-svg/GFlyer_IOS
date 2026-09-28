@@ -162,4 +162,8 @@ enum RoutePlaybackMessages {
     static let advancing = "前往下一點"
     static let nextLap = "開始下一輪循環"
     static let finished = "路線已完成"
+    /// 暫停與繼續也是事件,路線與探索共用(Android 的 `TogglePause`)。繼續之後不恢復暫停前的訊息,
+    /// 「已繼續移動」留到下一個事件。
+    static let paused = "移動已暫停"
+    static let resumed = "已繼續移動"
 }

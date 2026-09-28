@@ -370,6 +370,9 @@ final class PlaybackFeatureTests: XCTestCase {
         XCTAssertEqual(RoutePlaybackMessages.advancing, "前往下一點")
         XCTAssertEqual(RoutePlaybackMessages.nextLap, "開始下一輪循環")
         XCTAssertEqual(RoutePlaybackMessages.finished, "路線已完成")
+        // 路線與探索的暫停 / 繼續(I14,取代 0.6.8 的「已暫停」/「模擬中」)
+        XCTAssertEqual(RoutePlaybackMessages.paused, "移動已暫停")
+        XCTAssertEqual(RoutePlaybackMessages.resumed, "已繼續移動")
     }
 
     /// 單點路線不循環(畫面上也沒有循環選項),存路線時也不會存下看不到的循環設定。

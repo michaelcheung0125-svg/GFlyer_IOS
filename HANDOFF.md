@@ -174,7 +174,9 @@ C:\Project\GFlyer
       2 點」、「已到達第 N 點」、「第 N 點 · X 秒後開始動作…」、每圈一次的「正在繞圈 · 第 i/n 圈 ·
       半徑 r 米」、「開始下一輪循環」），逐步的傳送（走路、繞圈、微動）不再蓋掉事件訊息；拿掉
       每圈結束時「瞬間跳轉」先送第 1 點的那一步。走路每步是「速度 × 0.25 秒」，拿掉 0.5 公尺
-      下限（最低速 1.8 km/h 原本快 4 倍）。
+      下限（最低速 1.8 km/h 原本快 4 倍）。暫停／繼續照 Android 顯示「移動已暫停」／「已繼續移動」
+      （I14，路線與探索共用，取代 0.6.8 的「已暫停」／「模擬中」），繼續後那句留到下一個事件，
+      不恢復暫停前的訊息。
     - 畫面：循環選項只在多點模式出現（單點路線一律不循環，存路線時也不存看不到的循環）；
       「進階播放選項」路線播放中整組停用（`SimulationStatus.isPlayingRoute`）；設定頁改成
       「多點路線倒數」（不用／3／5／10 秒＋說明）、「傳送到點停留」、「繞圈設定」。
@@ -200,7 +202,8 @@ C:\Project\GFlyer
       「開始探索」從目前位置、進度 (0, 0) 重新開始，不再報錯（0.6.8 會先取消播放再被擋下，模擬停在
       原地、狀態卻還是進行中）。Y 與方向探索中（含暫停）停用，`adjustExplorationVerticalLength` /
       `setExplorationDirection` 也直接忽略。點地圖只改選取點。預覽線 `explorationPreview` 輸入沒變
-      就用快取（Y = 5000 約 1,300 點）。狀態文字「正在蛇形探索」。
+      就用快取（Y = 5000 約 1,300 點）。狀態文字「正在蛇形探索」只在開始時寫一次，每個 tick 的
+      傳送不改寫它，所以暫停／繼續的「移動已暫停」／「已繼續移動」留到停止或下一次暫停。
     - 中斷快照（`ActiveSessionStore.swift`）：移除 `spiralCenter` / `spiralAngleRadians`，新增選填
       `explorationCenter` / `explorationState` / `explorationVerticalLengthMetres` /
       `explorationDirection`。`init(from:)` 寫在 **extension** 裡（保留 memberwise init）：0.6.8 原有
