@@ -180,7 +180,10 @@ C:\Project\GFlyer
       （I14，路線與探索共用，取代 0.6.8 的「已暫停」／「模擬中」），繼續後那句留到下一個事件，
       不恢復暫停前的訊息。
     - 畫面：循環選項只在多點模式出現（單點路線一律不循環，存路線時也不存看不到的循環）；
-      「進階播放選項」路線播放中整組停用（`SimulationStatus.isPlayingRoute`）；設定頁改成
+      「進階播放選項」路線播放中整組停用（`SimulationStatus.isPlayingRoute`），「循環路線」與
+      「循環方式」也一樣（照 Android；原本可以切，但對播放中的路線沒有作用）。中斷快照寫正在播的
+      那條路線開始時的路線點、循環與循環方式（`playingRoute`，和 Android 相同），不寫畫面上的值：
+      播放中在地圖上加點或改循環，恢復的仍是剩下的點所屬的那一條路線。設定頁改成
       「多點路線倒數」（不用／3／5／10 秒＋說明）、「傳送到點停留」、「繞圈設定」。
     - 測試：`SharedContractTests` 照抄 `route/arrival-actions.json` 全部段落（offset、orbit、
       microMove、orbitRadii、orbitRadiiEdits、dwellSeconds、arrivalPlan；arrivalPlan 也對

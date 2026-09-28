@@ -779,11 +779,15 @@ private struct ControlPanel: View {
             speedControls
             // 單點路線不循環,和 Android 相同:循環與播放選項只在多點模式出現
             if controller.mode == .multiRoute {
+                // 播放中的路線在開始時就定了循環設定,改了也不生效;和 Android 一樣停用
                 Toggle("循環路線", isOn: Binding(get: { controller.loopRoute }, set: controller.setLoopRoute))
+                    .disabled(controller.status.isPlayingRoute)
                 if controller.loopRoute {
                     Picker("循環方式", selection: Binding(get: { controller.loopTransitionMode }, set: controller.setLoopTransitionMode)) {
                         ForEach(LoopTransitionMode.allCases) { mode in Text(mode.label).tag(mode) }
-                    }.pickerStyle(.segmented)
+                    }
+                    .pickerStyle(.segmented)
+                    .disabled(controller.status.isPlayingRoute)
                 }
                 advancedPlaybackOptions
             }

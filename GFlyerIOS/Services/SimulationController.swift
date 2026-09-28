@@ -44,6 +44,9 @@ final class SimulationController: ObservableObject {
     private var lastSessionSnapshotAt = Date.distantPast
     private var currentLapPoints: [GeoCoordinate] = []
     private var currentLapNextIndex = 0
+    /// 正在播放的那條路線(開始時的路線點與循環設定)。中斷快照寫這一份而不是畫面上的值,
+    /// 快照才會和 `currentLapPoints` 描述同一條路線;Android 的快照也是寫服務裡正在播的路線。
+    private var playingRoute: PlayingRoute?
     // 每次啟動遞增；被取代的播放任務在 defer 中比對，避免關閉新任務的背景活動
     private var playbackGeneration = 0
     private var playbackTask: Task<Void, Never>?
@@ -150,6 +153,13 @@ final class SimulationController: ObservableObject {
     private struct ExplorationPreviewCache {
         let request: ExplorationPreviewRequest
         let points: [GeoCoordinate]
+    }
+
+    private struct PlayingRoute {
+        let points: [GeoCoordinate]
+        /// 使用者要不要循環(`loopRoute`);單點路線實際上不循環,恢復時由 `startRoute` 再判斷一次。
+        let loop: Bool
+        let transition: LoopTransitionMode
     }
 
     func setMode(_ newMode: SimulationMode) {
@@ -269,6 +279,7 @@ final class SimulationController: ObservableObject {
         lastSessionSnapshotAt = .distantPast
         currentLapPoints = []
         currentLapNextIndex = 0
+        playingRoute = nil
         playbackGeneration += 1
         // 被取代的路線任務不會再清這個旗標(generation 不同了);要播路線時 startRoute 會再設回來
         status.isPlayingRoute = false
@@ -399,14 +410,17 @@ final class SimulationController: ObservableObject {
         }
         // 探索的進度在 send() 之前就換成這一個 tick 的結果,所以和 coordinate 成對
         let run = snapshotMode == .explore ? exploration : nil
+        // 路線播放中寫開始時的路線與循環設定:播放中在地圖上加了點或改了畫面上的循環,
+        // 恢復的仍是剩下的點所屬的那一條路線
+        let route = playingRoute ?? PlayingRoute(points: routePoints, loop: loopRoute, transition: loopTransitionMode)
         sessionStore.save(
             ActiveSessionSnapshot(
                 mode: snapshotMode,
                 coordinate: coordinate,
-                routePoints: snapshotMode.isRoute ? routePoints : [],
+                routePoints: snapshotMode.isRoute ? route.points : [],
                 remainingPoints: remaining,
-                loop: loopRoute,
-                transition: loopTransitionMode,
+                loop: route.loop,
+                transition: route.transition,
                 speedKilometresPerHour: speedKilometresPerHour,
                 explorationCenter: run?.center,
                 explorationState: run?.state,
@@ -635,6 +649,7 @@ final class SimulationController: ObservableObject {
         sessionStore.clear()
         currentLapPoints = []
         currentLapNextIndex = 0
+        playingRoute = nil
         status.autoStopAt = nil
         deviceLocation.stopBackgroundRouteActivity()
         return motionTasks
@@ -735,6 +750,7 @@ final class SimulationController: ObservableObject {
         deviceLocation.stopBackgroundRouteActivity()
         currentLapPoints = []
         currentLapNextIndex = 0
+        playingRoute = nil
         status.isPaused = false
         status.countdownRemaining = nil
         status.waitingManualAdvance = false
@@ -1098,6 +1114,7 @@ final class SimulationController: ObservableObject {
         let resumedLap = firstLapPoints.map { RouteArrivalPlan.resumedLap($0, aligningTo: lap) } ?? []
         let firstLap = resumedLap.isEmpty ? lap : resumedLap
         guard let firstLeg = firstLap.first else { return }
+        playingRoute = PlayingRoute(points: points, loop: loopRoute, transition: transition)
         advanceRequested = false
         countdownSkipRequested = false
         orbitSkipRequested = false
@@ -1164,6 +1181,7 @@ final class SimulationController: ObservableObject {
                 sessionStore.clear()
                 currentLapPoints = []
                 currentLapNextIndex = 0
+                playingRoute = nil
             }
         }
     }
