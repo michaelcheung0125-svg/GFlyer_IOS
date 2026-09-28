@@ -488,6 +488,22 @@ final class PlaybackFeatureTests: XCTestCase {
         XCTAssertLessThanOrEqual(nearPole.latitude, 90)
     }
 
+    /// 在極點附近用最大半徑繞圈不會當掉:每一步的經度都在 [-180, 180)(I13)。改回截斷取餘的話,
+    /// `GeoCoordinate.init` 的 precondition 會讓整個測試行程當掉。
+    func testOrbitNextToAPoleStaysOnValidLongitudes() {
+        for center in [GeoCoordinate(latitude: 90, longitude: 0), GeoCoordinate(latitude: 89.99995, longitude: -179.9)] {
+            let laps = OrbitPlanner.laps(
+                center: center,
+                radiiMetres: [100, PlaybackSettings.orbitRadiusRange.upperBound],
+                speedMetresPerSecond: 50,
+                tickSeconds: 0.25
+            )
+            let longitudes = laps.flatMap(\.waypoints).map(\.longitude)
+            XCTAssertFalse(longitudes.isEmpty)
+            XCTAssertTrue(longitudes.allSatisfy { $0 >= -180 && $0 < 180 }, "\(center)")
+        }
+    }
+
     // MARK: - 蛇形探索(GFlyer-Suite docs/features/serpentine-exploration.md)
 
     private let activeSessionKey = "gflyer.active-session.v1"

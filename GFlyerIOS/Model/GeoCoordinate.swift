@@ -93,6 +93,11 @@ enum GeoMath {
     /// Equirectangular offset in metres (positive east / north), used for
     /// small local motions such as orbiting a route point. Latitude is clamped
     /// so poles cannot produce an invalid coordinate.
+    ///
+    /// 經度用 floor-mod 正規化,不用 `normalizeLongitude`:極點附近 cos(lat) 夾到 1e-6,東西 100 公尺
+    /// 就是約 ±898°,`normalizeLongitude` 在 x < −540 時會得到小於 −180 的經度,`GeoCoordinate.init`
+    /// 的 precondition 會讓 App 當掉(GFlyer-Suite docs/features/route-arrival-actions.md I13,
+    /// fixture 的 `north-pole-*`、`near-pole-antimeridian-*`)。
     static func offset(from origin: GeoCoordinate, eastMetres: Double, northMetres: Double) -> GeoCoordinate {
         let metresPerDegree = 111_320.0
         let latitudeDelta = northMetres / metresPerDegree
@@ -100,7 +105,7 @@ enum GeoMath {
         let longitudeDelta = eastMetres / (metresPerDegree * cosLatitude)
         return GeoCoordinate(
             latitude: min(max(origin.latitude + latitudeDelta, -90), 90),
-            longitude: normalizeLongitude(origin.longitude + longitudeDelta)
+            longitude: floorModLongitude(origin.longitude + longitudeDelta)
         )
     }
 
@@ -113,6 +118,12 @@ enum GeoMath {
 
     private static func normalizeLongitude(_ longitude: Double) -> Double {
         (longitude + 540).truncatingRemainder(dividingBy: 360) - 180
+    }
+
+    /// ((x + 180) fmod 360 + 360) fmod 360 − 180:任何有限的 x 都落在 [−180, 180)。
+    /// x ≥ −540 時和 `normalizeLongitude` 數學上相同。
+    private static func floorModLongitude(_ longitude: Double) -> Double {
+        ((longitude + 180).truncatingRemainder(dividingBy: 360) + 360).truncatingRemainder(dividingBy: 360) - 180
     }
 }
 

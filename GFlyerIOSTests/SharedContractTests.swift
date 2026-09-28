@@ -449,7 +449,7 @@ final class SharedContractTests: XCTestCase {
         XCTAssertEqual(LoopTransitionMode.teleportToStart.rawValue, "直接返回")
     }
 
-    /// offset:等距長方投影位移,緯度夾到 ±90、經度正規化到 [-180, 180)。
+    /// offset:等距長方投影位移,緯度夾到 ±90、經度用 floor-mod 正規化到 [-180, 180)。
     func testOffsetMatchesTheSharedFixture() {
         let cases: [(name: String, origin: (latitude: Double, longitude: Double), east: Double, north: Double,
                      expected: (latitude: Double, longitude: Double))] = [
@@ -469,7 +469,19 @@ final class SharedContractTests: XCTestCase {
              (-90.0, 10.0)),
             ("cos-floor-at-pole", (90.0, 0.0), 10.0, 0.0,
              (90.0, 89.831117499102)),
+            // 極點附近東西各 100 公尺約 ±898°:經度要用 floor-mod,否則小於 −180 而當掉(I13)
+            ("north-pole-west-100m", (90.0, 0.0), -100.0, 0.0,
+             (90.0, -178.311174991017)),
+            ("north-pole-east-100m", (90.0, 0.0), 100.0, 0.0,
+             (90.0, 178.311174991017)),
+            ("north-pole-west-500m", (90.0, 0.0), -500.0, 0.0,
+             (90.0, -171.555874955085)),
+            ("near-pole-antimeridian-west-100m", (89.99995, -179.9), -100.0, 0.0,
+             (89.99995, 1.788825008983)),
+            ("near-pole-antimeridian-east-100m", (89.99995, -179.9), 100.0, 0.0,
+             (89.99995, -1.588825008983)),
         ]
+        XCTAssertEqual(cases.count, 13)
         for testCase in cases {
             let origin = GeoCoordinate(latitude: testCase.origin.latitude, longitude: testCase.origin.longitude)
             let actual = GeoMath.offset(from: origin, eastMetres: testCase.east, northMetres: testCase.north)
