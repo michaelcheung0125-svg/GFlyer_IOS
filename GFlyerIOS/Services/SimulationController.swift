@@ -28,6 +28,9 @@ final class SimulationController: ObservableObject {
     @Published private(set) var pendingResumeSession: ActiveSessionSnapshot?
     /// 執行中那一輪探索(含暫停)。停止、切到其他移動方式、搖桿接管或推送失敗時清掉。
     @Published private(set) var exploration: ExplorationRun?
+    /// 收藏位置與收藏路線第一點的「國家 · 城市」,鍵用 `RegionLabel.key(for:)` 算;查到才有
+    /// (GFlyer-Suite docs/features/region-labels.md)。清單開著時查到新的,那一列直接更新。
+    @Published private(set) var regionLabels: [String: String] = [:]
     @Published var lastError: String?
 
     let pairingStore = PairingFileStore()
@@ -37,6 +40,7 @@ final class SimulationController: ObservableObject {
 
     private let dataStore: LocalDataStore
     private let sessionStore: ActiveSessionStore
+    private let regionLookup: RegionLookup
     private var lastSessionSnapshotAt = Date.distantPast
     private var currentLapPoints: [GeoCoordinate] = []
     private var currentLapNextIndex = 0
@@ -60,12 +64,14 @@ final class SimulationController: ObservableObject {
         backend: (any LocationSimulationBackend)? = nil,
         dataStore: LocalDataStore = LocalDataStore(),
         sessionStore: ActiveSessionStore = ActiveSessionStore(),
-        vpn: LocalDevVPNBridge? = nil
+        vpn: LocalDevVPNBridge? = nil,
+        regionLookup: RegionLookup? = nil
     ) {
         self.backend = backend ?? LocationSimulationBackendFactory.makeDefault()
         self.vpn = vpn ?? LocalDevVPNBridge()
         self.dataStore = dataStore
         self.sessionStore = sessionStore
+        self.regionLookup = regionLookup ?? RegionLookup()
         pendingResumeSession = sessionStore.load()
         let stored = dataStore.snapshot
         favorites = stored.favorites
@@ -83,6 +89,10 @@ final class SimulationController: ObservableObject {
         status.message = self.backend.canControlDeviceLocation
             ? "裝置後端已載入；通道尚未測試"
             : "目前為預覽模式；尚未連結 idevice"
+        regionLabels = self.regionLookup.labels
+        self.regionLookup.onLabelsChange = { [weak self] labels in self?.regionLabels = labels }
+        // App 啟動就開始查,不等清單打開(和 Android 相同,隱私說明也照這樣寫)
+        requestRegionLabels()
     }
 
     var backendName: String { backend.name }
@@ -1385,5 +1395,14 @@ final class SimulationController: ObservableObject {
         favoriteFolders = dataStore.snapshot.folders
         savedRoutes = dataStore.snapshot.routes
         quickSpeedPresets = dataStore.snapshot.presets
+        // 新增、刪除、還原備份、GPX 匯入都經過這裡;每次開始模擬、寫入歷史也會跑,
+        // 已知、排過隊、失敗過的鍵 RegionLookup 都會跳過,不會多送請求
+        requestRegionLabels()
+    }
+
+    /// 收藏位置依清單順序,接著是收藏路線的第一點,和 Android 相同。定位歷史不送出查詢,
+    /// 只有剛好和某個收藏落在同一個快取格時才顯示標籤(region-labels.md §3.1)。
+    private func requestRegionLabels() {
+        regionLookup.request(favorites.map(\.coordinate) + savedRoutes.compactMap(\.points.first))
     }
 }

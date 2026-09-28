@@ -271,7 +271,8 @@ final class MessageBoardTests: XCTestCase {
         defer { defaults.removePersistentDomain(forName: suiteName) }
         let controller = SimulationController(
             backend: PreviewLocationSimulationBackend(),
-            dataStore: LocalDataStore(defaults: defaults)
+            dataStore: LocalDataStore(defaults: defaults),
+            regionLookup: .offline(defaults: defaults)
         )
         let route = SharedBoardRoute(
             name: "Harbour route",

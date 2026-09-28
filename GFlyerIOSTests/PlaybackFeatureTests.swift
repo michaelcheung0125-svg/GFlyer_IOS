@@ -385,7 +385,8 @@ final class PlaybackFeatureTests: XCTestCase {
         let controller = SimulationController(
             backend: PreviewLocationSimulationBackend(),
             dataStore: LocalDataStore(defaults: defaults),
-            sessionStore: ActiveSessionStore(defaults: defaults)
+            sessionStore: ActiveSessionStore(defaults: defaults),
+            regionLookup: .offline(defaults: defaults)
         )
         controller.setMode(.multiRoute)
         controller.setLoopRoute(true)

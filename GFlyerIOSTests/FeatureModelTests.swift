@@ -86,7 +86,8 @@ final class FeatureModelTests: XCTestCase {
         defer { defaults.removePersistentDomain(forName: suiteName) }
         let controller = SimulationController(
             backend: PreviewLocationSimulationBackend(),
-            dataStore: LocalDataStore(defaults: defaults)
+            dataStore: LocalDataStore(defaults: defaults),
+            regionLookup: .offline(defaults: defaults)
         )
         let place = GeoCoordinate(latitude: 22.3193, longitude: 114.1694)
         controller.select(place)

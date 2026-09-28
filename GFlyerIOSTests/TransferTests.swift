@@ -164,7 +164,11 @@ final class TransferTests: XCTestCase {
             ],
             loop: false
         )
-        let controller = SimulationController(backend: PreviewLocationSimulationBackend(), dataStore: store)
+        let controller = SimulationController(
+            backend: PreviewLocationSimulationBackend(),
+            dataStore: store,
+            regionLookup: .offline(defaults: defaults)
+        )
 
         let gpx = GpxCodec.write(routes: [
             GpxCodec.ExportRoute(name: "維港路線", points: [
@@ -235,7 +239,8 @@ final class TransferTests: XCTestCase {
         defer { defaults.removePersistentDomain(forName: suiteName) }
         let controller = SimulationController(
             backend: PreviewLocationSimulationBackend(),
-            dataStore: LocalDataStore(defaults: defaults)
+            dataStore: LocalDataStore(defaults: defaults),
+            regionLookup: .offline(defaults: defaults)
         )
         let draft = [GeoCoordinate(latitude: 1, longitude: 1), GeoCoordinate(latitude: 2, longitude: 2)]
         controller.setMode(.multiRoute)
