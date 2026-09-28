@@ -114,7 +114,19 @@ Exit criterion: a 30-minute foreground route completes without losing the tunnel
 - Favorites, favorite folders, and local history (implemented; validation pending).
   For `0.6.9`: favorite names follow `docs/features/name-limits.md` (N2 on add
   and rename, blank rename refused), and the star button follows Android
-  (「收藏 <座標>」 default, no duplicate favorites)
+  (「收藏 <座標>」 default, no duplicate favorites). Also for `0.6.9`: country ·
+  city labels per `docs/features/region-labels.md`. `RegionLabel` holds the
+  pure logic (cache key `%.2f,%.2f`, the Nominatim request, response → label);
+  `RegionLookup`, owned by `SimulationController`, is Android's queue (one
+  request at a time, FIFO, 1.1 s after every real request, per-run queued and
+  failed sets, no retry until the next launch) with a cache under the new key
+  `gflyer.region-labels.v1` that is never expired and never in the backup.
+  Favorites and then the first point of each saved route are requested at
+  start and on every `refreshStoredData()`; history never is. The lists show
+  the label after the coordinate (`"  ·  "`) or after 「N 個點 · 循環|單程」
+  (`" · "`) and a 「收藏於／定位於／儲存於」 date line. `RegionLabelTests` copies
+  `region/nominatim-labels.json` and tests the queue with a fake transport
+  and clock. Device validation pending
 - Named routes and route-draft recovery after relaunch (implemented; validation pending)
 - GPX import and export (implemented in `0.3.0 (5)`: multi-track import into
   saved routes with unique naming, all-routes export; device validation
@@ -275,6 +287,8 @@ Exit criterion: a 30-minute route continues while another App is in the foregrou
 | Message board visible during refresh | Visible foreign posts/replies remain read; after leaving, later foreign activity increments the badge |
 | Session revoked by administrator | The next API request clears the local Keychain session and returns to the join screen |
 | Save shared route with a duplicate name | iOS adds the author and a numeric suffix without replacing an existing local route |
+| Favorites and saved routes exist, app opened online | Country · city labels appear one by one without opening a list; an open list updates in place |
+| Same, in airplane mode | No label, no error; reopening the app online fills them in; deleting and re-adding a favorite sends nothing |
 
 ## Data and security rules
 
@@ -286,6 +300,12 @@ Exit criterion: a 30-minute route continues while another App is in the foregrou
 - Keep the public HTTPS message-board API independent from LocalDevVPN and the
   CoreDevice transport; never attach Pairing File or signing material to board
   requests.
+- Send only favorite coordinates and the first point of each saved route to
+  OpenStreetMap Nominatim for the country · city labels, one request at a time
+  with at least 1.1 s between requests and the `GFlyer/<version> (iOS)`
+  User-Agent; never send history. Keep the results only in
+  `gflyer.region-labels.v1`, never in the backup file, and keep README's
+  privacy sentence (GFlyer-Suite `docs/features/region-labels.md` §3.9) true.
 - Do not include anti-detection or third-party client modification features.
 - Always expose an explicit Stop action that clears device simulation.
 

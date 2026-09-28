@@ -37,7 +37,7 @@ C:\Project\GFlyer
   只是不能再新增，刪掉一個只會少一個。匯入備份時最多取 6 個。新增速度預設時
   去掉名稱前後空白、最多 20 個 Unicode code point，和 Android 相同（原本不限長度）
 - App 前景搖桿控制
-- 收藏、歷史、收藏資料夾、命名路線及路線草稿重啟恢復
+- 收藏、歷史、收藏資料夾、命名路線及路線草稿重啟恢復（0.6.9 起清單顯示和 Android 相同的「國家 · 城市」與時間）
 - 可收合底部控制面板及原生 sheet/menu 操作
 - 暫停、繼續、停止
 - 循環路線，以及走回起點/直接返回
@@ -257,6 +257,36 @@ C:\Project\GFlyer
       計數不變；全部前往過的分類顯示提示；切到「⏲ 提醒中」開關列消失、有紀錄的提醒座標仍列出；關掉
       App 再開開關仍是開的；「⋯」選單的完整時間與「清除紀錄」（iOS 17 的選單若不顯示 Section 標題，
       照規格改成 disabled 的項目）；從 0.6.8 覆蓋安裝後原本的最愛與造訪標記都還在。
+  - **收藏的「國家 · 城市」標籤**（另一批，`docs/features/region-labels.md`，照 Android；決定：照 Android
+    App 一啟動就查、隱私說明照這樣寫；路線列改成「N 個點」；「收藏前先問名稱並預填標籤」不移植，記成 DRIFT）：
+    - 純邏輯（`Services/RegionLookup.swift` 的 `RegionLabel`）：快取鍵 `String(format: "%.2f,%.2f")`；請求
+      `GET https://nominatim.openstreetmap.org/reverse`，參數就 `format=jsonv2`、`zoom=10`、
+      `accept-language=zh-TW`、`lat`、`lon`（原始座標、`String(Double)`），`Accept: application/json`、
+      `User-Agent: GFlyer/<版本> (iOS)`（和 `AppUpdateChecker` 同一個寫法）、`timeoutInterval = 8`；回應 → 標籤：
+      非 2xx 不讀 body、JSON 物件的 `address` 物件、國家 + city／town／municipality／village／county／
+      state_district／state 第一個不是空白的（不看 `province`），城市等於國家就丟掉、不再往下找，用「 · 」接，
+      只認字串值，原樣使用不修剪。
+    - 佇列與快取（`RegionLookup`，`@MainActor`，由 `SimulationController` 持有）：同一時間一個請求、依排入順序，
+      每次真的送出之後（成功或失敗）等 1.1 秒，已有快取的跳過不等、第一筆不等；這次執行排過隊（只增不減）與
+      失敗過的鍵不再送，失敗不寫快取、下次啟動再試。快取是**新鍵** `gflyer.region-labels.v1`（JSON 的
+      `[String: String]`），每查到一筆就寫回，解不開當作空的；不過期、刪收藏／清歷史／還原備份都不清，
+      **不在** `SavedPlace` / `SavedRoute` / `LocalDataSnapshot` / 備份裡，舊資料完全不受影響。transport 與時鐘
+      可以注入。
+    - 觸發（`SimulationController`）：`@Published regionLabels`；`init` 最後與每次 `refreshStoredData()` 送出
+      「收藏位置（清單順序）+ 收藏路線第一點」，定位歷史不送。`init` 多了選填的 `regionLookup` 參數。
+    - 畫面（`LibraryViews`，文字在 `LibraryRowText`）：名稱單行；第二行單行、超出以 … 截斷：收藏與歷史是
+      「座標  ·  標籤」（兩個空白），路線是「N 個點 · 循環｜單程 · 標籤」（原本「N 點」）；第三行小字、不限行數：
+      「收藏於／定位於／儲存於 」＋系統語言與時區的 `.medium` 日期、`.short` 時間（清單原本不顯示時間）。
+    - 隱私：規格 §3.9 的共用句子一字不差加進 `README.md`（新的 Privacy 段）與 `docs/PROJECT_OVERVIEW.md`
+      （「隱私」小節）。iOS App 內沒有隱私或關於說明文字（設定頁「關於」只有版本等欄位），所以 App 內沒有加。
+    - 測試：`RegionLabelTests` 照抄 `region/nominatim-labels.json` 全部案例（cacheKeys 9、labels 23、
+      responses 12、request），佇列用假的 transport 與時鐘測（一次一個、每次請求後 1.1 秒、同格／已快取／
+      已失敗不再送、失敗不寫快取、下次啟動重試、快取壞掉是空的），`SimulationController` 的送出順序、歷史不送、
+      刪掉再加回不再送、備份裡沒有標籤，以及清單文字。其他會新增收藏或路線的控制器測試改傳
+      `RegionLookup.offline(defaults:)`，單元測試不會真的連 Nominatim。
+    - **尚待驗證**（實機，規格 §6）：既有收藏在開 App 後陸續出現標籤；清單開著時即時更新；飛航模式下不顯示、
+      不報錯，恢復網路後重開 App 會補上；刪除收藏再加回同一點不會再送請求；備份匯出檔裡沒有標籤；
+      中文系統上時間是「2026年9月24日 下午1:40」這種格式。
 
 - `0.6.8 (21)`：0.6.7 實機回報的四件事。
   - 已發佈 `ios-v0.6.8`；CI 兩個 job 通過（97 個測試），IPA 拆檢通過

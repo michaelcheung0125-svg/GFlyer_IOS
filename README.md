@@ -52,6 +52,18 @@ This is a separate SwiftUI prototype for personal sideloading. It does not modif
   renamed, a blank rename is refused, and, like Android, an unnamed favorite is
   called 「收藏 <座標>」 and a coordinate that is already a favorite is not added
   again (「此座標已經收藏過」)
+- Country and city labels in the favorite, history and saved-route lists like
+  GFlyer Android (GFlyer-Suite `docs/features/region-labels.md`). A favorite's
+  second line reads `25.033900, 121.564500  ·  臺灣 · 臺北市` and a saved
+  route's `12 個點 · 循環 · 臺灣 · 臺北市` (the label of its first point); each
+  row gains 「收藏於」, 「定位於」 or 「儲存於」 with the medium date and short time
+  in the system language. The labels come from OpenStreetMap Nominatim (see
+  [Privacy](#privacy)): favorites and the first point of each saved route are
+  looked up when the app starts and whenever those lists change, one request
+  at a time with at least 1.1 s between requests, cached per 0.01° cell
+  (about 1 km) under their own UserDefaults key and never in the backup.
+  History is never looked up; a failed lookup shows nothing and is retried on
+  the next launch
 - GPX 1.1 import (tracks, routes, and loose waypoints; several files at once)
   and all-routes export. Like Android, an unreadable file is skipped, one
   message reports the total, import works while simulating, and the first
@@ -243,6 +255,18 @@ message-board client never reads or uploads the Pairing File, DDI, Apple signing
 material, CoreDevice socket data, or simulated-location state. The configured
 endpoint is `GFlyerMessageBoardAPIURL` in `GFlyerIOS/Info.plist` and must remain
 a public HTTPS URL.
+
+## Privacy
+
+收藏位置與收藏路線第一點的座標，會在 App 開啟或收藏變動時送往 OpenStreetMap 的 Nominatim 服務，反查所在的國家與城市；查到的結果只存在本機，不會放進備份檔。
+
+The coordinates of your favorites and of the first point of each saved route
+are sent to the public Nominatim service when the app starts or those lists
+change, to look up their country and city. The results are stored only on the
+device and are not included in backup files. Each request carries only that
+coordinate, the fixed language `zh-TW` and the `GFlyer/<version> (iOS)`
+User-Agent; history entries are never sent. This is the only feature that
+contacts Nominatim: place search uses Apple's MapKit.
 
 ## macOS prerequisites
 
