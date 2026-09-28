@@ -81,11 +81,7 @@ struct SavedPlacesView: View {
                 controller.useSavedPlace(place)
                 dismiss()
             } label: {
-                VStack(alignment: .leading, spacing: Spacing.xs) {
-                    Text(place.name).foregroundStyle(.primary)
-                    Text(place.coordinate.display).font(.numericCaption).foregroundStyle(.secondary)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
+                libraryRowLabel(place, savedPrefix: LibraryRowText.favoriteSavedPrefix)
             }
             .buttonStyle(.plain)
             Menu {
@@ -112,12 +108,21 @@ struct SavedPlacesView: View {
             controller.useSavedPlace(place)
             dismiss()
         } label: {
-            VStack(alignment: .leading, spacing: Spacing.xs) {
-                Text(place.name).foregroundStyle(.primary)
-                Text(place.coordinate.display).font(.numericCaption).foregroundStyle(.secondary)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
+            // 定位歷史不送出查詢,標籤只來自快取(剛好和某個收藏落在同一格時才有)
+            libraryRowLabel(place, savedPrefix: LibraryRowText.historySavedPrefix)
         }
+    }
+
+    /// 名稱一行;座標與「國家 · 城市」一行;「收藏於／定位於 <日期時間>」小字一行,不限行數。
+    private func libraryRowLabel(_ place: SavedPlace, savedPrefix: String) -> some View {
+        VStack(alignment: .leading, spacing: Spacing.xs) {
+            Text(place.name).foregroundStyle(.primary).lineLimit(1)
+            Text(LibraryRowText.place(place.coordinate, labels: controller.regionLabels))
+                .font(.numericCaption).foregroundStyle(.secondary).lineLimit(1)
+            Text(LibraryRowText.saved(savedPrefix, at: place.createdAt))
+                .font(.caption2).foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
@@ -137,9 +142,11 @@ struct SavedRoutesView: View {
                             dismiss()
                         } label: {
                             VStack(alignment: .leading, spacing: Spacing.xs) {
-                                Text(route.name).foregroundStyle(.primary)
-                                Text("\(route.points.count) 點 · \(route.loop ? "循環" : "單程")")
-                                    .font(.caption).foregroundStyle(.secondary)
+                                Text(route.name).foregroundStyle(.primary).lineLimit(1)
+                                Text(LibraryRowText.route(route, labels: controller.regionLabels))
+                                    .font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                                Text(LibraryRowText.saved(LibraryRowText.routeSavedPrefix, at: route.createdAt))
+                                    .font(.caption2).foregroundStyle(.secondary)
                             }
                         }
                         .swipeActions {
@@ -155,4 +162,41 @@ struct SavedRoutesView: View {
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("完成") { dismiss() } } }
         }
     }
+}
+
+/// 收藏位置、定位歷史與收藏路線清單每一列的說明文字,和 Android 一字不差
+/// (GFlyer-Suite docs/features/region-labels.md §3.8)。
+enum LibraryRowText {
+    static let favoriteSavedPrefix = "收藏於"
+    static let historySavedPrefix = "定位於"
+    static let routeSavedPrefix = "儲存於"
+
+    /// 「25.033900, 121.564500  ·  臺灣 · 臺北市」:座標後面是兩個空白 + U+00B7 + 兩個空白,
+    /// 和標籤內部的「 · 」不同。還沒查到標籤時只有座標。
+    static func place(_ coordinate: GeoCoordinate, labels: [String: String]) -> String {
+        let parts: [String?] = [coordinate.display, RegionLabel.label(in: labels, for: coordinate)]
+        return parts.compactMap { $0 }.joined(separator: "  ·  ")
+    }
+
+    /// 「12 個點 · 循環 · 臺灣 · 臺北市」:整條路線只看第一點的標籤,沒有就只有「12 個點 · 循環」。
+    static func route(_ route: SavedRoute, labels: [String: String]) -> String {
+        let summary = "\(route.points.count) 個點 · \(route.loop ? "循環" : "單程")"
+        let parts: [String?] = [summary, route.points.first.flatMap { RegionLabel.label(in: labels, for: $0) }]
+        return parts.compactMap { $0 }.joined(separator: RegionLabel.separator)
+    }
+
+    /// 「收藏於 2026年9月24日 下午1:40」:前綴、一個半形空白,再接系統語言與時區的中等日期 + 短時間,
+    /// 和 Android 的 `DateFormat.getDateTimeInstance(MEDIUM, SHORT)` 相同。
+    static func saved(_ prefix: String, at date: Date) -> String {
+        "\(prefix) \(savedAtFormatter.string(from: date))"
+    }
+
+    private static let savedAtFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = .autoupdatingCurrent
+        formatter.timeZone = .autoupdatingCurrent
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .short
+        return formatter
+    }()
 }

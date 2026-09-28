@@ -389,7 +389,7 @@ final class RegionLabelTests: XCTestCase {
         XCTAssertEqual(defaults.data(forKey: "gflyer.local-data.v1"), snapshot, "其他資料不受影響")
     }
 
-    // MARK: - SimulationController
+    // MARK: - SimulationController 與清單文字
 
     /// 收藏位置依清單順序、接著是收藏路線的第一點;定位歷史不查(§3.1)。之後收藏一變就把新的排進來。
     func testControllerRequestsFavoritesThenRouteStartsButNeverHistory() async throws {
@@ -423,9 +423,21 @@ final class RegionLabelTests: XCTestCase {
         var requested = await nominatim.requested
         XCTAssertEqual(requested, ["25.0339,121.5645", "34.6937,135.5023", "40.7128,-74.006", "-33.8688,151.2093"])
         XCTAssertEqual(controller.regionLabels, ["25.03,121.56": "臺灣 · 臺北市", "40.71,-74.01": "美國 · 紐約"])
-        // 歷史只在剛好和某個收藏落在同一格時有標籤
-        XCTAssertEqual(RegionLabel.label(in: controller.regionLabels, for: Place.taipeiSameCell), "臺灣 · 臺北市")
-        XCTAssertNil(RegionLabel.label(in: controller.regionLabels, for: Place.pacific))
+        XCTAssertEqual(
+            LibraryRowText.place(Place.taipei, labels: controller.regionLabels),
+            "25.033900, 121.564500  ·  臺灣 · 臺北市"
+        )
+        XCTAssertEqual(
+            LibraryRowText.route(controller.savedRoutes[0], labels: controller.regionLabels),
+            "2 個點 · 循環 · 美國 · 紐約"
+        )
+        XCTAssertEqual(LibraryRowText.route(controller.savedRoutes[1], labels: controller.regionLabels), "2 個點 · 單程")
+        // 歷史只在剛好和某個收藏落在同一格時顯示標籤
+        XCTAssertEqual(
+            LibraryRowText.place(Place.taipeiSameCell, labels: controller.regionLabels),
+            "25.030100, 121.560100  ·  臺灣 · 臺北市"
+        )
+        XCTAssertEqual(LibraryRowText.place(Place.pacific, labels: controller.regionLabels), "10.000000, -150.000000")
 
         // 收藏變動時把新的座標排進來
         controller.select(Place.seoul)
@@ -450,6 +462,26 @@ final class RegionLabelTests: XCTestCase {
         let text = try XCTUnwrap(String(data: backup, encoding: .utf8))
         XCTAssertFalse(text.contains("臺灣"), text)
         XCTAssertFalse(text.contains("美國"), text)
+    }
+
+    func testRowTextsMatchAndroid() {
+        let labels = ["25.03,121.56": "臺灣 · 臺北市"]
+        XCTAssertEqual(LibraryRowText.place(Place.taipei, labels: labels), "25.033900, 121.564500  ·  臺灣 · 臺北市")
+        XCTAssertEqual(LibraryRowText.place(Place.osaka, labels: labels), "34.693700, 135.502300", "沒有標籤時連同分隔一起省略")
+
+        let twelve = (0..<12).map { GeoCoordinate(latitude: 25.0339 + Double($0) * 0.001, longitude: 121.5645) }
+        XCTAssertEqual(
+            LibraryRowText.route(SavedRoute(name: "臺北", points: twelve, loop: true), labels: labels),
+            "12 個點 · 循環 · 臺灣 · 臺北市"
+        )
+        XCTAssertEqual(LibraryRowText.route(SavedRoute(name: "臺北", points: twelve, loop: false), labels: [:]), "12 個點 · 單程")
+
+        // 日期時間跟系統語言與時區(中等日期 + 短時間);前綴與後面的半形空白必須一字不差
+        let date = Date(timeIntervalSince1970: 1_790_401_200)
+        let dateTime = DateFormatter.localizedString(from: date, dateStyle: .medium, timeStyle: .short)
+        XCTAssertEqual(LibraryRowText.saved(LibraryRowText.favoriteSavedPrefix, at: date), "收藏於 " + dateTime)
+        XCTAssertEqual(LibraryRowText.saved(LibraryRowText.historySavedPrefix, at: date), "定位於 " + dateTime)
+        XCTAssertEqual(LibraryRowText.saved(LibraryRowText.routeSavedPrefix, at: date), "儲存於 " + dateTime)
     }
 
     // MARK: - 輔助
