@@ -375,6 +375,43 @@ final class PlaybackFeatureTests: XCTestCase {
         XCTAssertEqual(RoutePlaybackMessages.resumed, "已繼續移動")
     }
 
+    /// 中斷恢復的第一圈只走快照裡剩下的點;編號、到點步驟與「最後一段」對齊到整圈的尾段
+    /// (`SimulationController.startRoute` 用的 `RouteArrivalPlan.resumedLap`)。
+    func testResumedRouteLapAlignsToTheTailOfTheLap() {
+        let a = GeoCoordinate(latitude: 25.0, longitude: 121.5)
+        let b = GeoCoordinate(latitude: 25.01, longitude: 121.5)
+        let c = GeoCoordinate(latitude: 25.02, longitude: 121.5)
+        let interruption = GeoCoordinate(latitude: 25.005, longitude: 121.5)
+        var settings = PlaybackSettings()
+        settings.travelMode = .teleport
+        settings.pointAction = .orbit
+        settings.manualAdvance = true
+        let options = RoutePlaybackOptions.effective(for: .multiRoute, settings: settings)
+
+        // 走回起點的循環 A→B→C→A,到過 B 之後中斷:剩 C、A
+        let looping = RouteArrivalPlan.playbackLap(points: [a, b, c], loop: true, transition: .walkBack, options: options)
+        let resumed = RouteArrivalPlan.resumedLap([interruption, c, a], aligningTo: looping)
+        XCTAssertEqual(resumed.map(\.start), [interruption, c])
+        XCTAssertEqual(resumed.map(\.end), [c, a])
+        XCTAssertEqual(resumed.map(\.leg), looping.suffix(2).map(\.leg))
+        XCTAssertEqual(resumed.map(\.leg.to), [3, 1], "回到起點那一段是第 1 點")
+
+        // 不循環 A→B→C,在 A、B 之間中斷:剩 B、C,最後一段不等「下一點」
+        let once = RouteArrivalPlan.playbackLap(points: [a, b, c], loop: false, transition: .walkBack, options: options)
+        let resumedOnce = RouteArrivalPlan.resumedLap([interruption, b, c], aligningTo: once)
+        XCTAssertEqual(resumedOnce.map(\.leg), once.map(\.leg))
+        XCTAssertEqual(resumedOnce.map(\.leg.to), [2, 3])
+        XCTAssertEqual(resumedOnce.map(\.leg.steps.waitsForManualAdvance), [true, false])
+
+        // 快照比一整圈還長(舊快照記的循環設定和當時播放的路線不一致):不當掉,最後一段仍是最後一段
+        let longer = RouteArrivalPlan.resumedLap([interruption, b, c, a], aligningTo: once)
+        XCTAssertEqual(longer.map(\.end), [b, c, a])
+        XCTAssertEqual(longer.first?.leg, once.first?.leg)
+        XCTAssertEqual(longer.last?.leg, once.last?.leg)
+
+        XCTAssertTrue(RouteArrivalPlan.resumedLap([interruption], aligningTo: once).isEmpty, "少於兩個點不是一圈")
+    }
+
     /// 單點路線不循環(畫面上也沒有循環選項),存路線時也不會存下看不到的循環設定。
     @MainActor
     func testSingleRoutesNeverLoop() {

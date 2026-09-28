@@ -116,6 +116,40 @@ enum RouteArrivalPlan {
             )
         }
     }
+
+    /// `SimulationController.startRoute` 播的一圈:`lap` 的每一段配上 `RoutePlan.traversalPoints` 的座標。
+    /// 訊息裡的點編號(`leg.to`)、到點步驟與「最後一段」都直接用 `lap` 的結果,播放和 fixture 測的是同一份。
+    static func playbackLap(
+        points: [GeoCoordinate],
+        loop: Bool,
+        transition: LoopTransitionMode,
+        options: RoutePlaybackOptions
+    ) -> [RoutePlaybackLeg] {
+        let traversal = RoutePlan.traversalPoints(points, loop: loop, transitionMode: transition)
+        let legs = lap(pointCount: points.count, loop: loop, transition: transition, options: options)
+        return legs.enumerated().map { index, leg in
+            RoutePlaybackLeg(start: traversal[index], end: traversal[index + 1], leg: leg)
+        }
+    }
+
+    /// 中斷恢復的第一圈:`stops` 是中斷的座標加上快照裡這一圈還沒到的點。那些點是這一圈的尾段,所以第 j 段
+    /// 對齊到整圈的倒數同一段,用那一段的編號與步驟。快照比一整圈還長時(舊快照記的循環設定和當時播放的路線
+    /// 不一致),多出來的前幾段用第一段的。少於兩個點時是空的。
+    static func resumedLap(_ stops: [GeoCoordinate], aligningTo fullLap: [RoutePlaybackLeg]) -> [RoutePlaybackLeg] {
+        guard stops.count >= 2, !fullLap.isEmpty else { return [] }
+        let offset = fullLap.count - (stops.count - 1)
+        return (0..<(stops.count - 1)).map { index in
+            RoutePlaybackLeg(start: stops[index], end: stops[index + 1], leg: fullLap[max(offset + index, 0)].leg)
+        }
+    }
+}
+
+/// 播放時的一段:`RouteArrivalPlan.lap` 的一段,加上實際要走(或傳送)的座標。
+struct RoutePlaybackLeg: Equatable {
+    /// 模擬移動從這裡走起;定點傳送不發送這一點。
+    var start: GeoCoordinate
+    var end: GeoCoordinate
+    var leg: RouteLeg
 }
 
 /// 到點微動:從路線點往正東走 20 公尺(大圓 `GeoMath.destination`),之後停在那裡、不走回路線點。

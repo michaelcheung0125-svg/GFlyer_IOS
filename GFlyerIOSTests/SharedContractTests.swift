@@ -826,7 +826,7 @@ final class SharedContractTests: XCTestCase {
         struct PlanCase {
             let name: String
             let kind: RouteStartKind
-            let pointCount: Int
+            let points: [String]
             let stored: PlaybackSettings
             let loop: Bool
             let transition: LoopTransitionMode
@@ -870,7 +870,7 @@ final class SharedContractTests: XCTestCase {
             PlanCase(
                 name: "simulate-ignores-arrival-options",
                 kind: .multiRoute,
-                pointCount: 3,
+                points: ["A", "B", "C"],
                 stored: stored(.simulate, .orbit, manualAdvance: true, dwellSeconds: 10, startDelaySeconds: 5),
                 loop: false,
                 transition: .walkBack,
@@ -890,7 +890,7 @@ final class SharedContractTests: XCTestCase {
             PlanCase(
                 name: "teleport-orbit-with-dwell",
                 kind: .multiRoute,
-                pointCount: 3,
+                points: ["A", "B", "C"],
                 stored: stored(.teleport, .orbit, manualAdvance: false, dwellSeconds: 10, startDelaySeconds: 0),
                 loop: false,
                 transition: .walkBack,
@@ -910,7 +910,7 @@ final class SharedContractTests: XCTestCase {
             PlanCase(
                 name: "teleport-manual-advance-forces-dwell-0",
                 kind: .multiRoute,
-                pointCount: 3,
+                points: ["A", "B", "C"],
                 stored: stored(.teleport, .microMove, manualAdvance: true, dwellSeconds: 10, startDelaySeconds: 3),
                 loop: false,
                 transition: .walkBack,
@@ -930,7 +930,7 @@ final class SharedContractTests: XCTestCase {
             PlanCase(
                 name: "teleport-loop-walk-back",
                 kind: .multiRoute,
-                pointCount: 3,
+                points: ["A", "B", "C"],
                 stored: stored(.teleport, .orbit, manualAdvance: false, dwellSeconds: 5, startDelaySeconds: 0),
                 loop: true,
                 transition: .walkBack,
@@ -951,7 +951,7 @@ final class SharedContractTests: XCTestCase {
             PlanCase(
                 name: "teleport-loop-teleport-to-start-never-revisits-point-1",
                 kind: .multiRoute,
-                pointCount: 3,
+                points: ["A", "B", "C"],
                 stored: stored(.teleport, .microMove, manualAdvance: true, dwellSeconds: 5, startDelaySeconds: 0),
                 loop: true,
                 transition: .teleportToStart,
@@ -971,7 +971,7 @@ final class SharedContractTests: XCTestCase {
             PlanCase(
                 name: "simulate-loop-teleport-to-start",
                 kind: .multiRoute,
-                pointCount: 3,
+                points: ["A", "B", "C"],
                 stored: stored(.simulate, .microMove, manualAdvance: false, dwellSeconds: 5, startDelaySeconds: 10),
                 loop: true,
                 transition: .teleportToStart,
@@ -991,7 +991,7 @@ final class SharedContractTests: XCTestCase {
             PlanCase(
                 name: "teleport-legacy-none-with-dwell",
                 kind: .multiRoute,
-                pointCount: 3,
+                points: ["A", "B", "C"],
                 stored: stored(.teleport, .none, manualAdvance: false, dwellSeconds: 10, startDelaySeconds: 0),
                 loop: false,
                 transition: .walkBack,
@@ -1011,7 +1011,7 @@ final class SharedContractTests: XCTestCase {
             PlanCase(
                 name: "teleport-legacy-none-manual",
                 kind: .multiRoute,
-                pointCount: 3,
+                points: ["A", "B", "C"],
                 stored: stored(.teleport, .none, manualAdvance: true, dwellSeconds: 10, startDelaySeconds: 0),
                 loop: false,
                 transition: .walkBack,
@@ -1031,7 +1031,7 @@ final class SharedContractTests: XCTestCase {
             PlanCase(
                 name: "teleport-stored-dwell-0-clamped-to-1",
                 kind: .multiRoute,
-                pointCount: 2,
+                points: ["A", "B"],
                 stored: stored(.teleport, .orbit, manualAdvance: false, dwellSeconds: 0, startDelaySeconds: 0),
                 loop: false,
                 transition: .walkBack,
@@ -1050,7 +1050,7 @@ final class SharedContractTests: XCTestCase {
             PlanCase(
                 name: "repeated-point-numbered-by-position",
                 kind: .multiRoute,
-                pointCount: 3,
+                points: ["A", "B", "A"],
                 stored: stored(.teleport, .orbit, manualAdvance: true, dwellSeconds: 10, startDelaySeconds: 0),
                 loop: false,
                 transition: .walkBack,
@@ -1070,7 +1070,7 @@ final class SharedContractTests: XCTestCase {
             PlanCase(
                 name: "single-route-ignores-all-options",
                 kind: .singleRoute,
-                pointCount: 2,
+                points: ["A", "B"],
                 stored: stored(.teleport, .orbit, manualAdvance: true, dwellSeconds: 10, startDelaySeconds: 10),
                 loop: false,
                 transition: .walkBack,
@@ -1089,7 +1089,7 @@ final class SharedContractTests: XCTestCase {
             PlanCase(
                 name: "board-route-start-ignores-all-options",
                 kind: .boardRoute,
-                pointCount: 3,
+                points: ["A", "B", "C"],
                 stored: stored(.teleport, .orbit, manualAdvance: true, dwellSeconds: 10, startDelaySeconds: 10),
                 loop: true,
                 transition: .walkBack,
@@ -1109,18 +1109,37 @@ final class SharedContractTests: XCTestCase {
             ),
         ]
         XCTAssertEqual(cases.count, 12)
+        // 同一個代號是同一個座標
+        let coordinates = [
+            "A": GeoCoordinate(latitude: 25.033964, longitude: 121.564468),
+            "B": GeoCoordinate(latitude: 25.04, longitude: 121.57),
+            "C": GeoCoordinate(latitude: 25.05, longitude: 121.58),
+        ]
         for testCase in cases {
             let effective = RoutePlaybackOptions.effective(for: testCase.kind, settings: testCase.stored)
             XCTAssertEqual(effective, testCase.effective, testCase.name)
             let loop = RoutePlaybackOptions.loops(for: testCase.kind, requested: testCase.loop)
             XCTAssertEqual(loop, testCase.repeats, testCase.name)
             let lap = RouteArrivalPlan.lap(
-                pointCount: testCase.pointCount,
+                pointCount: testCase.points.count,
                 loop: loop,
                 transition: testCase.transition,
                 options: effective
             )
             XCTAssertEqual(lap, testCase.lap, testCase.name)
+
+            // SimulationController.startRoute 播的是 playbackLap:同一份 lap,每一段配上路線點的座標
+            let points = testCase.points.compactMap { coordinates[$0] }
+            XCTAssertEqual(points.count, testCase.points.count, testCase.name)
+            let playback = RouteArrivalPlan.playbackLap(
+                points: points,
+                loop: loop,
+                transition: testCase.transition,
+                options: effective
+            )
+            XCTAssertEqual(playback.map(\.leg), testCase.lap, testCase.name)
+            XCTAssertEqual(playback.map(\.start), testCase.lap.map { points[$0.from - 1] }, testCase.name)
+            XCTAssertEqual(playback.map(\.end), testCase.lap.map { points[$0.to - 1] }, testCase.name)
         }
     }
 

@@ -157,7 +157,9 @@ C:\Project\GFlyer
       停留一律 0。倒數只在多點模式按「開始」時有；單點路線與留言板路線直接開始是純走路、
       不倒數（只預覽、自己按「開始」照多點處理）。決定都在 `Model/RouteArrival.swift`
       （`RoutePlaybackOptions.effective`、`RouteArrivalSteps`、`RouteArrivalPlan.lap`），
-      `SimulationController.startRoute` 照它播放。
+      `SimulationController.startRoute` 照它播放：每一圈是 `RouteArrivalPlan.playbackLap`（同一份
+      `lap` 配上座標），訊息的點編號、到點步驟與「最後一段」都直接用 `lap` 的結果，不再有自己的一份
+      編號規則；中斷恢復的第一圈用 `RouteArrivalPlan.resumedLap` 對齊到整圈的尾段。
     - `RouteTravelMode` / `RoutePointAction` / `LoopTransitionMode` 的 rawValue 是存檔
       與中斷快照裡的值，**不能改**；畫面用 `label`（定點傳送、繞圈、向東走 20 米、瞬間跳轉）。
     - `PlaybackSettings`：停留 1〜300（原本 0〜300、步進 5 → 1）；到點動作預設繞圈；
@@ -181,8 +183,11 @@ C:\Project\GFlyer
       「進階播放選項」路線播放中整組停用（`SimulationStatus.isPlayingRoute`）；設定頁改成
       「多點路線倒數」（不用／3／5／10 秒＋說明）、「傳送到點停留」、「繞圈設定」。
     - 測試：`SharedContractTests` 照抄 `route/arrival-actions.json` 全部段落（offset、orbit、
-      microMove、orbitRadii、orbitRadiiEdits、dwellSeconds、arrivalPlan）；`PlaybackFeatureTests`
-      有 §5.3 每一列的遷移測試、版本 2 存檔不被改寫、提示只出現一次。
+      microMove、orbitRadii、orbitRadiiEdits、dwellSeconds、arrivalPlan；arrivalPlan 也對
+      `playbackLap` 驗每一段與座標）；`PlaybackFeatureTests` 有 §5.3 每一列的遷移測試、版本 2
+      存檔不被改寫、提示只出現一次、恢復第一圈的對齊。控制器層級的播放測試做不到：開始路線要先
+      通過 `DeviceLocationService.startBackgroundRouteActivity()`，模擬器上的定位權限是未決定，
+      一定回傳 false。
     - **尚待驗證**（實機）：§6 的上機清單 —— 模擬移動多點路線到點不停；定點傳送 + 繞圈 +
       停留 3 秒；定點傳送 + 向東走 20 米 + 手動前進（最後一點不等）；跳過繞圈與跳過倒數；單點
       與留言板路線直接開始不倒數；從 0.6.8 升上來，§5.3 每種舊設定各一次。

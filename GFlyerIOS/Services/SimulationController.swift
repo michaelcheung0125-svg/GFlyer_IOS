@@ -1084,14 +1084,20 @@ final class SimulationController: ObservableObject {
 
     /// 播放一條路線,和 Android `MockLocationService.startRoute` 相同(GFlyer-Suite
     /// docs/features/route-arrival-actions.md §3.3):實際採用的選項見 `RoutePlaybackOptions.effective`,
-    /// 每一段抵達之後的步驟見 `RouteArrivalSteps`。
+    /// 每一段的點編號、抵達之後的步驟與是否為最後一段都來自 `RouteArrivalPlan.playbackLap`
+    /// (也就是 fixture 測的 `RouteArrivalPlan.lap`)。
+    /// - Parameter firstLapPoints: 中斷恢復時是中斷的座標加上快照裡剩下的點,第一圈只走這些,
+    ///   用 `RouteArrivalPlan.resumedLap` 對齊到整圈的尾段;之後每一圈照整圈播放。
     private func startRoute(kind: RouteStartKind, resumingFrom firstLapPoints: [GeoCoordinate]? = nil) {
         let points = routePoints
         guard points.count >= 2 else { return }
         let options = RoutePlaybackOptions.effective(for: kind, settings: playbackSettings)
         let loop = RoutePlaybackOptions.loops(for: kind, requested: loopRoute)
         let transition = loopTransitionMode
-        let traversal = RoutePlan.traversalPoints(points, loop: loop, transitionMode: transition)
+        let lap = RouteArrivalPlan.playbackLap(points: points, loop: loop, transition: transition, options: options)
+        let resumedLap = firstLapPoints.map { RouteArrivalPlan.resumedLap($0, aligningTo: lap) } ?? []
+        let firstLap = resumedLap.isEmpty ? lap : resumedLap
+        guard let firstLeg = firstLap.first else { return }
         advanceRequested = false
         countdownSkipRequested = false
         orbitSkipRequested = false
@@ -1101,18 +1107,7 @@ final class SimulationController: ObservableObject {
         status.isPlayingRoute = true
         playbackGeneration += 1
         let generation = playbackGeneration
-        // 依 lap 內位置換算原路線的顯示編號；walk-back 尾段回到第 1 點。
-        // 恢復的第一圈是 traversal 的尾段，先對齊再換算。
-        func pointNumber(lapPoints: [GeoCoordinate], nextIndex: Int) -> Int {
-            let traversalIndex = min(
-                max(traversal.count - lapPoints.count + nextIndex, 0),
-                max(traversal.count - 1, 0)
-            )
-            if loop, transition == .walkBack, traversalIndex == traversal.count - 1 { return 1 }
-            return traversalIndex + 1
-        }
-        let firstLap = firstLapPoints ?? traversal
-        status.message = RoutePlaybackMessages.headingTo(point: pointNumber(lapPoints: firstLap, nextIndex: 1))
+        status.message = RoutePlaybackMessages.headingTo(point: firstLeg.leg.to)
         playbackTask = Task { [weak self] in
             guard let self else { return }
             defer {
@@ -1127,35 +1122,31 @@ final class SimulationController: ObservableObject {
             // 中斷後恢復的路線不倒數
             let countdownSeconds = firstLapPoints == nil ? options.startDelaySeconds : 0
             guard await runStartCountdown(seconds: countdownSeconds) else { return }
-            var lapPoints = firstLap
+            var legs = firstLap
             while !Task.isCancelled {
-                currentLapPoints = lapPoints
-                for index in 0..<max(lapPoints.count - 1, 0) {
-                    let start = lapPoints[index]
-                    let end = lapPoints[index + 1]
-                    let number = pointNumber(lapPoints: lapPoints, nextIndex: index + 1)
+                // 中斷快照裡「剩下的點」是 currentLapPoints[currentLapNextIndex...]
+                currentLapPoints = (legs.first.map { [$0.start] } ?? []) + legs.map(\.end)
+                for (index, stop) in legs.enumerated() {
+                    let number = stop.leg.to
                     currentLapNextIndex = index + 1
-                    switch options.travelMode {
+                    switch stop.leg.travelMode {
                     case .simulate:
-                        guard await move(from: start, to: end) else { return }
+                        guard await move(from: stop.start, to: stop.end) else { return }
                         status.message = RoutePlaybackMessages.arrived(at: number)
                     case .teleport:
                         // 這一段的起點不發送:開始時不先傳到第 1 點,「瞬間跳轉」循環也不回到第 1 點(和 Android 相同)
-                        guard await send(end, message: RoutePlaybackMessages.teleported(to: number)) else { return }
+                        guard await send(stop.end, message: RoutePlaybackMessages.teleported(to: number)) else { return }
                     }
-                    saveSessionSnapshot(coordinate: end, force: true)
-                    let steps = RouteArrivalSteps(
-                        options: options,
-                        isFinalStop: !loop && index + 1 == lapPoints.count - 1
-                    )
+                    saveSessionSnapshot(coordinate: stop.end, force: true)
+                    let steps = stop.leg.steps
                     if steps.dwellSeconds > 0 {
                         guard await dwellAtPoint(seconds: steps.dwellSeconds, pointNumber: number) else { return }
                     }
                     switch steps.action {
                     case .orbit:
-                        guard await orbitAround(end, pointNumber: number) else { return }
+                        guard await orbitAround(stop.end, pointNumber: number) else { return }
                     case .microMove:
-                        guard await microMoveEast(from: end, pointNumber: number) else { return }
+                        guard await microMoveEast(from: stop.end, pointNumber: number) else { return }
                     case .none:
                         break
                     }
@@ -1163,7 +1154,7 @@ final class SimulationController: ObservableObject {
                         guard await waitForManualAdvance(pointNumber: number) else { return }
                     }
                 }
-                lapPoints = traversal
+                legs = lap
                 guard loop, !Task.isCancelled else { break }
                 // 模擬移動的下一圈從第 1 點走起;定點傳送不發送第 1 點(規格 Q5)
                 status.message = RoutePlaybackMessages.nextLap
