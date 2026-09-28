@@ -32,7 +32,10 @@ This is a separate SwiftUI prototype for personal sideloading. It does not modif
   are read when each orbit starts. Status texts match Android word for word,
   and a walk advances speed x 0.25 s per step (no 0.5 m minimum). Settings saved
   by 0.6.8 are migrated once when the app loads; people who used an arrival
-  action or manual advance with 「模擬移動」 see a one-time notice
+  action or manual advance with 「模擬移動」 see a one-time notice. The saved
+  arrival action is never rewritten (a 「模擬移動」 route still walks straight
+  after a rollback to 0.6.8); 繞圈 is pre-selected the first time someone
+  switches to 「定點傳送」, which is Android's default
 - Cross-date teleport reminder using the Android longitude-based offline
   UTC-offset estimate
 - Visible iOS 17 background location activity for route and exploration playback

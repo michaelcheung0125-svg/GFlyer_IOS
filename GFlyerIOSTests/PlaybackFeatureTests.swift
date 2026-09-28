@@ -202,19 +202,39 @@ final class PlaybackFeatureTests: XCTestCase {
         return try XCTUnwrap(object["playback"] as? [String: Any])
     }
 
-    func testMigrationTurnsSimulateWithoutActionIntoOrbitSilently() throws {
+    /// 存的到點動作不改寫:降級回 0.6.8(兩種移動方式都執行到點動作)時,模擬移動照舊不繞圈。
+    /// 0.6.9 裡切到定點傳送時才預先選好繞圈(Android 的預設),只做一次。
+    func testMigrationKeepsSimulateWithoutActionAndPreselectsOrbitForTeleport() throws {
         try withLegacyStore(playback: legacyPlayback(travelMode: "模擬移動", pointAction: "無")) { store, defaults in
             let playback = store.snapshot.playback
             XCTAssertEqual(playback.travelMode, .simulate)
-            XCTAssertEqual(playback.pointAction, .orbit, "之後切到定點傳送時預先選好繞圈(Android 的預設)")
+            XCTAssertEqual(playback.pointAction, RoutePointAction.none)
+            XCTAssertTrue(playback.preselectsOrbitForTeleport)
             XCTAssertFalse(playback.pendingArrivalRulesNotice)
             XCTAssertEqual(playback.arrivalRulesVersion, 2)
             XCTAssertEqual(store.snapshot.favorites.map(\.name), ["家"], "其他資料不受影響")
             // 模擬移動本來就不做到點動作,現在也一樣
             XCTAssertEqual(RoutePlaybackOptions.effective(for: .multiRoute, settings: playback).pointAction, RoutePointAction.none)
-            // 遷移後立刻寫回
-            XCTAssertEqual(try storedPlayback(in: defaults)["arrivalRulesVersion"] as? Int, 2)
-            XCTAssertEqual(try storedPlayback(in: defaults)["pointAction"] as? String, "繞圈")
+            // 遷移後立刻寫回;0.6.8 讀的 pointAction 仍是「無」,新的鍵它不認得
+            let stored = try storedPlayback(in: defaults)
+            XCTAssertEqual(stored["arrivalRulesVersion"] as? Int, 2)
+            XCTAssertEqual(stored["pointAction"] as? String, "無")
+            XCTAssertEqual(stored["travelMode"] as? String, "模擬移動")
+            XCTAssertEqual(stored["preselectsOrbitForTeleport"] as? Bool, true)
+
+            var teleport = playback
+            teleport.selectTravelMode(.teleport)
+            XCTAssertEqual(teleport.pointAction, .orbit, "切到定點傳送時預先選好繞圈")
+            XCTAssertFalse(teleport.preselectsOrbitForTeleport)
+            XCTAssertEqual(RoutePlaybackOptions.effective(for: .multiRoute, settings: teleport).pointAction, .orbit)
+            // 只做一次:之後選了微動,切回模擬移動再切回來仍是微動
+            teleport.pointAction = .microMove
+            teleport.selectTravelMode(.simulate)
+            teleport.selectTravelMode(.teleport)
+            XCTAssertEqual(teleport.pointAction, .microMove)
+            // 存檔再載入不會重新預先選
+            store.savePlaybackSettings(teleport)
+            XCTAssertEqual(LocalDataStore(defaults: defaults).snapshot.playback, teleport)
         }
     }
 
@@ -224,8 +244,13 @@ final class PlaybackFeatureTests: XCTestCase {
                 let playback = store.snapshot.playback
                 XCTAssertEqual(playback.pointAction, action.1, action.0)
                 XCTAssertTrue(playback.pendingArrivalRulesNotice, action.0)
+                XCTAssertFalse(playback.preselectsOrbitForTeleport, action.0)
                 // 模擬移動到點不再繞圈或微動
                 XCTAssertEqual(RoutePlaybackOptions.effective(for: .multiRoute, settings: playback).pointAction, RoutePointAction.none)
+                // 切回定點傳送時還是原本選的
+                var teleport = playback
+                teleport.selectTravelMode(.teleport)
+                XCTAssertEqual(teleport.pointAction, action.1, action.0)
             }
         }
     }
@@ -235,7 +260,8 @@ final class PlaybackFeatureTests: XCTestCase {
         try withLegacyStore(playback: legacy) { store, _ in
             let playback = store.snapshot.playback
             XCTAssertTrue(playback.manualAdvance, "存的值保留,切回定點傳送時還在")
-            XCTAssertEqual(playback.pointAction, .orbit)
+            XCTAssertEqual(playback.pointAction, RoutePointAction.none)
+            XCTAssertTrue(playback.preselectsOrbitForTeleport)
             XCTAssertTrue(playback.pendingArrivalRulesNotice)
             XCTAssertFalse(RoutePlaybackOptions.effective(for: .multiRoute, settings: playback).manualAdvance)
         }
@@ -246,11 +272,34 @@ final class PlaybackFeatureTests: XCTestCase {
             let playback = store.snapshot.playback
             XCTAssertEqual(playback.travelMode, .teleport, "rawValue「逐點傳送」仍然讀得回來")
             XCTAssertEqual(playback.pointAction, RoutePointAction.none, "照舊傳送 → 停留 → 下一點(Q1)")
+            XCTAssertFalse(playback.preselectsOrbitForTeleport)
             XCTAssertFalse(playback.pendingArrivalRulesNotice)
             let options = RoutePlaybackOptions.effective(for: .multiRoute, settings: playback)
             XCTAssertEqual(options.pointAction, RoutePointAction.none)
             XCTAssertEqual(options.dwellSeconds, 10)
+            // 切到模擬移動再切回來也不會變成繞圈
+            var switched = playback
+            switched.selectTravelMode(.simulate)
+            switched.selectTravelMode(.teleport)
+            XCTAssertEqual(switched.pointAction, RoutePointAction.none)
         }
+    }
+
+    /// 新安裝也存「無」:第一次存檔之後降級回 0.6.8,模擬移動不會在每個點繞圈。
+    func testFreshInstallStoresNoActionUntilTeleportIsChosen() throws {
+        let suiteName = "gflyer.arrival-migration-tests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let store = LocalDataStore(defaults: defaults)
+        var settings = store.snapshot.playback
+        settings.autoStopMinutes = 30
+        store.savePlaybackSettings(settings)
+        let stored = try storedPlayback(in: defaults)
+        XCTAssertEqual(stored["travelMode"] as? String, "模擬移動")
+        XCTAssertEqual(stored["pointAction"] as? String, "無")
+
+        settings.selectTravelMode(.teleport)
+        XCTAssertEqual(settings.pointAction, .orbit, "切到定點傳送時和 Android 一樣是繞圈")
     }
 
     func testMigrationKeepsTeleportManualAdvanceDwellButPlaysWithoutIt() throws {
@@ -307,13 +356,16 @@ final class PlaybackFeatureTests: XCTestCase {
         defer { defaults.removePersistentDomain(forName: suiteName) }
         let store = LocalDataStore(defaults: defaults)
         var settings = PlaybackSettings()
-        settings.travelMode = .simulate
+        settings.travelMode = .teleport
         settings.pointAction = .none
+        settings.preselectsOrbitForTeleport = false
+        settings.selectTravelMode(.simulate)
         XCTAssertEqual(settings.sanitized(), settings)
         store.savePlaybackSettings(settings)
 
         let restored = LocalDataStore(defaults: defaults)
         XCTAssertEqual(restored.snapshot.playback.pointAction, RoutePointAction.none)
+        XCTAssertFalse(restored.snapshot.playback.preselectsOrbitForTeleport)
         XCTAssertFalse(restored.snapshot.playback.pendingArrivalRulesNotice)
     }
 

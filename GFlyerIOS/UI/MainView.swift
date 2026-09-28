@@ -799,7 +799,8 @@ private struct ControlPanel: View {
             VStack(spacing: Spacing.sm) {
                 Picker("移動方式", selection: Binding(
                     get: { controller.playbackSettings.travelMode },
-                    set: { value in controller.updatePlayback { $0.travelMode = value } }
+                    // 第一次切到定點傳送時預先選好繞圈(PlaybackSettings.selectTravelMode)
+                    set: { value in controller.updatePlayback { $0.selectTravelMode(value) } }
                 )) {
                     ForEach(RouteTravelMode.allCases) { mode in Text(mode.label).tag(mode) }
                 }
@@ -835,7 +836,7 @@ private struct ControlPanel: View {
     }
 
     /// 兩個都沒選取時是 0.6.8 以前留下的「定點傳送 + 無動作」:照舊到點不做動作,和 Android 讀到 NONE
-    /// 時一樣。選了其中一個之後就回不到無動作。
+    /// 時一樣。選了其中一個之後就回不到無動作。其他人切到定點傳送時已經預先選好繞圈。
     private func pointActionButton(_ action: RoutePointAction) -> some View {
         let isSelected = controller.playbackSettings.pointAction == action
         return Button {

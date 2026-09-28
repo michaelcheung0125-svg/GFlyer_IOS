@@ -148,6 +148,11 @@ Exit criterion: a 30-minute foreground route completes without losing the tunnel
   no 0.5 m per-step walking minimum. 0.6.8 settings are migrated once
   (`PlaybackSettings.migratedToArrivalRulesV2`, spec §5.3) with a one-time
   notice for 「模擬移動」 users who lose an arrival action or manual advance.
+  The stored arrival action is never rewritten, so a rollback to 0.6.8 (which
+  runs arrival actions in both travel modes) keeps walking straight; fresh
+  installs and 「模擬移動」 + no action store 「無」 with
+  `preselectsOrbitForTeleport`, and `selectTravelMode` pre-selects 繞圈 once
+  on the first switch to 「定點傳送」.
   The whole `route/arrival-actions.json` fixture is copied into
   `SharedContractTests`; the migration rows are in `PlaybackFeatureTests`
 

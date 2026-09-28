@@ -162,16 +162,20 @@ C:\Project\GFlyer
       編號規則；中斷恢復的第一圈用 `RouteArrivalPlan.resumedLap` 對齊到整圈的尾段。
     - `RouteTravelMode` / `RoutePointAction` / `LoopTransitionMode` 的 rawValue 是存檔
       與中斷快照裡的值，**不能改**；畫面用 `label`（定點傳送、繞圈、向東走 20 米、瞬間跳轉）。
-    - `PlaybackSettings`：停留 1〜300（原本 0〜300、步進 5 → 1）；到點動作預設繞圈；
-      繞圈半徑照 Android 整理（範圍外丟掉、去重、前 4 個、空的用 [20, 30]），新增一圈 40 米、
-      可刪任一圈；新增 `arrivalRulesVersion`（新安裝 2，0.6.8 的資料沒有這個鍵 = 1）與
-      `pendingArrivalRulesNotice`。
+    - `PlaybackSettings`：停留 1〜300（原本 0〜300、步進 5 → 1）；到點動作在定點傳送的預設是
+      繞圈（Android），但存檔裡新安裝是「無」＋`preselectsOrbitForTeleport`，第一次切到定點傳送時
+      `selectTravelMode` 才預先選好繞圈（只做一次）；繞圈半徑照 Android 整理（範圍外丟掉、去重、
+      前 4 個、空的用 [20, 30]），新增一圈 40 米、可刪任一圈；新增 `arrivalRulesVersion`（新安裝 2，
+      0.6.8 的資料沒有這個鍵 = 1）、`pendingArrivalRulesNotice` 與 `preselectsOrbitForTeleport`
+      （0.6.8 不認得這幾個鍵）。
     - **遷移**（§5.3）：`LocalDataStore.init` 解碼成功後呼叫
-      `migratedToArrivalRulesV2()`，有變就立刻寫回。模擬移動 + 無動作 → 繞圈；定點傳送 +
-      無動作保留（兩個選項都不選取）；模擬移動 + 繞圈／微動或手動前進 → 值保留、設提示旗標。
-      提示「多點路線設定已調整」在主畫面等其他 alert 都關掉才出現，按「知道了」清掉並存檔。
-      遷移**不在** `init(from:)` / `sanitized()` 裡（那兩個每次存檔都跑）。降級到 0.6.8 再升級
-      會重跑一次，規格說可以接受。
+      `migratedToArrivalRulesV2()`，有變就立刻寫回。**存的到點動作一律不改**：模擬移動 + 無動作
+      保留「無」、設 `preselectsOrbitForTeleport`（切到定點傳送時預先選好繞圈）；定點傳送 + 無動作
+      保留、不預先選（Q1，兩個選項都不選取）；模擬移動 + 繞圈／微動或手動前進 → 值保留、設提示
+      旗標。原本把模擬移動 + 無動作寫成繞圈，降級回 0.6.8（兩種移動方式都執行到點動作）後模擬移動
+      會在每個點繞圈，所以改掉。提示「多點路線設定已調整」在主畫面等其他 alert 都關掉才出現，按
+      「知道了」清掉並存檔。遷移**不在** `init(from:)` / `sanitized()` 裡（那兩個每次存檔都跑）。
+      降級到 0.6.8 再升級會重跑一次，規格說可以接受。
     - 播放：繞圈半徑每次開始繞圈才讀目前設定、速度每圈讀一次；狀態文字照 Android（「正在前往第
       2 點」、「已到達第 N 點」、「第 N 點 · X 秒後開始動作…」、每圈一次的「正在繞圈 · 第 i/n 圈 ·
       半徑 r 米」、「開始下一輪循環」），逐步的傳送（走路、繞圈、微動）不再蓋掉事件訊息；拿掉

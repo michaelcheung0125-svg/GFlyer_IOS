@@ -438,8 +438,15 @@ final class SharedContractTests: XCTestCase {
         let defaults = PlaybackSettings()
         XCTAssertEqual(defaults.dwellSeconds, 10)
         XCTAssertEqual(defaults.travelMode, .simulate)
-        XCTAssertEqual(defaults.pointAction, .orbit)
         XCTAssertFalse(defaults.manualAdvance)
+        // defaultPointAction ORBIT:新安裝存「無」(降級回 0.6.8 時模擬移動不繞圈),
+        // 切到定點傳送時和 Android 一樣是繞圈(§5.3)
+        XCTAssertEqual(defaults.pointAction, RoutePointAction.none)
+        XCTAssertTrue(defaults.preselectsOrbitForTeleport)
+        var teleport = defaults
+        teleport.selectTravelMode(.teleport)
+        XCTAssertEqual(teleport.pointAction, .orbit)
+        XCTAssertEqual(RoutePlaybackOptions.effective(for: .multiRoute, settings: teleport).pointAction, .orbit)
         // 顯示名稱(rawValue 是舊的儲存值,不變)
         XCTAssertEqual(RouteTravelMode.allCases.map(\.label), ["模擬移動", "定點傳送"])
         XCTAssertEqual(RouteTravelMode.teleport.rawValue, "逐點傳送")

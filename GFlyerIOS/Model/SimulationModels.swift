@@ -53,8 +53,9 @@ enum RoutePointAction: String, CaseIterable, Identifiable, Codable {
 
     var id: Self { self }
 
-    /// 選得到的到點動作,和 Android 相同。`none` 只剩 0.6.8 以前「定點傳送 + 無動作」的舊資料:
-    /// 照舊執行(到點不做動作),但選不到,也沒有顯示名稱。
+    /// 選得到的到點動作,和 Android 相同。`none` 選不到,也沒有顯示名稱,只有兩種來源:0.6.8 以前
+    /// 「定點傳送 + 無動作」的舊資料(照舊到點不做動作),以及模擬移動時還沒選過(第一次切到定點傳送時
+    /// 預先選好繞圈,見 `PlaybackSettings.preselectsOrbitForTeleport`)。
     static let selectableCases: [RoutePointAction] = [.orbit, .microMove]
 
     var label: String? {
@@ -83,7 +84,10 @@ struct PlaybackSettings: Codable, Equatable {
     static let currentArrivalRulesVersion = 2
 
     var travelMode: RouteTravelMode = .simulate
-    var pointAction: RoutePointAction = .orbit
+    /// 新安裝存「無」,不是 Android 預設的繞圈:模擬移動本來就不做到點動作,第一次切到定點傳送時才由
+    /// `selectTravelMode` 預先選好繞圈(`preselectsOrbitForTeleport`),看到的和 Android 相同。
+    /// 存成繞圈的話,降級回 0.6.8 的人模擬移動會在每個點繞圈(0.6.8 兩種移動方式都執行到點動作)。
+    var pointAction: RoutePointAction = .none
     var manualAdvance = false
     var dwellSeconds = 10
     var orbitRadiiMetres = defaultOrbitRadiiMetres
@@ -96,6 +100,10 @@ struct PlaybackSettings: Codable, Equatable {
     var arrivalRulesVersion = currentArrivalRulesVersion
     /// 遷移時設定、按「知道了」後清掉的一次性提示(`SimulationController.arrivalRulesNoticeMessage`)。
     var pendingArrivalRulesNotice = false
+    /// 到點動作的「無」只代表還沒選過:第一次切到定點傳送時預先選好繞圈(= Android 的預設),之後清掉
+    /// (`selectTravelMode`)。新安裝與 0.6.8 的「模擬移動 + 無動作」是 true;0.6.8 的「定點傳送 + 無動作」
+    /// 是 false,照舊到點不做動作(Q1)。0.6.8 不認得這個鍵,降級後照舊讀到「無」。
+    var preselectsOrbitForTeleport = true
     /// 蛇形探索的縱向長度 Y(公尺),200〜5000、步進 100(GFlyer-Suite docs/features/serpentine-exploration.md §3.7)。
     /// 和方向一樣只影響下一次開始,也不在備份裡(`AppBackupCodec` 只寫兩個共用設定)。
     var explorationVerticalLengthMetres = SerpentinePath.defaultVerticalLengthMetres
@@ -108,7 +116,7 @@ struct PlaybackSettings: Codable, Equatable {
         case travelMode, pointAction, manualAdvance, dwellSeconds
         case orbitRadiiMetres, startDelaySeconds, autoStopMinutes, crossDateWarningEnabled
         case joystickMaxSpeedKilometresPerHour
-        case arrivalRulesVersion, pendingArrivalRulesNotice
+        case arrivalRulesVersion, pendingArrivalRulesNotice, preselectsOrbitForTeleport
         case explorationVerticalLengthMetres, explorationDirection
     }
 
@@ -132,6 +140,9 @@ struct PlaybackSettings: Codable, Equatable {
         settings.arrivalRulesVersion = (try? container.decode(Int.self, forKey: .arrivalRulesVersion)) ?? 1
         settings.pendingArrivalRulesNotice =
             (try? container.decode(Bool.self, forKey: .pendingArrivalRulesNotice)) ?? settings.pendingArrivalRulesNotice
+        // 沒有這個鍵:0.6.8 的資料由遷移決定;其他情況當成到點動作已經選過,不再預先選
+        settings.preselectsOrbitForTeleport =
+            (try? container.decode(Bool.self, forKey: .preselectsOrbitForTeleport)) ?? false
         // 0.6.8 以前沒有這兩個鍵;方向認不得(不是 "EAST" / "WEST")也退回 EAST
         settings.explorationVerticalLengthMetres =
             (try? container.decode(Int.self, forKey: .explorationVerticalLengthMetres))
@@ -142,7 +153,7 @@ struct PlaybackSettings: Codable, Equatable {
     }
 
     // 每次存檔都會跑,所以只放「對任何值重做都不變」的整理。到點規則的遷移不能放這裡,
-    // 否則版本 2 的「模擬移動 + 無動作」每存一次都會被改成繞圈。
+    // 否則版本 2 的設定每存一次都會重新判斷一次(提示旗標、預先選繞圈的旗標會被改回來)。
     func sanitized() -> PlaybackSettings {
         var copy = self
         copy.dwellSeconds = Self.clampedDwellSeconds(dwellSeconds)
@@ -160,20 +171,31 @@ struct PlaybackSettings: Codable, Equatable {
 
     /// 0.6.8 以前的設定(版本 1)換成 0.6.9 的到點規則,和 Android 一致(GFlyer-Suite
     /// docs/features/route-arrival-actions.md §5.3)。由 `LocalDataStore` 載入時呼叫;版本已經是 2
-    /// 時原樣回傳,所以可以重複呼叫。
-    /// - 模擬移動 + 無動作 → 繞圈:現在沒有差別,之後切到定點傳送時預先選好 Android 的預設。
-    /// - 定點傳送 + 無動作 → 保留:照舊傳送、停留、下一點,兩個選項都不選取(Q1)。
+    /// 時原樣回傳,所以可以重複呼叫。存的到點動作一律不改:降級回 0.6.8 時(它兩種移動方式都執行
+    /// 到點動作),模擬移動照舊不繞圈。
+    /// - 模擬移動 + 無動作 → 保留「無」、`preselectsOrbitForTeleport`:現在沒有差別,之後切到定點傳送時
+    ///   預先選好 Android 的預設(繞圈)。
+    /// - 定點傳送 + 無動作 → 保留:照舊傳送、停留、下一點,兩個選項都不選取,也不預先選(Q1)。
     /// - 模擬移動 + 繞圈/微動,或勾了手動前進:值保留,但模擬移動不再執行它們,所以標記一次性提示(Q2)。
     /// 停留 0 → 1 與半徑去重由 `sanitized()` 負責(解碼時已經做過)。
     func migratedToArrivalRulesV2() -> PlaybackSettings {
         guard arrivalRulesVersion < 2 else { return self }
         var copy = self
-        if travelMode == .simulate {
-            if pointAction != .none || manualAdvance { copy.pendingArrivalRulesNotice = true }
-            if pointAction == .none { copy.pointAction = .orbit }
+        if travelMode == .simulate, pointAction != .none || manualAdvance {
+            copy.pendingArrivalRulesNotice = true
         }
+        copy.preselectsOrbitForTeleport = travelMode == .simulate && pointAction == .none
         copy.arrivalRulesVersion = 2
         return copy
+    }
+
+    /// 「移動方式」的切換。切到定點傳送而到點動作還沒選過(`preselectsOrbitForTeleport`)時,
+    /// 預先選好繞圈,只做一次;之後切回模擬移動再切回來,保留使用者當時的選擇。
+    mutating func selectTravelMode(_ mode: RouteTravelMode) {
+        travelMode = mode
+        guard mode == .teleport, preselectsOrbitForTeleport else { return }
+        if pointAction == .none { pointAction = .orbit }
+        preselectsOrbitForTeleport = false
     }
 
     /// 傳送到點停留夾到 1〜300 秒,和 Android 相同(contracts/fixtures/route/arrival-actions.json 的
