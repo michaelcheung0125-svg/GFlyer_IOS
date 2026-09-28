@@ -13,7 +13,12 @@ struct CoordinateLibraryView: View {
                 tabChips
                 if !library.subcategories.isEmpty { subcategoryChips }
                 searchField
-                content
+                let listing = library.listing
+                // 圖鑑資料還沒載入時不顯示;「⏲ 提醒中」分頁沒有 countLabel,整列不顯示
+                if library.library != nil, let countLabel = listing.countLabel {
+                    hideTeleportedRow(countLabel: countLabel)
+                }
+                content(listing)
             }
             .navigationTitle("座標圖鑑")
             .navigationBarTitleDisplayMode(.inline)
@@ -136,23 +141,46 @@ struct CoordinateLibraryView: View {
         .padding(.bottom, Spacing.sm)
     }
 
+    /// 搜尋框下方、清單上方;清單是空的時候也顯示(「已前往 0 / 0」)。
+    private func hideTeleportedRow(countLabel: String) -> some View {
+        HStack(spacing: Spacing.md) {
+            chip(
+                library.hideTeleported ? LibraryTeleportHistory.hideToggleOn : LibraryTeleportHistory.hideToggleOff,
+                selected: library.hideTeleported
+            ) {
+                library.setHideTeleported(!library.hideTeleported)
+            }
+            Text(countLabel)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, Spacing.lg)
+        .padding(.bottom, Spacing.sm)
+    }
+
     @ViewBuilder
-    private var content: some View {
-        let coordinates = library.visibleCoordinates
+    private func content(_ listing: LibraryTeleportListing) -> some View {
         if library.library == nil {
             emptyState(
                 icon: "books.vertical",
                 title: library.isLoading ? "正在下載圖鑑資料…" : "尚未取得圖鑑資料",
                 caption: "座標圖鑑需要網路下載一次資料，之後會保留在本機並自動更新。"
             )
-        } else if coordinates.isEmpty {
+        } else if listing.isEmptyBecauseAllTeleported {
+            emptyState(
+                icon: "eye.slash",
+                title: LibraryTeleportHistory.allTeleportedEmpty,
+                caption: nil
+            )
+        } else if listing.visible.isEmpty {
             emptyState(
                 icon: "square.stack.3d.up.slash",
-                title: "沒有符合的座標",
+                title: LibraryTeleportHistory.noMatchEmpty,
                 caption: emptyCaption
             )
         } else {
-            List(coordinates) { coordinate in
+            List(listing.visible) { coordinate in
                 LibraryCoordinateRow(
                     library: library,
                     coordinate: coordinate,
@@ -172,31 +200,30 @@ struct CoordinateLibraryView: View {
         }
     }
 
-    private func emptyState(icon: String, title: String, caption: String) -> some View {
+    private func emptyState(icon: String, title: String, caption: String?) -> some View {
         VStack(spacing: Spacing.md) {
             Spacer()
             Image(systemName: icon).font(.largeTitle).foregroundStyle(.secondary)
-            Text(title).font(.labelEmphasis)
-            Text(caption)
-                .font(.caption)
-                .foregroundStyle(.secondary)
+            Text(title)
+                .font(.labelEmphasis)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 32)
+            if let caption {
+                Text(caption)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 32)
+            }
             Spacer()
         }
         .frame(maxWidth: .infinity)
     }
 
+    /// 「傳送」的前往紀錄在關閉之前就記好了(`CoordinateLibraryController.use`)。
     private func use(_ coordinate: LibraryCoordinate, startImmediately: Bool) {
-        guard let geo = coordinate.geoCoordinate else {
-            library.errorMessage = "這筆座標資料無效"
-            return
-        }
-        if simulation.previewExternalCoordinate(geo, startImmediately: startImmediately, sourceLabel: "圖鑑") {
+        if library.use(coordinate, startImmediately: startImmediately, simulation: simulation) {
             dismiss()
-        } else {
-            library.errorMessage = simulation.lastError
-            simulation.lastError = nil
         }
     }
 }
@@ -222,6 +249,7 @@ private struct LibraryCoordinateRow: View {
                     Text(coordinate.period).font(.caption2).foregroundStyle(.secondary)
                 }
                 reminderBadge
+                teleportSummary
                 HStack(spacing: Spacing.md) {
                     Button("預覽") { onUse(false) }
                     Button("傳送") { onUse(true) }
@@ -243,6 +271,22 @@ private struct LibraryCoordinateRow: View {
                                 onReport()
                             } label: {
                                 Label("回報資料已過時", systemImage: "exclamationmark.triangle")
+                            }
+                        }
+                        // iOS 沒有詳情頁:完整時間當 Section 標題,「清除紀錄」放在它底下,
+                        // 和上面的「清除到訪標記」分開。清除後不彈提示,列上那一行消失就是回饋。
+                        if let record = library.teleports[coordinate.id] {
+                            Section(
+                                LibraryTeleportHistory.summary(
+                                    record,
+                                    time: LibraryTeleportHistory.formatFull(epochMs: record.lastAtEpochMs)
+                                )
+                            ) {
+                                Button(role: .destructive) {
+                                    library.clearTeleport(coordinate.id)
+                                } label: {
+                                    Label(LibraryTeleportHistory.clearButton, systemImage: "arrow.uturn.backward.circle")
+                                }
                             }
                         }
                     } label: {
@@ -280,6 +324,22 @@ private struct LibraryCoordinateRow: View {
             }
             .frame(width: 54, height: 54)
             .clipShape(RoundedRectangle(cornerRadius: Metrics.corner))
+        }
+    }
+
+    /// 有前往紀錄才多這一行;同一年省略年份,時區與「現在」都是畫面繪製當下的。
+    @ViewBuilder
+    private var teleportSummary: some View {
+        if let record = library.teleports[coordinate.id] {
+            Text(
+                LibraryTeleportHistory.summary(
+                    record,
+                    time: LibraryTeleportHistory.formatShort(epochMs: record.lastAtEpochMs)
+                )
+            )
+            .font(.caption2)
+            .foregroundStyle(Color.accentColor)
+            .lineLimit(1)
         }
     }
 

@@ -13,6 +13,8 @@ final class CoordinateLibraryController: ObservableObject {
     @Published private(set) var isLoading = false
     @Published private(set) var favorites: Set<String> = []
     @Published private(set) var marks: [String: Date] = [:]
+    @Published private(set) var teleports: [String: LibraryTeleportRecord] = [:]
+    @Published private(set) var hideTeleported = false
     @Published var selectedTab: LibraryTab = .favorites
     @Published var selectedSubcategoryID: String?
     @Published var searchText = ""
@@ -34,6 +36,8 @@ final class CoordinateLibraryController: ObservableObject {
         self.apiClient = apiClient
         favorites = markStore.favorites
         marks = markStore.marks
+        teleports = markStore.teleports
+        hideTeleported = markStore.hideTeleported
     }
 
     func loadIfNeeded() {
@@ -98,6 +102,43 @@ final class CoordinateLibraryController: ObservableObject {
         marks = markStore.marks
     }
 
+    // MARK: - 前往紀錄
+
+    /// 圖鑑列的「預覽」／「傳送」。回傳 true 表示已交給模擬、可以關閉圖鑑；失敗時訊息放在 `errorMessage`。
+    /// 只有「傳送」、座標有效而且模擬接受這次傳送時才記錄前往（「預覽」、座標無效、模擬進行中被拒絕都不記錄）；
+    /// 之後跨日警告被取消或連線失敗也不回滾，和 Android App 內圖鑑相同
+    /// （GFlyer-Suite docs/features/library-teleport-history.md 3.3）。
+    func use(_ coordinate: LibraryCoordinate, startImmediately: Bool, simulation: SimulationController) -> Bool {
+        guard let geo = coordinate.geoCoordinate else {
+            errorMessage = "這筆座標資料無效"
+            return false
+        }
+        guard simulation.previewExternalCoordinate(geo, startImmediately: startImmediately, sourceLabel: "圖鑑") else {
+            errorMessage = simulation.lastError
+            simulation.lastError = nil
+            return false
+        }
+        if startImmediately {
+            recordTeleport(coordinate.id)
+        }
+        return true
+    }
+
+    func recordTeleport(_ id: String) {
+        markStore.recordTeleport(id)
+        teleports = markStore.teleports
+    }
+
+    func clearTeleport(_ id: String) {
+        markStore.clearTeleport(id)
+        teleports = markStore.teleports
+    }
+
+    func setHideTeleported(_ hide: Bool) {
+        markStore.setHideTeleported(hide)
+        hideTeleported = markStore.hideTeleported
+    }
+
     func reminderState(for coordinate: LibraryCoordinate, now: Date = Date()) -> VisitReminderState? {
         guard let remindDays = coordinate.remindDays, let markedAt = marks[coordinate.id] else { return nil }
         return VisitReminder.state(markedAt: markedAt, remindDays: remindDays, now: now)
@@ -126,7 +167,22 @@ final class CoordinateLibraryController: ObservableObject {
         return library?.category(id: id)?.subcategories ?? []
     }
 
-    var visibleCoordinates: [LibraryCoordinate] {
+    /// 「⏲ 提醒中」列的本來就是去過的點，套用的話分頁幾乎永遠是空的：不隱藏，也不顯示開關列。
+    /// 開關的值不變，切回其他分頁時照舊生效。
+    var hideApplies: Bool { selectedTab != .reminders }
+
+    /// 畫面要列出的座標與「已前往 N / 總數」。計數用隱藏之前的清單算；每次重繪只取一次。
+    var listing: LibraryTeleportListing {
+        LibraryTeleportHistory.listing(
+            matchingCoordinates,
+            records: teleports,
+            hideTeleported: hideTeleported,
+            hideApplies: hideApplies
+        )
+    }
+
+    /// 分頁、子分類、搜尋與排序之後、「隱藏已前往」之前的清單。
+    var matchingCoordinates: [LibraryCoordinate] {
         guard let library else { return [] }
         var coordinates = library.enabledCoordinates
         switch selectedTab {

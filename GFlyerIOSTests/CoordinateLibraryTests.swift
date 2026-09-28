@@ -363,4 +363,221 @@ final class CoordinateLibraryTests: XCTestCase {
         XCTAssertEqual(library.categories.first?.subcategories.map(\.id), ["park"])
         XCTAssertEqual(library.coordinates.map(\.id), ["p1"])
     }
+
+    // MARK: - 前往紀錄與「隱藏已前往」(GFlyer-Suite docs/features/library-teleport-history.md 第 6 節)
+
+    private let marksKey = "gflyer.coordinate-marks.v1"
+    private let teleportsKey = "gflyer.coordinate-teleports.v1"
+    private let hideTeleportedKey = "gflyer.coordinate-hide-teleported.v1"
+    /// 0.6.8 寫出的 Snapshot:只有最愛與造訪標記(秒)。
+    private let snapshotFrom068 = #"{"favorites":["p1"],"marks":{"p1":1788138000}}"#
+
+    /// 從 0.6.8 升上來:兩個新鍵都不存在 → 沒有前往紀錄、開關關閉,最愛與造訪標記照舊。
+    func testMarksSavedBy068ReadUnchangedWithoutTeleportHistory() throws {
+        let suiteName = "gflyer.teleport-tests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        defaults.set(Data(snapshotFrom068.utf8), forKey: marksKey)
+
+        let store = CoordinateMarkStore(defaults: defaults)
+        XCTAssertEqual(store.favorites, ["p1"])
+        XCTAssertEqual(store.marks, ["p1": Date(timeIntervalSince1970: 1_788_138_000)])
+        XCTAssertEqual(store.teleports, [:])
+        XCTAssertFalse(store.hideTeleported)
+    }
+
+    /// 前往紀錄壞掉只影響它自己;下一次記錄蓋掉壞資料,最愛與造訪標記仍在。
+    func testCorruptTeleportHistoryLeavesFavoritesAndMarksIntact() throws {
+        let suiteName = "gflyer.teleport-tests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        defaults.set(Data(snapshotFrom068.utf8), forKey: marksKey)
+        defaults.set(Data("{ not json".utf8), forKey: teleportsKey)
+
+        let store = CoordinateMarkStore(defaults: defaults)
+        XCTAssertEqual(store.teleports, [:])
+        XCTAssertEqual(store.favorites, ["p1"])
+        XCTAssertEqual(store.marks, ["p1": Date(timeIntervalSince1970: 1_788_138_000)])
+
+        store.recordTeleport("p2", now: Date(timeIntervalSince1970: 1_789_799_520.123))
+        let restored = CoordinateMarkStore(defaults: defaults)
+        XCTAssertEqual(restored.teleports, ["p2": LibraryTeleportRecord(lastAtEpochMs: 1_789_799_520_123, count: 1)])
+        XCTAssertEqual(restored.favorites, ["p1"])
+        XCTAssertEqual(restored.marks, ["p1": Date(timeIntervalSince1970: 1_788_138_000)])
+    }
+
+    /// 記錄、清除、開關都立刻寫回,換一個新的 store 讀回仍相同。前往不是造訪標記;
+    /// 舊的 Snapshot 鍵仍然只有 0.6.8 認得的兩個欄位,降版也讀得到。
+    func testTeleportHistoryAndHideTogglePersistAcrossStores() throws {
+        let suiteName = "gflyer.teleport-tests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let first = Date(timeIntervalSince1970: 1_789_799_520.123)
+        let second = Date(timeIntervalSince1970: 1_789_866_300)
+
+        let store = CoordinateMarkStore(defaults: defaults)
+        XCTAssertTrue(store.toggleFavorite("p1"))
+        store.recordTeleport("p1", now: first)
+        store.recordTeleport("p1", now: second)
+        store.recordTeleport("p2", now: first)
+        store.setHideTeleported(true)
+
+        var restored = CoordinateMarkStore(defaults: defaults)
+        XCTAssertEqual(restored.teleports, [
+            "p1": LibraryTeleportRecord(lastAtEpochMs: 1_789_866_300_000, count: 2),
+            "p2": LibraryTeleportRecord(lastAtEpochMs: 1_789_799_520_123, count: 1),
+        ])
+        XCTAssertTrue(restored.hideTeleported)
+        XCTAssertEqual(restored.favorites, ["p1"])
+        XCTAssertEqual(restored.marks, [:])
+
+        restored.clearTeleport("p1")
+        restored.clearTeleport("never-recorded")
+        restored.setHideTeleported(false)
+        restored = CoordinateMarkStore(defaults: defaults)
+        XCTAssertEqual(restored.teleports, ["p2": LibraryTeleportRecord(lastAtEpochMs: 1_789_799_520_123, count: 1)])
+        XCTAssertFalse(restored.hideTeleported)
+
+        let snapshotData = try XCTUnwrap(defaults.data(forKey: marksKey))
+        let snapshot = try XCTUnwrap(try JSONSerialization.jsonObject(with: snapshotData) as? [String: Any])
+        XCTAssertEqual(Set(snapshot.keys), ["favorites", "marks"])
+        XCTAssertNotNil(defaults.data(forKey: teleportsKey))
+        XCTAssertFalse(defaults.bool(forKey: hideTeleportedKey))
+    }
+
+    /// 布林不算數字,和圖鑑解析、備份同一條規則:at 是布林略過那一筆,n 是布林當成 1。
+    func testTeleportHistoryTreatsBooleansAsNotNumbers() {
+        let decoded = LibraryTeleportHistory.decode(Data(#"{"a":{"at":true,"n":2},"b":{"at":5000,"n":true}}"#.utf8))
+        XCTAssertEqual(decoded, ["b": LibraryTeleportRecord(lastAtEpochMs: 5000, count: 1)])
+    }
+
+    /// 「預覽」與無效座標都不記錄前往。被接受的「傳送」會真的開始模擬、模擬中被拒絕要先有進行中的模擬,
+    /// 這兩條留給上機驗證(規格第 6 節)。
+    @MainActor
+    func testPreviewAndInvalidCoordinatesDoNotRecordATeleport() throws {
+        let suiteName = "gflyer.teleport-tests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let simulation = SimulationController(
+            backend: PreviewLocationSimulationBackend(),
+            dataStore: LocalDataStore(defaults: defaults),
+            sessionStore: ActiveSessionStore(defaults: defaults)
+        )
+        let library = CoordinateLibraryController(
+            repository: CoordinateLibraryRepository(
+                urlString: "",
+                cacheDirectory: FileManager.default.temporaryDirectory
+                    .appendingPathComponent("gflyer-teleport-tests-\(UUID().uuidString)", isDirectory: true)
+            ),
+            markStore: CoordinateMarkStore(defaults: defaults),
+            apiClient: MessageBoardAPIClient(baseURLString: "")
+        )
+        let valid = LibraryCoordinate(
+            id: "p1", categoryID: "purespot", subcategoryID: nil, name: "維多利亞公園",
+            latitude: 22.2823, longitude: 114.1884, note: "", period: "",
+            remindDays: nil, thumbnailURL: nil, icon: nil, enabled: true, updatedAt: nil
+        )
+        let invalid = LibraryCoordinate(
+            id: "p9", categoryID: "purespot", subcategoryID: nil, name: "超出範圍",
+            latitude: 91, longitude: 114.1884, note: "", period: "",
+            remindDays: nil, thumbnailURL: nil, icon: nil, enabled: true, updatedAt: nil
+        )
+
+        XCTAssertTrue(library.use(valid, startImmediately: false, simulation: simulation))
+        XCTAssertEqual(simulation.selectedCoordinate, valid.geoCoordinate)
+        XCTAssertEqual(library.teleports, [:])
+
+        XCTAssertFalse(library.use(invalid, startImmediately: true, simulation: simulation))
+        XCTAssertEqual(library.errorMessage, "這筆座標資料無效")
+        XCTAssertEqual(library.teleports, [:])
+        XCTAssertEqual(CoordinateMarkStore(defaults: defaults).teleports, [:])
+    }
+
+    /// 清單:計數在隱藏之前算(搜尋也在隱藏之前)、造訪標記不算前往、「⏲ 提醒中」不套用隱藏也沒有開關列、
+    /// ★ 最愛照樣隱藏、全部前往過與搜尋不到是兩種空清單。
+    @MainActor
+    func testControllerHidesTeleportedCoordinatesExceptOnTheRemindersTab() async throws {
+        let suiteName = "gflyer.teleport-tests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let cacheDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("gflyer-teleport-tests-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: cacheDirectory) }
+        try FileManager.default.createDirectory(at: cacheDirectory, withIntermediateDirectories: true)
+        let json = """
+        {
+          "schemaVersion": 1, "revision": 5,
+          "categories": [{"id": "purespot", "name": "純點"}],
+          "coordinates": [
+            {"id": "a1", "categoryId": "purespot", "name": "甲", "lat": 25.0, "lng": 121.5, "remindDays": 7},
+            {"id": "a2", "categoryId": "purespot", "name": "乙", "lat": 25.1, "lng": 121.6, "remindDays": 7},
+            {"id": "a3", "categoryId": "purespot", "name": "丙", "lat": 25.2, "lng": 121.7}
+          ]
+        }
+        """
+        try Data(json.utf8).write(to: cacheDirectory.appendingPathComponent("coordinate_library.json"))
+        let library = CoordinateLibraryController(
+            repository: CoordinateLibraryRepository(urlString: "", cacheDirectory: cacheDirectory),
+            markStore: CoordinateMarkStore(defaults: defaults),
+            apiClient: MessageBoardAPIClient(baseURLString: "")
+        )
+        library.loadIfNeeded()
+        for _ in 0..<200 where library.library == nil || library.isLoading {
+            try await Task.sleep(nanoseconds: 10_000_000)
+        }
+        XCTAssertNotNil(library.library)
+        // 沒有最愛時,載入後切到第一個分類
+        XCTAssertEqual(library.selectedTab, .category("purespot"))
+
+        library.markVisited("a1")
+        library.recordTeleport("a1")
+        library.recordTeleport("a2")
+        var listing = library.listing
+        XCTAssertTrue(library.hideApplies)
+        XCTAssertEqual(listing.visible.map(\.id), ["a1", "a2", "a3"])
+        XCTAssertEqual(listing.countLabel, "已前往 2 / 3")
+
+        library.setHideTeleported(true)
+        listing = library.listing
+        XCTAssertEqual(listing.visible.map(\.id), ["a3"])
+        XCTAssertEqual(listing.countLabel, "已前往 2 / 3")
+        XCTAssertNil(listing.emptyMessage)
+
+        library.searchText = "乙"
+        listing = library.listing
+        XCTAssertEqual(listing.visible.map(\.id), [])
+        XCTAssertEqual(listing.countLabel, "已前往 1 / 1")
+        XCTAssertTrue(listing.isEmptyBecauseAllTeleported)
+        XCTAssertEqual(listing.emptyMessage, "這裡的點都前往過了；關閉「隱藏已前往」就會再列出來。")
+
+        library.searchText = "不存在"
+        listing = library.listing
+        XCTAssertEqual(listing.countLabel, "已前往 0 / 0")
+        XCTAssertFalse(listing.isEmptyBecauseAllTeleported)
+        XCTAssertEqual(listing.emptyMessage, "沒有符合的座標")
+        library.searchText = ""
+
+        // 只有 a1 有造訪標記與提醒天數;前往過也照列,開關的值不變
+        library.selectedTab = .reminders
+        listing = library.listing
+        XCTAssertFalse(library.hideApplies)
+        XCTAssertEqual(listing.visible.map(\.id), ["a1"])
+        XCTAssertNil(listing.countLabel)
+        XCTAssertNil(listing.emptyMessage)
+        XCTAssertTrue(library.hideTeleported)
+
+        library.toggleFavorite("a2")
+        library.toggleFavorite("a3")
+        library.selectedTab = .favorites
+        listing = library.listing
+        XCTAssertEqual(listing.visible.map(\.id), ["a3"])
+        XCTAssertEqual(listing.countLabel, "已前往 1 / 2")
+
+        // 清除後再列出;再傳送時次數從 1 開始
+        library.clearTeleport("a2")
+        XCTAssertEqual(library.listing.visible.map(\.id), ["a2", "a3"])
+        library.recordTeleport("a2")
+        XCTAssertEqual(library.teleports["a2"]?.count, 1)
+        XCTAssertEqual(library.teleports["a1"]?.count, 1)
+    }
 }
