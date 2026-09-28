@@ -34,9 +34,9 @@ struct MainView: View {
     @State private var isLocating = false
     @State private var locateTimeoutTask: Task<Void, Never>?
     @State private var cameraDistance: CLLocationDistance = 5_000
-    /// 上一次把鏡頭縮放到整條探索預覽時的起點;離開探索模式時清掉,所以每次切進來都縮放一次
-    /// (和 Android 的 `lastExplorationPreviewCenter` 相同)。
-    @State private var lastFittedExplorationStart: GeoCoordinate?
+    /// 什麼時候把鏡頭縮放到整條探索預覽:上一次縮放時的起點(和 Android 的 `lastExplorationPreviewCenter`
+    /// 相同)與剛縮放過、還要等控制面板排好版面的起點。
+    @State private var explorationFit = ExplorationFitTrigger()
     /// 地圖、搜尋列與控制面板在 `mapArea` 座標空間裡的位置,用來算出地圖上沒被蓋住的那一塊。
     @State private var mapFrame: CGRect = .zero
     @State private var searchBarFrame: CGRect = .zero
@@ -161,6 +161,7 @@ struct MainView: View {
                 position = .region(region(around: coordinate, span: 0.04))
             }
             .onChange(of: explorationFitStart) { _, _ in fitExplorationPreviewIfNeeded() }
+            .onChange(of: controlPanelFrame) { _, _ in refitExplorationPreviewForPanel() }
             .onChange(of: isPanelExpanded) { _, expanded in
                 if expanded { showJoystick = false }
             }
@@ -414,27 +415,44 @@ struct MainView: View {
 
     /// 探索模式、沒有在探索時的預覽起點;其他時候是 nil(不縮放)。
     private var explorationFitStart: GeoCoordinate? {
-        guard controller.mode == .explore, !controller.isExploring else { return nil }
-        return controller.explorationStart
+        ExplorationFitTrigger.fitStart(
+            isExploreMode: controller.mode == .explore,
+            isExploring: controller.isExploring,
+            start: controller.explorationStart
+        )
     }
 
     /// 沒有在探索時,預覽的起點一改變就把鏡頭縮放到整條預覽:切進探索、在探索模式點地圖或選搜尋結果、
-    /// 模擬座標改變、探索停止後起點換回選取點都算。只改 Y 或方向不縮放,探索中也不縮放
+    /// 模擬座標改變、探索停止後起點換回選取點都算。只改 Y 或方向不縮放,探索中也不縮放;停止、自動停止與
+    /// 完整清除時起點直接是清除之後的那一個(`ExplorationRun.origin`),所以起點沒變就不動鏡頭
     /// (GFlyer-Suite docs/features/serpentine-exploration.md §3.5,和 Android `MainScreen.kt` 相同)。
     private func fitExplorationPreviewIfNeeded() {
-        guard controller.mode == .explore else {
-            lastFittedExplorationStart = nil
-            return
-        }
-        guard let start = explorationFitStart, start != lastFittedExplorationStart,
-              let rect = ExplorationCamera.visibleRect(
-                  for: controller.explorationPreview,
-                  mapSize: mapFrame.size,
-                  coveredTop: searchBarFrame.maxY - mapFrame.minY,
-                  coveredBottom: mapFrame.maxY - controlPanelFrame.minY
-              ) else { return }
-        lastFittedExplorationStart = start
+        guard let start = explorationFit.startToFit(explorationFitStart, isExploreMode: controller.mode == .explore),
+              fitCameraToExplorationPreview() else { return }
+        explorationFit.didFit(start, now: ProcessInfo.processInfo.systemUptime)
+    }
+
+    /// 切進探索時控制面板在同一次更新裡換成探索的設定,新的高度比上面的縮放晚才量到;剛縮放過、起點沒變,
+    /// 就用新的面板高度再縮放一次(`ExplorationFitTrigger.panelSettleSeconds`)。
+    private func refitExplorationPreviewForPanel() {
+        guard explorationFit.shouldRefitForPanel(
+            currentStart: explorationFitStart,
+            now: ProcessInfo.processInfo.systemUptime
+        ) else { return }
+        fitCameraToExplorationPreview()
+    }
+
+    /// 把鏡頭縮放到整條預覽,放在搜尋列與控制面板之間。還不知道地圖大小時不動,回傳 false。
+    @discardableResult
+    private func fitCameraToExplorationPreview() -> Bool {
+        guard let rect = ExplorationCamera.visibleRect(
+            for: controller.explorationPreview,
+            mapSize: mapFrame.size,
+            coveredTop: searchBarFrame.maxY - mapFrame.minY,
+            coveredBottom: mapFrame.maxY - controlPanelFrame.minY
+        ) else { return false }
         position = .rect(rect)
+        return true
     }
 
     private func locateCurrentPosition() {

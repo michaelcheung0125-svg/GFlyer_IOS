@@ -798,6 +798,16 @@ struct ExplorationRun: Equatable {
     var state = SerpentineState()
     var verticalLengthMetres: Double
     var direction: ExplorationDirection
+
+    /// 開始探索的起點,也是沒有在探索時預覽線與鏡頭的起點:模擬中(包含靜態傳送)是模擬座標,否則是選取點
+    /// (Android `mockStatus.coordinate ?: selected`,GFlyer-Suite docs/features/serpentine-exploration.md §3.3、§3.5)。
+    /// - Parameter isStopping: 停止探索(停止、自動停止、完整清除)之後、`status` 還沒重設。Android 停止時一次清掉
+    ///   狀態,所以這時已經當作沒有模擬;iOS 的 `status` 要等 `clearLocation` 回來才重設,中間若照模擬座標算,
+    ///   預覽線會先跳到停下的位置、鏡頭跟著縮放過去,清除完成後再跳回來。
+    static func origin(status: SimulationStatus, isStopping: Bool, selected: GeoCoordinate) -> GeoCoordinate {
+        guard status.isActive, !isStopping, let coordinate = status.coordinate else { return selected }
+        return coordinate
+    }
 }
 
 /// 探索面板與狀態列的文字,和 Android 一字不差(規格 §3.9)。數字固定照繁體中文地區的樣子,

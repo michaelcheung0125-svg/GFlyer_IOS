@@ -28,6 +28,10 @@ final class SimulationController: ObservableObject {
     @Published private(set) var pendingResumeSession: ActiveSessionSnapshot?
     /// 執行中那一輪探索(含暫停)。停止、切到其他移動方式、搖桿接管或推送失敗時清掉。
     @Published private(set) var exploration: ExplorationRun?
+    /// 停止探索時 `exploration` 馬上清掉,`status` 要等 `clearLocation` 回來才重設;中間這段時間是 true,
+    /// `explorationStart` 已經當作停好了(和 Android 一次清掉狀態相同)。清除結束(成功或失敗)、開始新的一輪
+    /// 或搖桿接管時清掉。
+    @Published private var isStoppingExploration = false
     /// 收藏位置與收藏路線第一點的「國家 · 城市」,鍵用 `RegionLabel.key(for:)` 算;查到才有
     /// (GFlyer-Suite docs/features/region-labels.md)。清單開著時查到新的,那一列直接更新。
     @Published private(set) var regionLabels: [String: String] = [:]
@@ -104,11 +108,11 @@ final class SimulationController: ObservableObject {
 
     var isExploring: Bool { exploration != nil }
 
-    /// 開始探索的起點:模擬中(包含靜態傳送)是目前的模擬座標,沒有模擬時是選取點。
+    /// 開始探索的起點,也是沒有在探索時預覽線與鏡頭的起點:模擬中(包含靜態傳送)是目前的模擬座標,沒有模擬時是選取點。
     /// 和 Android 的 `mockStatus.coordinate ?: selected` 相同(GFlyer-Suite docs/features/serpentine-exploration.md §3.3)。
+    /// 按了停止、還在等清除時已經是選取點,理由見 `ExplorationRun.origin`。
     var explorationStart: GeoCoordinate {
-        if status.isActive, let coordinate = status.coordinate { return coordinate }
-        return selectedCoordinate
+        ExplorationRun.origin(status: status, isStopping: isStoppingExploration, selected: selectedCoordinate)
     }
 
     /// 地圖上的探索預覽線(規格 §3.5):沒有在探索時從起點、進度 (0, 0)、設定的 Y 與方向畫;探索中從目前位置、
@@ -494,7 +498,11 @@ final class SimulationController: ObservableObject {
 
     func stop(reason: String? = nil) {
         let motionTasks = beginStop()
-        guard pairingIsReady else { return }
+        guard pairingIsReady else {
+            // 不會清除,`status` 也不會重設
+            isStoppingExploration = false
+            return
+        }
         Task { _ = await performClear(motionTasks: motionTasks, reason: reason, tearDownSession: false) }
     }
 
@@ -508,6 +516,7 @@ final class SimulationController: ObservableObject {
         guard pairingIsReady else {
             let message = "目前為預覽模式，不需要清除裝置定位。"
             status = SimulationStatus(message: message)
+            isStoppingExploration = false
             return message
         }
         // 先等進行中的傳送落地，否則它可能蓋掉下面移回真實位置那一筆
@@ -642,6 +651,8 @@ final class SimulationController: ObservableObject {
         let motionTasks = [playbackTask, joystickTask].compactMap { $0 }
         playbackTask?.cancel()
         playbackTask = nil
+        // 連按停止時這一輪已經清掉了,不要把還在等清除的狀態蓋成 false
+        if exploration != nil { isStoppingExploration = true }
         exploration = nil
         joystickTask?.cancel()
         joystickTask = nil
@@ -675,8 +686,11 @@ final class SimulationController: ObservableObject {
             let base = "已清除模擬位置；通道保持待命"
             let message = reason.map { "\($0)；\(base)" } ?? base
             status = SimulationStatus(message: message)
+            isStoppingExploration = false
             return message
         } catch {
+            // 清除失敗時仍在模擬停下的位置,預覽與再按「開始探索」都從那裡開始
+            isStoppingExploration = false
             lastError = error.localizedDescription
             return error.localizedDescription
         }
@@ -747,6 +761,7 @@ final class SimulationController: ObservableObject {
         playbackTask?.cancel()
         playbackTask = nil
         exploration = nil
+        isStoppingExploration = false
         playbackGeneration += 1
         deviceLocation.stopBackgroundRouteActivity()
         currentLapPoints = []
@@ -1297,6 +1312,7 @@ final class SimulationController: ObservableObject {
     /// 沒有終點,只會因為停止、自動停止、推送失敗或換成其他移動方式而結束。
     private func startExplore(_ run: ExplorationRun) {
         exploration = run
+        isStoppingExploration = false
         status.isActive = true
         status.isPaused = false
         status.mode = .explore
