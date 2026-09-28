@@ -111,14 +111,17 @@ gh release create ios-v0.4.5 GFlyerIOS-0.4.5-unsigned.ipa \
 
 ### 5. 產生 manifest（GFlyer-Suite 的產生器）
 
-`altstore.json` 與三平台共用的 `releases.json` 都由 GFlyer-Suite 的
-`tools/release/release_manifest.py` 產生（DRIFT D8；完整說明在該 repo 的
-`tools/release/README.md`），**不要手改**。在本 repo 根目錄執行，`<說明檔>` 用第 4 步
+`altstore.json` 的版本資料（App 的 `versions[]` 與 6 個扁平欄位）與三平台共用的
+`releases.json` 都由 GFlyer-Suite 的 `tools/release/release_manifest.py` 產生（DRIFT D8；
+完整說明在該 repo 的 `tools/release/README.md`），**不要手改**。唯一由人維護的是
+`altstore.json` 裡介紹 App 的文字（App 的 `localizedDescription`、`subtitle` 與頂層的
+`news`），改法見該 README 的「手改的部分」，在第 6 步 `project` 之後、`git add` 之前改。
+在本 repo 根目錄執行，IPA 是第 3、4 步留在 `<暫存目錄>` 的那一個，`<說明檔>` 用第 4 步
 同一份：
 
 ```bash
 python ../GFlyer-Suite/tools/release/release_manifest.py build ios \
-  --ipa GFlyerIOS-0.4.5-unsigned.ipa \
+  --ipa <暫存目錄>/GFlyerIOS-0.4.5-unsigned.ipa \
   --notes-file <說明檔> \
   --out <暫存目錄>/release-manifest-ios-0.4.5.json
 ```
@@ -152,6 +155,8 @@ python ../GFlyer-Suite/tools/release/release_manifest.py project \
   <暫存目錄>/release-manifest-ios-0.4.5.json --updates-dir ../GFlyer-updates --dry-run
 python ../GFlyer-Suite/tools/release/release_manifest.py project \
   <暫存目錄>/release-manifest-ios-0.4.5.json --updates-dir ../GFlyer-updates
+# 確認 App 介紹是否要改（GFlyer-Suite tools/release/README.md「手改的部分」；0.6.9 要改），
+# 改了再跑一次 check
 cd ../GFlyer-updates
 git add altstore.json releases.json
 git commit -m "Publish GFlyer iOS 0.4.5 (11) in the AltStore source"
