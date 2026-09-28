@@ -175,7 +175,19 @@ Exit criterion: a 30-minute foreground route completes without losing the tunnel
   first load requires network; validation pending). For `0.6.9`: strict JSON
   types (`coordinate-library/type-strictness.*`), and the stale-data report
   follows Android (`docs/features/coordinate-stale-report.md`: postcards only,
-  Android's reasons, request body and single failure message)
+  Android's reasons, request body and single failure message). Also for
+  `0.6.9`: teleport history and 「隱藏已前往」 per
+  `docs/features/library-teleport-history.md`. `LibraryTeleportHistory` holds
+  the pure logic (Android's storage shape, lenient decoding, en_US_POSIX /
+  Gregorian time text, the listing with counts taken before hiding);
+  `CoordinateMarkStore` keeps it under the new keys
+  `gflyer.coordinate-teleports.v1` and `gflyer.coordinate-hide-teleported.v1`
+  and leaves the `gflyer.coordinate-marks.v1` snapshot unchanged; only an
+  accepted 「傳送」 with a valid coordinate records; the hide does not apply on
+  「⏲ 提醒中」. `SharedContractTests` copies
+  `coordinate-library/teleport-history.json`; `CoordinateLibraryTests` covers
+  0.6.8 data, a corrupt history and the controller listing. Device validation
+  pending
 - Message-board length limits counted in Unicode code points with Android's
   local messages (`0.6.9`, `docs/features/message-board-limits.md`; the Worker
   must be deployed first; covered by `SharedContractTests` and

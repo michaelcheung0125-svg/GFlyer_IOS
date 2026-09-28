@@ -72,6 +72,15 @@ This is a separate SwiftUI prototype for personal sideloading. It does not modif
   unlike Android there is no bundled seed, so the first load needs network
   access. The parser keeps JSON booleans and numbers apart like the backup
   import
+- Coordinate-library teleport history and 「隱藏已前往」 like GFlyer Android
+  (GFlyer-Suite `docs/features/library-teleport-history.md`): 「傳送」 on a
+  library row records the time and a count (「預覽」, an invalid coordinate
+  and a teleport refused during a simulation record nothing). The row shows
+  「➤ 已前往 09/19 14:32 · 3 次」 and its ⋯ menu has the full time and
+  「清除紀錄」. The 「隱藏已前往」 chip under the search field hides visited
+  coordinates (except on 「⏲ 提醒中」) next to 「已前往 N / 總數」, counted
+  before hiding. The history is kept apart from the visit reminders, only on
+  the device under its own UserDefaults keys, and is not in the backup
 - Interrupted-session snapshots with a relaunch resume prompt (10-minute window)
 - Manual step logging through a user-supplied Shortcut, with 1000/3000/5000
   presets, a custom amount, and a seven-day history. GFlyer never touches

@@ -225,6 +225,38 @@ C:\Project\GFlyer
       2,000 米；預覽線與實際路線重合、開始後改從目前位置畫；移動中 Y 與方向停用、速度可改、暫停／
       繼續／停止；探索中再按「開始探索」不跳走、不報錯；探索幾分鐘後結束 App，恢復後從中斷位置接著
       走；用 0.6.8 在探索中結束 App，10 分鐘內升級到 0.6.9 再開，提示可以恢復且不當機。
+  - **座標圖鑑前往紀錄與「隱藏已前往」**（另一批，`docs/features/library-teleport-history.md`，照
+    Android App 內圖鑑；決定：只在「傳送」、座標有效而且模擬接受時記錄，「預覽」不記錄；iOS 清除後不
+    彈提示；完整時間與「清除紀錄」放在列的「⋯」選單）：
+    - 純邏輯（`Model/LibraryTeleportHistory.swift`）：`record`（次數 + 1、時間直接覆寫、不比較新舊）、
+      `filter`、`listing`（隱藏之後的清單，加上隱藏之前算的計數、開關旁文字、空清單訊息）、
+      `encode` / `decode`（和 Android `teleported_map` 同一個形狀 `{id: {"at": 毫秒, "n": 次數}}`；寬鬆
+      解析：整份讀不出來是空的、逐筆略過、n 至少 1、布林不算數字）、`formatShort` / `formatFull`
+      （明確設定 `en_US_POSIX`、西元曆與時區，「同一年」用同一個時區的西元曆比，佛曆／日本曆的 iPhone
+      也和 Android 顯示相同）、`summary`、`countLabel`。格式器依格式與時區快取在 `NSCache`。
+    - 儲存（`CoordinateMarkStore`）：**新鍵** `gflyer.coordinate-teleports.v1`（Data）與
+      `gflyer.coordinate-hide-teleported.v1`（Bool，沒存過是 false），每次記錄／清除／切換都立刻寫回。
+      **`Snapshot` 與 `gflyer.coordinate-marks.v1` 沒動**：在 `Snapshot` 加欄位會讓 0.6.8 的資料整份解
+      不開、清掉最愛與造訪標記。不在備份裡。時間存毫秒整數（造訪標記存秒，那是既有格式）。
+    - 清單（`CoordinateLibraryController`）：原本的 `visibleCoordinates` 改名 `matchingCoordinates`
+      （分頁、子分類、搜尋、排序），`listing` 再套隱藏；「⏲ 提醒中」不套用（`hideApplies`），開關的值
+      不變。「預覽」／「傳送」的判斷搬到 `CoordinateLibraryController.use`，在關閉圖鑑之前記錄；之後
+      跨日警告被取消或連線失敗都不回滾，和 Android 相同。
+    - 畫面（`CoordinateLibraryView`）：搜尋框下方「隱藏已前往」／「✓ 隱藏已前往」＋「已前往 N / 總數」
+      （圖鑑還沒載入或在「⏲ 提醒中」時整列不顯示，清單空的時候照樣顯示）；全部前往過而被隱藏時，空清單
+      是「這裡的點都前往過了；關閉「隱藏已前往」就會再列出來。」、不附說明；列在提醒狀態下面多一行
+      「➤ 已前往 09/19 14:32 · 3 次」（強調色、單行，只去過一次不寫次數）；「⋯」選單最後一段用完整時間
+      當 Section 標題，底下是「清除紀錄」。「還沒從圖鑑前往過」與「已清除前往紀錄」iOS 不顯示。
+    - 測試：`SharedContractTests` 照抄 `coordinate-library/teleport-history.json` 全部案例（record
+      同時走純函式與 `CoordinateMarkStore`、decode、encode 往返、format 用 fixture 的時區、summary、
+      filter、messages）；`CoordinateLibraryTests` 有 0.6.8 資料升級、壞掉的前往紀錄、換一個 store 讀回、
+      `Snapshot` 仍只有兩個欄位、布林、「預覽」與無效座標不記錄、控制器在分類／最愛／提醒中分頁的清單。
+      被接受的「傳送」與模擬中被拒絕兩條要真的開始模擬，單元測試沒有涵蓋。
+    - **尚待驗證**（實機，規格 §6）：按「傳送」後回到圖鑑，該列出現「➤ 已前往…」，再傳送一次變
+      「 · 2 次」；「預覽」不記錄；模擬進行中按「傳送」被拒絕時不記錄；打開「隱藏已前往」該列消失、
+      計數不變；全部前往過的分類顯示提示；切到「⏲ 提醒中」開關列消失、有紀錄的提醒座標仍列出；關掉
+      App 再開開關仍是開的；「⋯」選單的完整時間與「清除紀錄」（iOS 17 的選單若不顯示 Section 標題，
+      照規格改成 disabled 的項目）；從 0.6.8 覆蓋安裝後原本的最愛與造訪標記都還在。
 
 - `0.6.8 (21)`：0.6.7 實機回報的四件事。
   - 已發佈 `ios-v0.6.8`；CI 兩個 job 通過（97 個測試），IPA 拆檢通過
