@@ -32,7 +32,7 @@ C:\Project\GFlyer
 - 飛豬品牌地圖標記、地圖點擊選點、地點/座標搜尋及右側地圖工具列
 - 地圖目前位置按鈕、真實 Core Location 權限流程及使用者位置標示
 - 傳送、單點、多點及探索四種模式（0.6.9 起探索是和 Android 相同的蛇形，取代螺旋）
-- 非線性 1.8-900 km/h 速度控制、內建/自訂速度預設及 20 km/h 提示。0.6.8 之後（尚未發佈）：
+- 非線性 1.8-900 km/h 速度控制、內建/自訂速度預設及 20 km/h 提示。0.6.9 起：
   速度預設上限從 12 改成 6，和 Android 一致；已經存了超過 6 個的使用者原本的全部保留，
   只是不能再新增，刪掉一個只會少一個。匯入備份時最多取 6 個。新增速度預設時
   去掉名稱前後空白、最多 20 個 Unicode code point，和 Android 相同（原本不限長度）
@@ -70,7 +70,7 @@ C:\Project\GFlyer
   - 搖桿位移動力學（三次曲線、不對稱加減速、推到邊持續加速）與獨立搖桿限速
   - GPX 1.1 匯入（trk/rte/wpt）與全部路線匯出
   - 與 Android 互通的 `GFlyer Backup` v1 備份／還原（收藏、歷史、資料夾、
-    路線、速度預設；UUID 與 Android long id 雙向映射）。0.6.8 之後（尚未發佈）：
+    路線、速度預設；UUID 與 Android long id 雙向映射）。0.6.9 起：
     iOS 不認識的 settings 鍵原樣保留、匯出時寫回，Android → iOS → Android
     往返不再把 Android 專屬設定重設成預設值（`AppBackupCodec`、
     `LocalDataSnapshot.foreignSettings`，`TransferTests` 有 3 個測試）。同一批：備份陣列裡混進
@@ -107,8 +107,12 @@ C:\Project\GFlyer
   - `0.4.0 (6)` 已發佈到公開的 `GFlyer-updates`（release `ios-v0.4.0`）並
     確認可以從 SideStore 來源安裝到實機。來源檔必須維持舊版 AltStore 扁平
     格式，細節見 `docs/ALTSTORE_DISTRIBUTION.md`
-- `0.6.9`（準備中，分支 `release-0.6.9-prep`，尚未升版、尚未發佈）：和 Android 0.8.7
-  一起發版，規格在 GFlyer-Suite `docs/features/*.md`，Android 是參考實作。這一段是
+- `0.6.9 (22)`：2026-09-30 發佈到 `GFlyer-updates`（release `ios-v0.6.9`，來源檔 commit `e8ff807`）；
+  IPA 是 CI run `36774670035`（`b61e3d0`）的產物，SHA-256 `012afc51…cbe6708e33`，10,158,261 bytes。
+  第一次用 GFlyer-Suite `tools/release/release_manifest.py` 發佈，同時建立了 `releases.json`（目前只有
+  `ios`），App 介紹的「螺旋探索」改成「蛇形探索」。**使用者決定跳過實機驗證先發佈**：下面各批的
+  「尚待驗證」都還沒做，更新說明裡請使用者順便測。Android 0.8.7 還沒發佈。原本和 Android 0.8.7
+  一起準備，規格在 GFlyer-Suite `docs/features/*.md`，Android 是參考實作。這一段是
   「小修正、留言板字數、資料過時回報、D8 文件」那一批；其他功能各自補在下面。
   - **速度比較**（`contracts/fixtures/speed/preset-speed-values.json`）：一律用 km/h 的
     Double、容差 0.01 km/h（`SpeedScale.isSameSpeed` / `isBelow` / `isAtMost`）。內建
