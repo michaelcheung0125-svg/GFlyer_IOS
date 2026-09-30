@@ -110,8 +110,8 @@ C:\Project\GFlyer
 - `0.6.9 (22)`：2026-09-30 發佈到 `GFlyer-updates`（release `ios-v0.6.9`，來源檔 commit `e8ff807`）；
   IPA 是 CI run `36774670035`（`b61e3d0`）的產物，SHA-256 `012afc51…cbe6708e33`，10,158,261 bytes。
   第一次用 GFlyer-Suite `tools/release/release_manifest.py` 發佈，同時建立了 `releases.json`（目前只有
-  `ios`），App 介紹的「螺旋探索」改成「蛇形探索」。**使用者決定跳過實機驗證先發佈**：下面各批的
-  「尚待驗證」都還沒做，更新說明裡請使用者順便測。Android 0.8.7 還沒發佈。原本和 Android 0.8.7
+  `ios`），App 介紹的「螺旋探索」改成「蛇形探索」。**使用者決定跳過實機驗證先發佈**；2026-10-01 使用者從
+  SideStore 更新到 0.6.9，回報實機測試沒有問題（沒有逐項回報下面各批的「尚待驗證」）。Android 0.8.7 還沒發佈。原本和 Android 0.8.7
   一起準備，規格在 GFlyer-Suite `docs/features/*.md`，Android 是參考實作。這一段是
   「小修正、留言板字數、資料過時回報、D8 文件」那一批；其他功能各自補在下面。
   - **速度比較**（`contracts/fixtures/speed/preset-speed-values.json`）：一律用 km/h 的
