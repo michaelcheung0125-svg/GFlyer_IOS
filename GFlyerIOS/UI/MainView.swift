@@ -30,6 +30,11 @@ struct MainView: View {
     @State private var suppressNextRecenter = false
     @State private var feedbackMessage: String?
     @State private var feedbackTask: Task<Void, Never>?
+    /// 地圖工具列 ☆ 的命名對話框:按 ☆ 那一刻記下的座標與預填,和名稱欄位的文字。放在一直存在的這一層,
+    /// 不放在 `MapToolBar`:工具列在搜尋結果出現時會離開畫面,打到一半的名稱會無聲消失
+    /// (GFlyer-Suite docs/features/favorite-add.md §5)。只在記憶體,不存檔。
+    @State private var favoriteNameRequest: FavoriteNameRequest?
+    @State private var favoriteName = ""
     /// 定位要花幾秒，期間按鈕要換成轉圈，否則使用者不知道有沒有按到。
     @State private var isLocating = false
     @State private var locateTimeoutTask: Task<Void, Never>?
@@ -102,7 +107,7 @@ struct MainView: View {
         .ignoresSafeArea(.keyboard, edges: .bottom)
     }
 
-    /// 升級後只出現一次的提示。和其他 alert 分開一層,理由同 body 上面的說明。
+    /// 升級後只出現一次的提示與 ☆ 的命名對話框。和其他 alert 分開一層,理由同 body 上面的說明。
     private var contentWithNotices: some View {
         contentWithSheets
             .alert(SimulationController.arrivalRulesNoticeTitle, isPresented: arrivalRulesNoticeBinding) {
@@ -110,6 +115,7 @@ struct MainView: View {
             } message: {
                 Text(SimulationController.arrivalRulesNoticeMessage)
             }
+            .modifier(FavoriteNameAlert(request: $favoriteNameRequest, name: $favoriteName, onConfirm: confirmFavorite))
     }
 
     private var contentWithSheets: some View {
@@ -285,6 +291,7 @@ struct MainView: View {
                         cameraDistance: $cameraDistance,
                         isLocating: isLocating,
                         onLocate: locateCurrentPosition,
+                        onFavorite: requestFavorite,
                         onFeedback: announce
                     )
                 }
@@ -500,6 +507,59 @@ struct MainView: View {
             }
         }
     }
+
+    /// 地圖工具列的 ☆:收藏目標座標已經收藏過就只顯示訊息;否則記下按下那一刻的座標與預填,打開命名對話框
+    /// (GFlyer-Suite docs/features/favorite-add.md §3.2、§3.4)。每次打開都重新預填,上一次取消掉的字不留。
+    private func requestFavorite() {
+        switch controller.favoritePrompt() {
+        case let .alreadySaved(message):
+            announce(message)
+        case let .askName(request):
+            favoriteName = request.suggestedName
+            favoriteNameRequest = request
+        }
+    }
+
+    /// 命名對話框的「收藏」:存對話框上顯示的那個座標(按 ☆ 時記下的),顯示回傳的訊息。
+    private func confirmFavorite(name: String, coordinate: GeoCoordinate) {
+        announce(controller.addFavorite(name: name, coordinate: coordinate))
+    }
+}
+
+/// 地圖工具列 ☆ 的命名對話框(GFlyer-Suite docs/features/favorite-add.md §3.3、§5)。用一行 `.modifier` 掛在
+/// `MainView` 一直存在的那一層,alert 本體不寫進 `MainView.body`(那裡要保持拆層)。
+///
+/// - 按「收藏」時用 alert 的 presenting 值,不讀 `request`:`isPresented` 的 setter 可能在按鈕動作之前就把它清掉
+///   (同 `SimulationController.resumeInterruptedSession` 的說明)。
+/// - 「收藏」永遠可以按,欄位空白就用「收藏 <座標>」;和改名的 alert 不同,不依欄位停用,也不用鍵盤送出。
+/// - 系統 alert 的文字框沒有標籤,所以只有提示文字、沒有 Android 的「名稱」;打開時 iOS 自動把焦點放進文字框
+///   (規格第 5 節接受的平台差異)。
+private struct FavoriteNameAlert: ViewModifier {
+    @Binding var request: FavoriteNameRequest?
+    @Binding var name: String
+    let onConfirm: (String, GeoCoordinate) -> Void
+
+    func body(content: Content) -> some View {
+        content.alert(
+            FavoriteAddTexts.dialogTitle,
+            isPresented: isPresented,
+            presenting: request
+        ) { presented in
+            TextField(FavoriteAddTexts.namePlaceholder, text: $name)
+            Button(FavoriteAddTexts.cancelButton, role: .cancel) { }
+            Button(FavoriteAddTexts.confirmButton) { onConfirm(name, presented.coordinate) }
+        } message: { presented in
+            Text(presented.coordinate.display)
+        }
+    }
+
+    /// 取消、點外面或按「收藏」之後 SwiftUI 把它設成 false。打過的字不在這裡清:下次打開時重新預填。
+    private var isPresented: Binding<Bool> {
+        Binding(
+            get: { request != nil },
+            set: { if !$0 { request = nil } }
+        )
+    }
 }
 
 private struct SearchBar: View {
@@ -598,6 +658,8 @@ private struct MapToolBar: View {
     @Binding var cameraDistance: CLLocationDistance
     let isLocating: Bool
     let onLocate: () -> Void
+    /// ☆ 只負責觸發;命名對話框與它的狀態在 `MainView`,理由見 `MainView.favoriteNameRequest`。
+    let onFavorite: () -> Void
     let onFeedback: (String) -> Void
 
     var body: some View {
@@ -650,10 +712,9 @@ private struct MapToolBar: View {
                 }
             }
             HStack(spacing: Spacing.xs) {
+                // 實心 / 空心看選取點(和 Android 相同);按下去收藏的是收藏目標座標,模擬中是模擬位置
                 let isFavorite = controller.favorites.contains { $0.coordinate == controller.selectedCoordinate }
-                mapButton(isFavorite ? "star.fill" : "star", label: "收藏目前位置") {
-                    onFeedback(controller.addFavorite())
-                }
+                mapButton(isFavorite ? "star.fill" : "star", label: FavoriteAddTexts.toolbarButtonLabel, action: onFavorite)
                 mapButton("star.circle", label: "收藏與歷史") { showFavorites = true }
             }
             HStack(spacing: Spacing.xs) {

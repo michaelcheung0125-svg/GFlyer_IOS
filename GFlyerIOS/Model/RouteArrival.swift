@@ -29,26 +29,52 @@ struct RoutePlaybackOptions: Equatable {
     /// - 多點定點傳送:到點動作、手動前進照設定;手動前進時停留 0,否則照設定(夾到 1〜300)。
     /// 存的設定不會因此被改掉:從模擬移動切回定點傳送時,之前選的到點動作與手動前進還在。
     static func effective(for kind: RouteStartKind, settings: PlaybackSettings) -> RoutePlaybackOptions {
-        let plainWalk = RoutePlaybackOptions(
+        guard kind == .multiRoute else { return plainWalk }
+        return multiRoute(
+            travelMode: settings.travelMode,
+            pointAction: settings.pointAction,
+            manualAdvance: settings.manualAdvance,
+            dwellSeconds: settings.dwellSeconds,
+            startDelaySeconds: settings.startDelaySeconds
+        )
+    }
+
+    /// 純模擬移動:沒有到點動作、不停留、不手動前進、不倒數。單點路線、留言板路線直接開始用它;
+    /// 中斷快照在傳送、探索,或沒有正在播的路線時也寫它的四個值(`ActiveSessionSnapshot.recordedRouteOptions`)。
+    static var plainWalk: RoutePlaybackOptions {
+        RoutePlaybackOptions(
             travelMode: .simulate,
             pointAction: .none,
             manualAdvance: false,
             dwellSeconds: 0,
             startDelaySeconds: 0
         )
-        guard kind == .multiRoute else { return plainWalk }
-        switch settings.travelMode {
+    }
+
+    /// 「多點模式按「開始」」的規則(規格 §3.2;Android `RouteArrival.effectiveOptions(MULTI_ROUTE, …)`)。
+    /// `effective(for: .multiRoute, settings:)` 與中斷恢復(`ActiveSessionSnapshot.resumedRouteOptions`,
+    /// 規格 §3.10 第 2 步)都呼叫這一份,不另外寫一份規則:
+    /// - 模擬移動:純模擬移動,不論另外三個值是什麼;倒數照傳進來的值。
+    /// - 定點傳送:到點動作、手動前進照傳進來的值;手動前進時停留 0,否則夾到 1〜300。
+    static func multiRoute(
+        travelMode: RouteTravelMode,
+        pointAction: RoutePointAction,
+        manualAdvance: Bool,
+        dwellSeconds: Int,
+        startDelaySeconds: Int
+    ) -> RoutePlaybackOptions {
+        switch travelMode {
         case .simulate:
             var options = plainWalk
-            options.startDelaySeconds = settings.startDelaySeconds
+            options.startDelaySeconds = startDelaySeconds
             return options
         case .teleport:
             return RoutePlaybackOptions(
                 travelMode: .teleport,
-                pointAction: settings.pointAction,
-                manualAdvance: settings.manualAdvance,
-                dwellSeconds: settings.manualAdvance ? 0 : PlaybackSettings.clampedDwellSeconds(settings.dwellSeconds),
-                startDelaySeconds: settings.startDelaySeconds
+                pointAction: pointAction,
+                manualAdvance: manualAdvance,
+                dwellSeconds: manualAdvance ? 0 : PlaybackSettings.clampedDwellSeconds(dwellSeconds),
+                startDelaySeconds: startDelaySeconds
             )
         }
     }

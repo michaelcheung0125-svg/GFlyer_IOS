@@ -344,12 +344,17 @@ private struct MessageBoardPostRow: View {
                         }
                         if reply.id != post.replies.last?.id { Divider() }
                     }
+                    // 輸入框與「N/300」一組放左邊,送出按鈕對這一組垂直置中(HStack 預設),
+                    // 和 Android 的 Row(verticalAlignment = CenterVertically) 相同
                     HStack {
-                        TextField("輸入回覆", text: $replyText, axis: .vertical)
-                            .lineLimit(1...3)
-                            .onChange(of: replyText) { _, value in
-                                if let capped = value.codePointsCapped(at: BoardTextLimits.reply) { replyText = capped }
-                            }
+                        VStack(alignment: .leading, spacing: Spacing.xs) {
+                            TextField("輸入回覆", text: $replyText, axis: .vertical)
+                                .lineLimit(1...3)
+                                .onChange(of: replyText) { _, value in
+                                    if let capped = value.codePointsCapped(at: BoardTextLimits.reply) { replyText = capped }
+                                }
+                            BoardCharacterCounter(text: replyText, limit: BoardTextLimits.reply)
+                        }
                         Button {
                             let message = replyText
                             replyText = ""
@@ -480,11 +485,14 @@ struct ShareToMessageBoardView: View {
                         Text("目前沒有收藏路線。")
                             .foregroundStyle(.secondary)
                     } else {
+                        // 選單樣式只能顯示一行,改成 inline:每條路線一列,名稱一行 + 「N 個座標點」一行,
+                        // 選中的那列打勾(GFlyer-Suite docs/features/region-labels.md 第 3 節固定文字表)
                         Picker("收藏路線", selection: $selectedRouteID) {
                             ForEach(simulation.savedRoutes) { route in
-                                Text("\(route.name) · \(route.points.count) 點").tag(Optional(route.id))
+                                routeOption(route).tag(Optional(route.id))
                             }
                         }
+                        .pickerStyle(.inline)
                     }
                 }
             }
@@ -494,11 +502,15 @@ struct ShareToMessageBoardView: View {
                     ForEach(BoardShareDuration.allCases) { item in Text(item.label).tag(item) }
                 }
                 .pickerStyle(.segmented)
-                TextField("留言或備註（選填）", text: $remark, axis: .vertical)
-                    .lineLimit(3...5)
-                    .onChange(of: remark) { _, value in
-                        if let capped = value.codePointsCapped(at: BoardTextLimits.remark) { remark = capped }
-                    }
+                // 計數器和輸入框放在同一列,不用 Section footer:footer 會跑到標籤輸入框下面
+                VStack(alignment: .leading, spacing: Spacing.xs) {
+                    TextField("留言或備註（選填）", text: $remark, axis: .vertical)
+                        .lineLimit(3...5)
+                        .onChange(of: remark) { _, value in
+                            if let capped = value.codePointsCapped(at: BoardTextLimits.remark) { remark = capped }
+                        }
+                    BoardCharacterCounter(text: remark, limit: BoardTextLimits.remark)
+                }
                 TextField("標籤，以逗號分隔（最多 5 個）", text: $tags)
                     .onChange(of: tags) { _, value in
                         if let capped = value.codePointsCapped(at: BoardTextLimits.tagsInput) { tags = capped }
@@ -515,6 +527,15 @@ struct ShareToMessageBoardView: View {
                 }
                 .disabled(!hasContent || board.isSubmitting)
             }
+        }
+    }
+
+    /// 路線選項:名稱一行(超出以 … 截斷),底下一行「N 個座標點」/「N 個座標點，循環」,不顯示標籤。
+    private func routeOption(_ route: SavedRoute) -> some View {
+        VStack(alignment: .leading, spacing: Spacing.xs) {
+            Text(route.name).foregroundStyle(.primary).lineLimit(1)
+            Text(BoardShareRouteText.summary(route))
+                .font(.caption).foregroundStyle(.secondary)
         }
     }
 
@@ -681,11 +702,15 @@ private struct BoardAnnouncementView: View {
         NavigationStack {
             Form {
                 Section("公告內容") {
-                    TextField("輸入公告", text: $message, axis: .vertical)
-                        .lineLimit(3...6)
-                        .onChange(of: message) { _, value in
-                            if let capped = value.codePointsCapped(at: BoardTextLimits.remark) { message = capped }
-                        }
+                    // 公告送的是 post.remark,上限和截斷都用 remark;和分享、回覆一樣用 VStack 放計數器
+                    VStack(alignment: .leading, spacing: Spacing.xs) {
+                        TextField("輸入公告", text: $message, axis: .vertical)
+                            .lineLimit(3...6)
+                            .onChange(of: message) { _, value in
+                                if let capped = value.codePointsCapped(at: BoardTextLimits.remark) { message = capped }
+                            }
+                        BoardCharacterCounter(text: message, limit: BoardTextLimits.remark)
+                    }
                 }
                 Section("設定") {
                     Picker("期限", selection: $duration) {
@@ -727,5 +752,35 @@ private struct BoardAnnouncementView: View {
                 Text(board.errorMessage ?? "未知錯誤")
             }
         }
+    }
+}
+
+/// 輸入框正下方、靠左的「N/300」(GFlyer-Suite docs/features/message-board-limits.md 第 3 節
+/// 「計數器『N/300』」、I16)。照 Android 的 TextField `supportingText`:一律顯示(含「0/300」)、
+/// 小字(caption 對應 bodySmall,等寬數字避免打字時抖動)、次要文字顏色(對應 onSurfaceVariant)、
+/// 到上限不變色,不另外加 accessibility label。只用在分享的留言或備註、回覆、公告三個輸入框。
+private struct BoardCharacterCounter: View {
+    let text: String
+    let limit: Int
+
+    var body: some View {
+        Text(BoardTextLimits.counterLabel(text, limit: limit))
+            .font(.numericCaption)
+            .foregroundStyle(.secondary)
+    }
+}
+
+/// 留言板分享路線選單每個選項的第二行,和 Android 分享頁的
+/// `"${route.points.size} 個座標點${if (route.loop) "，循環" else ""}"` 一字不差
+/// (GFlyer-Suite docs/features/region-labels.md 第 3 節固定文字表)。逗號是**全形**「，」(U+FF0C),
+/// 單程不加字。不是收藏路線清單的「N 個點 · 循環/單程」(`LibraryRowText.route`),
+/// 也不是留言板貼文列的單行「名稱 · N 個座標點 · 循環」。
+enum BoardShareRouteText {
+    static func summary(pointCount: Int, loop: Bool) -> String {
+        "\(pointCount) 個座標點\(loop ? "，循環" : "")"
+    }
+
+    static func summary(_ route: SavedRoute) -> String {
+        summary(pointCount: route.points.count, loop: route.loop)
     }
 }

@@ -225,13 +225,31 @@ enum VisitReminder {
         )
     }
 
-    private static let displayFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy/MM/dd HH:00"
-        return formatter
-    }()
+    /// 「下次可去時間」的顯示文字，和 Android `DateTimeFormatter.ofPattern("yyyy/MM/dd HH:00")` 一樣：
+    /// 西元曆、24 小時制、ASCII 數字；`HH:` 後面的 00 是字面文字，15:59 也寫 15:00，不四捨五入。
+    /// `timeZone` 預設在每次呼叫時讀當下的 `TimeZone.current`，和 Android 每次用 `ZoneId.systemDefault()` 一樣。
+    /// 期望值見 GFlyer-Suite `contracts/fixtures/reminder/visit-reminder.json` 的 `format`（DRIFT D27）。
+    static func format(_ date: Date, timeZone: TimeZone = .current) -> String {
+        displayFormatter(timeZone: timeZone).string(from: date)
+    }
 
-    static func format(_ date: Date) -> String {
-        displayFormatter.string(from: date)
+    private static let displayPattern = "yyyy/MM/dd HH:00"
+
+    /// 格式器照時區快取，和 `LibraryTeleportHistory` 的時間文字同一個做法：清單每次重繪都要格式化，
+    /// 每次新建 DateFormatter 太貴；NSCache 可以跨執行緒使用，建好之後不再修改的 DateFormatter 也可以。
+    private static let displayFormatters = NSCache<NSString, DateFormatter>()
+
+    /// 一定要明確設定 en_US_POSIX、西元曆與時區：不設的話，佛曆／日本曆的 iPhone 會顯示 2569 年或令和年，
+    /// 12 小時制的地區也可能蓋掉 HH，部分語系還會換成非 ASCII 數字。Android 的 DateTimeFormatter 本來就不看這些。
+    private static func displayFormatter(timeZone: TimeZone) -> DateFormatter {
+        let key = NSString(string: timeZone.identifier)
+        if let cached = displayFormatters.object(forKey: key) { return cached }
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.timeZone = timeZone
+        formatter.dateFormat = displayPattern
+        displayFormatters.setObject(formatter, forKey: key)
+        return formatter
     }
 }

@@ -164,6 +164,9 @@ final class SimulationController: ObservableObject {
         /// 使用者要不要循環(`loopRoute`);單點路線實際上不循環,恢復時由 `startRoute` 再判斷一次。
         let loop: Bool
         let transition: LoopTransitionMode
+        /// 這一趟實際採用的播放選項(按「開始」時算的,恢復時是恢復的選項)。中斷快照寫它的到點選項,
+        /// 恢復時照它接回(GFlyer-Suite docs/features/route-arrival-actions.md §3.10、I17)。
+        let options: RoutePlaybackOptions
     }
 
     func setMode(_ newMode: SimulationMode) {
@@ -373,7 +376,13 @@ final class SimulationController: ObservableObject {
                 return
             }
             let firstLap = [snapshot.coordinate] + snapshot.remainingPoints
-            startRoute(kind: routeStartKind, resumingFrom: firstLap.count >= 2 ? firstLap : nil)
+            // 用被中斷那一趟自己的到點選項接回,不倒數;0.6.9 以前的快照照 0.6.9 用目前的設定(I17)。
+            // 恢復不改寫使用者存的設定
+            startRoute(
+                kind: routeStartKind,
+                resumingFrom: firstLap.count >= 2 ? firstLap : nil,
+                resumedOptions: snapshot.resumedRouteOptions(settings: playbackSettings)
+            )
             scheduleAutoStop()
         case .explore:
             // 從中斷的位置以快照的進度接著走,不跳回這一輪的起點;0.6.8 的螺旋快照變成一輪新的蛇形
@@ -417,7 +426,14 @@ final class SimulationController: ObservableObject {
         let run = snapshotMode == .explore ? exploration : nil
         // 路線播放中寫開始時的路線與循環設定:播放中在地圖上加了點或改了畫面上的循環,
         // 恢復的仍是剩下的點所屬的那一條路線
-        let route = playingRoute ?? PlayingRoute(points: routePoints, loop: loopRoute, transition: loopTransitionMode)
+        let route = playingRoute ?? PlayingRoute(
+            points: routePoints,
+            loop: loopRoute,
+            transition: loopTransitionMode,
+            options: RoutePlaybackOptions.plainWalk
+        )
+        // 到點選項一律寫出(不是 nil):路線寫這一趟實際用的,其他寫純模擬移動(I17 第 3 點)
+        let arrival = ActiveSessionSnapshot.recordedRouteOptions(mode: snapshotMode, playing: playingRoute?.options)
         sessionStore.save(
             ActiveSessionSnapshot(
                 mode: snapshotMode,
@@ -431,6 +447,10 @@ final class SimulationController: ObservableObject {
                 explorationState: run?.state,
                 explorationVerticalLengthMetres: run?.verticalLengthMetres,
                 explorationDirection: run?.direction,
+                routeTravelMode: arrival.travelMode,
+                routePointAction: arrival.pointAction,
+                routeManualAdvance: arrival.manualAdvance,
+                routeDwellSeconds: arrival.dwellSeconds,
                 savedAt: now
             )
         )
@@ -659,6 +679,8 @@ final class SimulationController: ObservableObject {
         autoStopTask?.cancel()
         autoStopTask = nil
         sessionStore.clear()
+        // Android 按下停止就清掉模擬位置;不等 clearLocation,清除失敗也不會再變回停下的位置
+        favoriteTarget.stopRequested()
         currentLapPoints = []
         currentLapNextIndex = 0
         playingRoute = nil
@@ -852,19 +874,39 @@ final class SimulationController: ObservableObject {
         select(result.coordinate)
     }
 
-    static let favoriteAddedMessage = "收藏成功"
-    static let favoriteAlreadyExistsMessage = "此座標已經收藏過"
+    // MARK: - 地圖工具列的 ☆(GFlyer-Suite docs/features/favorite-add.md)
+
+    static let favoriteAddedMessage = FavoriteAddTexts.added
+    static let favoriteAlreadyExistsMessage = FavoriteAddTexts.alreadyExists
+
+    /// 收藏用的模擬位置:`send()` 推送成功時寫、推送失敗時清,`beginStop()`(停止、自動停止、完整清除)清。
+    /// 不用 `status` 的理由見 `FavoriteTargetTracker`。
+    private var favoriteTarget = FavoriteTargetTracker()
+
+    /// 收藏目標座標:模擬中(含暫停、路線走完停在終點)是最近一次推送成功的模擬位置,沒有模擬時是選取點
+    /// (Android `mockStatus.coordinate ?: selected`,規格 §3.1)。不看 `status.isActive`。
+    var favoriteTargetCoordinate: GeoCoordinate {
+        favoriteTarget.target(selected: selectedCoordinate)
+    }
+
+    /// 按 ☆ 時要做什麼:收藏目標座標已經收藏過就只顯示訊息,否則問名稱,預填這一格快取裡的標籤。
+    /// 只讀 `regionLabels`,不呼叫 `regionLookup.request`(規格 §3.4)。
+    func favoritePrompt() -> FavoriteAddPrompt {
+        FavoriteAddPrompt.forTarget(favoriteTargetCoordinate, favorites: favorites, regionLabels: regionLabels)
+    }
 
     /// 和 Android 的 `MainViewModel.addFavorite` 相同:座標已經收藏過就不新增(原本會取代那一筆),
     /// 沒有名稱時用「收藏 <座標>」。回傳要顯示的訊息。
+    /// - Parameter requested: 命名對話框記下的座標(按 ☆ 那一刻的收藏目標座標,規格待決事項 2);
+    ///   沒給時用現在的 `favoriteTargetCoordinate`。
     @discardableResult
-    func addFavorite(name: String? = nil) -> String {
-        let coordinate = selectedCoordinate
+    func addFavorite(name: String? = nil, coordinate requested: GeoCoordinate? = nil) -> String {
+        let coordinate = requested ?? favoriteTargetCoordinate
         guard !favorites.contains(where: { $0.coordinate == coordinate }) else {
             return Self.favoriteAlreadyExistsMessage
         }
         let trimmed = name?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        let title = trimmed.isEmpty ? "收藏 \(coordinate.display)" : trimmed
+        let title = trimmed.isEmpty ? FavoriteAddTexts.defaultName(for: coordinate) : trimmed
         dataStore.addFavorite(name: title, coordinate: coordinate)
         refreshStoredData()
         return Self.favoriteAddedMessage
@@ -1120,17 +1162,23 @@ final class SimulationController: ObservableObject {
     /// (也就是 fixture 測的 `RouteArrivalPlan.lap`)。
     /// - Parameter firstLapPoints: 中斷恢復時是中斷的座標加上快照裡剩下的點,第一圈只走這些,
     ///   用 `RouteArrivalPlan.resumedLap` 對齊到整圈的尾段;之後每一圈照整圈播放。
-    private func startRoute(kind: RouteStartKind, resumingFrom firstLapPoints: [GeoCoordinate]? = nil) {
+    /// - Parameter resumedOptions: 中斷恢復時這一趟用的選項(`ActiveSessionSnapshot.resumedRouteOptions`),
+    ///   整圈與第一圈都用它算,而且不倒數;按「開始」時是 nil,照 `kind` 與目前的設定算。
+    private func startRoute(
+        kind: RouteStartKind,
+        resumingFrom firstLapPoints: [GeoCoordinate]? = nil,
+        resumedOptions: RoutePlaybackOptions? = nil
+    ) {
         let points = routePoints
         guard points.count >= 2 else { return }
-        let options = RoutePlaybackOptions.effective(for: kind, settings: playbackSettings)
+        let options = resumedOptions ?? RoutePlaybackOptions.effective(for: kind, settings: playbackSettings)
         let loop = RoutePlaybackOptions.loops(for: kind, requested: loopRoute)
         let transition = loopTransitionMode
         let lap = RouteArrivalPlan.playbackLap(points: points, loop: loop, transition: transition, options: options)
         let resumedLap = firstLapPoints.map { RouteArrivalPlan.resumedLap($0, aligningTo: lap) } ?? []
         let firstLap = resumedLap.isEmpty ? lap : resumedLap
         guard let firstLeg = firstLap.first else { return }
-        playingRoute = PlayingRoute(points: points, loop: loopRoute, transition: transition)
+        playingRoute = PlayingRoute(points: points, loop: loopRoute, transition: transition, options: options)
         advanceRequested = false
         countdownSkipRequested = false
         orbitSkipRequested = false
@@ -1152,8 +1200,8 @@ final class SimulationController: ObservableObject {
                     status.isPlayingRoute = false
                 }
             }
-            // 中斷後恢復的路線不倒數
-            let countdownSeconds = firstLapPoints == nil ? options.startDelaySeconds : 0
+            // 中斷後恢復的路線一律不倒數,包括快照裡沒有剩下的點、從第 1 點播整圈的時候(I17 第 5 點)
+            let countdownSeconds = resumedOptions == nil ? options.startDelaySeconds : 0
             guard await runStartCountdown(seconds: countdownSeconds) else { return }
             var legs = firstLap
             while !Task.isCancelled {
@@ -1385,6 +1433,8 @@ final class SimulationController: ObservableObject {
             guard !Task.isCancelled else { return false }
             status.isActive = true
             status.coordinate = coordinate
+            // 收藏目標座標只認真的推送成功的位置(GFlyer-Suite docs/features/favorite-add.md §5)
+            favoriteTarget.pushSucceeded(coordinate)
             status.mode = mode
             if let message { status.message = message }
             saveSessionSnapshot(coordinate: coordinate)
@@ -1392,6 +1442,8 @@ final class SimulationController: ObservableObject {
         } catch {
             guard !Task.isCancelled else { return false }
             lastError = error.localizedDescription
+            // `status.coordinate` 留著(地圖標記與 setMode 的錨點還要用),收藏目標座標則和 Android 一樣回到選取點
+            favoriteTarget.pushFailed()
             playbackTask?.cancel()
             exploration = nil
             joystickTask?.cancel()

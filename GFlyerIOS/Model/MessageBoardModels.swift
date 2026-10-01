@@ -223,6 +223,16 @@ enum BoardTextLimits {
         "ui.tagsInput": tagsInput,
         "ui.boardSearch": boardSearch,
     ]
+
+    /// 分享的留言或備註、回覆、公告三個輸入框下方的「N/300」,和 Android 的
+    /// `"${text.codePointLength()}/${BoardTextLimits.MessageMaxLength}"` 相同
+    /// (GFlyer-Suite docs/features/message-board-limits.md 第 3 節「計數器『N/300』」、I16)。
+    /// N 是綁定的原始字串的 code point 數:不去前後空白(伺服器才會去),不用 `count`(字素)或
+    /// `utf16.count`。也不用 `min(…, limit)` 夾住:輸入框已經由 `codePointsCapped(at:)` 截斷,
+    /// 夾住只會把截斷失效的錯誤藏起來。
+    static func counterLabel(_ text: String, limit: Int) -> String {
+        "\(text.unicodeScalars.count)/\(limit)"
+    }
 }
 
 /// 和 Android 的 `normalizeBoardTags` 相同:逗號分隔 → 去前後空白 → 去掉開頭一個 # → 截到 20 個
