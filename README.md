@@ -134,9 +134,12 @@ This is a separate SwiftUI prototype for personal sideloading. It does not modif
 The prototype deliberately excludes anti-detection, modified third-party clients, and App Store distribution.
 
 The feature UI, current-location flow, background activity, message-board unit
-tests, and native archive pass the repository's macOS/Xcode CI. Message-board
-version `0.2.0 (4)` still requires target-iPhone and Android/iOS interoperability
-testing; Windows checks do not replace those device gates.
+tests, and native archive pass the repository's macOS/Xcode CI. Two-way
+Android/iOS message-board posting and the administrator actions (the board was
+added in `0.2.0 (4)`) have still not been recorded on real devices; Windows
+checks do not replace those device gates. The device checks that have never
+been recorded are listed under 「下一個對話應先做什麼」 in `HANDOFF.md`; the
+per-version 「尚待驗證」 items stay in each version's entry in the same file.
 
 Version `0.3.0 (5)` adds the Android-parity feature set above (playback
 options, cross-date reminder, joystick dynamics, GPX, backup/restore,
@@ -144,8 +147,10 @@ coordinate library, and session resume) with new unit tests. Commit `ada19c5`
 passed both macOS CI jobs in
 [workflow run 33500571429](https://github.com/michaelcheung0125-svg/GFlyer_IOS/actions/runs/33500571429):
 38 simulator unit tests with 0 failures, plus the unsigned arm64 device
-archive and IPA. Personal signing, target-iPhone regression, and live
-Android/iOS backup interoperability remain separate validation gates.
+archive and IPA. Personal signing is now handled by SideStore (see below).
+Item-by-item target-iPhone regression of these features and a live Android/iOS
+backup exchange, including the Android -> iOS -> Android settings round trip
+whose iOS half ships in `0.6.9`, are still unrecorded validation gates.
 
 Version `0.6.0 (13)` adds the one-tap step button and the airplane-mode
 assistant described above.
@@ -155,6 +160,13 @@ verified on the target iPhone through the SideStore source: install, in-app
 update prompts, the app icon, playback fixes, and the clear-simulation
 behaviour described below. The per-version history lives in `HANDOFF.md`; the
 currently published release is listed in the public `altstore.json`.
+
+The current published version is `0.6.9 (22)` (GitHub release `ios-v0.6.9` in
+the public `GFlyer-updates` repository, 2026-09-30), the first one published
+with GFlyer-Suite's `tools/release/release_manifest.py`. On 2026-10-01 the
+owner updated the iPhone to it through SideStore and reported that device
+testing passed. That report was not itemized, so it does not close the
+per-feature device checks listed in `HANDOFF.md`.
 
 ## Installing with AltStore / SideStore
 
@@ -358,9 +370,10 @@ On the tested cellular path, an already-established CoreDevice socket survives
 the switch from airplane mode to cellular data, while a new socket cannot be
 opened over cellular. Establish the first channel in airplane mode, then enable
 cellular data. Stop/Clear and a subsequent Start should reuse that channel. If
-the App process, LocalDevVPN, or socket is terminated, establish it again. This
-workflow is pending target-iPhone validation in the next IPA. Wi-Fi and personal
-hotspot users do not need airplane mode; reconnect LocalDevVPN instead.
+the App process, LocalDevVPN, or socket is terminated, establish it again.
+Reusing the retained channel for Stop/Clear and the next Start over cellular
+has still not been recorded on the target iPhone (see `HANDOFF.md`). Wi-Fi and
+personal hotspot users do not need airplane mode; reconnect LocalDevVPN instead.
 
 After this initial setup, normal use should not require the computer. A computer may be needed again when:
 

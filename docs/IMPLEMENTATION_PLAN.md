@@ -61,8 +61,13 @@ signing, CoreDevice, or location-transport secrets.
 
 ### M0: Device-location spike
 
-Status: implementation and macOS CI passed on Xcode 16.4; requires personal
-signing and target iPhone verification.
+Status: implementation and macOS CI passed on Xcode 16.4. Since `0.4.0` the
+app has been installed and updated on the target iPhone through the SideStore
+source (re-signed with the owner's Apple ID), the `0.4.x` clear-simulation
+behaviour was device-confirmed, and on 2026-10-01 the owner reported that
+`0.6.9` passed device testing (not itemized). The hard-gate rows, including
+the pass without a connected computer, are still not recorded in
+`docs/DEVICE_FEASIBILITY_CHECKLIST.md`.
 
 - Run preview scheme unit tests on a GitHub Actions macOS runner.
 - Build and link the pinned `idevice` library in an unsigned device archive.
@@ -80,7 +85,10 @@ criteria. Record target-device evidence in `docs/DEVICE_FEASIBILITY_CHECKLIST.md
 
 ### M1: Foreground MVP
 
-Status: feature implementation complete; macOS/Xcode and target-iPhone regression pending.
+Status: feature implementation complete and passing macOS/Xcode CI; distributed
+through SideStore and device-tested by the owner up to `0.6.9` (reported
+passing on 2026-10-01, not itemized). The 30-minute foreground route in the
+exit criterion has not been recorded.
 
 - Branded map home, search, map tools, and collapsible controls
 - Map selection and static teleport
@@ -210,8 +218,8 @@ Exit criterion: a 30-minute foreground route completes without losing the tunnel
   pending
 - Message-board length limits counted in Unicode code points with Android's
   local messages (`0.6.9`, `docs/features/message-board-limits.md`; the Worker
-  must be deployed first; covered by `SharedContractTests` and
-  `MessageBoardTests`)
+  with the same limits was deployed on 2026-10-01; covered by
+  `SharedContractTests` and `MessageBoardTests`)
 - Interrupted-session resume: periodic active-session snapshots with a
   10-minute expiry and a relaunch resume prompt (implemented in `0.3.0 (5)`;
   validation pending)
@@ -221,6 +229,14 @@ Exit criterion: a 30-minute foreground route completes without losing the tunnel
 Exit criterion: behavior matches the existing Android model tests where the platform does not impose a different constraint.
 
 ### M3: Computer-free maintenance
+
+Status: partly implemented. Installs and updates go through the SideStore
+source in `GFlyer-updates` (the owner updated the target iPhone to `0.6.9` this
+way on 2026-10-01), and the app has the in-app update check, the LocalDevVPN
+hand-off with its state and manual switch, the in-app tunnel test, and the
+force-clear path after a relaunch. There is no separate pairing-file health
+check (only import and removal), and neither the exit check below nor an
+iOS-version compatibility record has been recorded.
 
 - Sideload/refresh workflow using SideStore or another personal method
 - Pairing-file health check with a clear replacement flow
@@ -234,8 +250,10 @@ Exit criterion: the owner can reboot the iPhone, reconnect LocalDevVPN, reopen G
 ### M4: Background evaluation
 
 Status: legitimate background-location implementation, retained-session recovery,
-and macOS/Xcode compilation complete; target-iPhone endurance and cellular
-Stop/Clear restart testing pending.
+and macOS/Xcode compilation complete; distributed through SideStore and
+device-tested by the owner up to `0.6.9` (reported passing on 2026-10-01, not
+itemized), but the 30-minute background endurance run and the cellular
+Stop/Clear restart are still not recorded.
 
 - Request **While Using the App** location permission before route or exploration playback.
 - Use `UIBackgroundModes=location`, continuous Core Location updates, and iOS 17 `CLBackgroundActivitySession` only while movement is active.

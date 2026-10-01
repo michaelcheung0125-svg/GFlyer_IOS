@@ -4,7 +4,7 @@
 
 在新的 AI 對話中，可以直接要求：
 
-> 請以 `C:\Project\GFlyer_IOS` 作為唯一工作目錄，完整讀取 `AGENTS.md`、`HANDOFF.md`、`README.md` 與 `docs/IMPLEMENTATION_PLAN.md`。這是一個沒有本機 Mac、供個人側載的 iOS 專案。先建立 GitHub Actions macOS 編譯驗證流程，再處理真機簽署與硬性可行性測試；不要修改 `C:\Project\GFlyer` 的 Android 專案，也不要宣稱 Windows 靜態檢查等同 Xcode 或 iPhone 實機驗證。
+> 請以 `C:\Project\GFlyer_IOS` 作為唯一工作目錄，完整讀取 `AGENTS.md`、`HANDOFF.md`、`README.md` 與 `docs/IMPLEMENTATION_PLAN.md`。這是一個沒有本機 Mac、供個人側載的 iOS 專案：用 GitHub Actions macOS CI 編譯，經 `GFlyer-updates` 的 SideStore 來源發佈。目前發佈的版本與接下來要做的事，見 `HANDOFF.md` 的「下一個對話應先做什麼」；不要修改 `C:\Project\GFlyer` 的 Android 專案，也不要宣稱 Windows 靜態檢查等同 Xcode 或 iPhone 實機驗證。
 
 ## 專案位置
 
@@ -642,81 +642,68 @@ GFlyerIOS/UI/LibraryViews.swift
 
 ## 下一個對話應先做什麼
 
-新對話開始時，先讀取本檔案、`AGENTS.md`、`README.md` 及 `docs/IMPLEMENTATION_PLAN.md`，然後依序處理：
+新對話開始時，先讀取本檔案、`AGENTS.md`、`README.md` 及 `docs/IMPLEMENTATION_PLAN.md`。
 
-### -1. 驗證 `0.3.0 (5)` 的新功能互通
+目前狀態（2026-10-01）：
 
-macOS CI 已在 commit `ada19c5`（run `33500571429`）通過。接下來：
-用一部 Android 裝置匯出 `gflyer-backup.json`，在 iOS 還原驗證互通（反向
-亦然）；再從 iOS 匯出、回到 Android 還原，確認懸浮狀態列、地圖供應商等
-Android 專屬設定沒有被重設；確認 `GFlyer-updates` Pages 上的 `coordinates/coordinates.json`
-可公開存取並在 iOS 圖鑑載入；在實機驗證播放選項（逐點傳送／停留／繞圈／
-手動前進／倒數／自動停止）、跨日期提醒、搖桿動力學、GPX 匯入匯出與
-中斷恢復提示。
+- iOS 最新發佈是 `0.6.9 (22)`（release `ios-v0.6.9`，見上方「目前已完成」的 0.6.9 段）。
+  iOS：使用者 2026-10-01 回報 0.6.9 實機測試沒有問題（未逐項回報），所以各版的「尚待驗證」與下面
+  第 2 節都**不能**當成已逐項驗證。
+- Android 最新發佈仍是 0.8.6；0.8.7 已實作、單元測試通過，使用者決定暫緩發佈。
+- 留言板 Worker 的 code point 上限（DRIFT D25，GFlyer-Suite `docs/features/message-board-limits.md`）
+  已在 2026-10-01 部署（Worker version `c29f0e54-b672-4005-9c78-bb9c74069404`）。部署前 30 個 🚶 的
+  使用者名稱就回 400；部署後 30 個通過長度檢查（假邀請碼回 401「邀請碼無效或已停用」），31 個回 400
+  「使用者名稱最多 30 個字元」。0.6.9 留言板字數那一批的實機項目現在可以測。
 
-### 0. 驗證留言板 `0.2.0 (4)`
+### 1. 第 2 階段：iOS `0.6.10` 從 Android 移植
 
-macOS CI 已完成。下一步用一部 Android 及一部 iPhone 交叉測試：各自發布
-座標、路線與回覆；iOS 預覽／傳送／收藏 Android 內容；
-管理員發布公告、置頂、設定邀請碼及撤銷測試裝置。不得把沒有 token 的 HTTP
-`401` 健康檢查誤當成完整互通驗證。
+以 Android 為準（GFlyer-Suite `docs/DRIFT.md` 的 D27 與 D22 的殘留）。以下今天仍是兩邊的差異，**還沒做**：
 
-### 1. 驗證目前第 1 至第 3 階段
+1. 收藏按鈕先跳命名對話框，預填「國家 · 城市」標籤（目前不問名稱，直接用預設名稱）。
+2. 模擬中按收藏，存的是模擬位置（目前一律用選取點）。
+3. 中斷後恢復多點路線時，用那一趟自己的移動方式與到點選項（DRIFT D22 的殘留、Q4），不是恢復當下的
+   播放設定。
+4. 留言板的 N/300 計數器（I16）。
+5. 到訪提醒的日期格式器指定曆法與 locale（`VisitReminder.displayFormatter`；佛曆、和曆的 iPhone
+   目前年份會不同）。
+6. 留言板分享路線的選單文字改成「N 個點」（目前是「名稱 · N 點」）。
 
-目前第 1 至第 3 階段，以及目前位置／背景活動的程式已在 commit `b0c9618`
-通過以下兩個 Xcode 16.4 job；下一步是以新 IPA 做目標 iPhone 回歸：
+### 2. 從來沒有記錄過的實機檢查
 
-- `Preview scheme tests`：產生 Xcode 專案並在 iOS Simulator 執行測試。
-- `Idevice unsigned archive`：建置固定 revision 的 `idevice`，無簽署 archive
-  `GFlyerIOS-Idevice`，並上傳 unsigned IPA 與 `.xcarchive` artifact。
+下面每一項都沒有出現在任何實機紀錄裡（`docs/DEVICE_FEASIBILITY_CHECKLIST.md` 到現在整份都是空的）。
+有結果時記到該檔案（完整清除記到 `docs/TROUBLESHOOTING_CASES.md` 案例 4）；失敗時記下失敗階段（pairing、
+tunnel、DDI、RemoteXPC、location set 或 clear）與設定頁通道測試的完整 `idevice` 錯誤碼與訊息，不可附上
+Pairing File 內容。
 
-unsigned IPA 不能直接安裝到 iPhone；它只驗證 device target 可以編譯與連結。
-個人簽署仍需在受信任的 Mac 或安全的簽署流程完成。不要把 Apple 憑證、私密
-金鑰或 provisioning profile 寫入 repository；如日後加入簽署 job，只能使用
-GitHub Actions encrypted secrets。
+- **前景路線 30 分鐘**：GFlyer 留在前景跑 30 分鐘路線，通道不中斷，Stop 後不留下模擬位置（M1 的離開條件）。
+- **背景路線 30 分鐘**：多點路線開始後切到其他 App 30 分鐘，背景定位指示一直在、路線持續前進，回到
+  GFlyer 沒有 `BrokenPipe`／`Channel closed`，停止後指示消失（M4 的離開條件）。
+- **目前位置按鈕**：沒有模擬時按目前位置，會要求定位權限並把地圖移到 iPhone 的真實位置
+  （`DEVICE_FEASIBILITY_CHECKLIST` 的 Current-location 那一列）。0.6.7 時使用者回報過這顆按鈕看起來沒反應，
+  0.6.8 加了轉圈；回到真實位置這件事本身沒有紀錄。
+- **行動網絡下 Stop/Clear 再開始**：在飛行模式建立第一條通道後開啟行動網絡，Clear → Start 與路線
+  Stop → Start 都重用同一個 session、不必再開飛行模式；強制關閉 App 或斷開 LocalDevVPN 後，行動網絡的
+  提示要求用飛行模式重建，Wi-Fi／個人熱點的提示說明不需要。
+- **0.6.4 的完整清除**（`docs/TROUBLESHOOTING_CASES.md` 案例 4 的「後續」，標著待實機確認）：在離真實位置
+  很遠的地方模擬後用完整清除，Google 地圖是否不必開關飛行模式就回到真實位置、要多久。
+- **M3 的離開條件**：重開 iPhone、重新連 LocalDevVPN、重開 GFlyer，不接電腦開始一次模擬；同時記下這次
+  用的 iOS 版本，作為 iOS 版本相容性紀錄（目前沒有任何一筆）。
+- **`DEVICE_FEASIBILITY_CHECKLIST` 的環境欄位與 gate 列**：至少補上 iPhone 型號與 iOS 版本；能補的話一起補
+  測試日期、LocalDevVPN 版本與 Pairing File 產生方式。簽署安裝、匯入 Pairing File、通道、DDI、第一與第二個
+  座標、Stop 恢復真實 GPS 這幾列也都還沒填。
+- **`0.3.0 (5)` 功能逐項回歸**：播放選項（逐點傳送／停留／繞圈／手動前進／倒數／自動停止）、跨日期提醒、
+  搖桿動力學、GPX 匯入匯出、座標圖鑑載入與中斷恢復提示，在目標 iPhone 逐項確認；目前只有 CI 單元測試與
+  使用者的整體回報。
+- **剪貼簿**：iOS 讀剪貼簿會跳系統的貼上提示，所以沒有 Android 的剪貼簿座標偵測，只能手動貼到搜尋框
+  （GFlyer-Suite `docs/PARITY.md`）。這個平台限制還沒有上機確認。
+- **Android ↔ iOS 備份往返（DRIFT D1）**：Android 匯出 → iOS 還原 → iOS 匯出 → Android 還原，懸浮狀態列、
+  地圖供應商等 Android 專屬設定沒有被重設。iOS 這一半（`10bc0e7`）已在 0.6.9 發佈，可以配已發佈的
+  Android 0.8.6 測；Android 那一半（`9250dd3`，保護 iOS 專屬設定不被 Android 清掉）在還沒發佈的 0.8.7。
+- **留言板雙向**：Android 與 iPhone 各自發布座標、路線與回覆；iOS 預覽／傳送／收藏 Android 的內容，
+  Android 也能刷新並使用 iOS 分享的內容；管理員發布公告、置頂、設定邀請碼、升級成員及撤銷測試裝置。
+  不得把沒有 token 的 HTTP `401` 回應（包括上面部署後的探測）當成互通驗證。
 
-使用其他可用的 Mac 時可手動執行：
-
-```bash
-cd GFlyer_IOS
-brew install xcodegen
-chmod +x scripts/build_idevice.sh
-xcodegen generate
-open GFlyerIOS.xcodeproj
-```
-
-### 2. 先完成硬性可行性測試
-
-不要先擴充完整 UI。先在目標 iPhone 與 iOS 版本驗證：
-
-1. `GFlyerIOS-Idevice` 可以個人簽署並安裝。
-2. Pairing File 能被匯入。
-3. LocalDevVPN 能提供 `10.7.0.1:49152` raw RPPairing 連線；設定頁的通道測試顯示「連線成功」。
-4. Personalized DDI 能下載、驗證與掛載。
-5. Apple Maps 會顯示第一個模擬位置。
-6. 第二次座標更新可重用連線。
-7. Stop/強制清除後恢復真實 GPS。
-8. 拔掉/不連接電腦後仍能重複執行上述操作。
-9. 未啟用模擬定位時，目前位置按鈕會要求定位權限並把地圖移到 iPhone 的位置。
-10. 多點路線開始後切到其他 App 1 至 30 分鐘，確認背景定位指示仍存在、路線仍前進，回到 GFlyer 不再出現 `BrokenPipe`/`Channel closed`。
-11. 在飛行模式建立第一條通道後開啟行動網絡，驗證 Clear → Start 與路線 Stop → Start 都能重用同一 session，無需再開飛行模式。
-12. 強制關閉 App 或斷開 LocalDevVPN 後，驗證行動網絡的提示要求以飛行模式重建，而 Wi-Fi/個人熱點提示明確說明無需飛行模式。
-
-使用 `docs/DEVICE_FEASIBILITY_CHECKLIST.md` 記錄環境、每一步結果與失敗階段。
-
-### 3. 收集實機證據
-
-每次測試記錄：
-
-- iPhone 型號
-- iOS 版本
-- Xcode 版本
-- `idevice` revision
-- LocalDevVPN 版本與目標 IP
-- 設定頁通道測試顯示的完整 `idevice` 錯誤碼與訊息（不可附上 Pairing File 內容）
-- pairing file 產生方式
-- 失敗階段：pairing、tunnel、DDI、RemoteXPC、location set 或 clear
-- Apple Maps 顯示結果
+0.6.9 各批列出的「尚待驗證」（見上方 0.6.9 段）也沒有逐項回報，可以一起確認。
 
 ## macOS 建置與依賴
 
@@ -743,14 +730,14 @@ DDI 會在 App 第一次需要時下載到 iOS Application Support，並以 pinn
 - App Store 不支援這種全機 GPS 模擬方式；本專案只做個人側載。
 - 背景路線使用正式 Core Location background activity，不使用靜音音訊等保活方式；仍不能保證強制關閉、系統資源終止、VPN 中斷或未來 iOS 版本下無限執行。
 - 背景定位會顯示 iOS 系統指示並增加耗電，停止路線後應確認指示消失。
-- 已建立的 CoreDevice socket 在實測中可從飛行模式延續到行動網絡；新版會在 Stop/Clear 後保留它，但此行為仍需新 IPA 實機驗證。App 被系統終止、VPN 斷線或 socket 失效後，行動網絡使用者仍需飛行模式重建；Wi-Fi/熱點使用者無需。
+- 已建立的 CoreDevice socket 在實測中可從飛行模式延續到行動網絡；App 會在 Stop/Clear 後保留它，但行動網絡下保留通道再開始仍沒有實機紀錄（見「下一個對話應先做什麼」）。App 被系統終止、VPN 斷線或 socket 失效後，行動網絡使用者仍需飛行模式重建；Wi-Fi/熱點使用者無需。
 - iOS 更新可能讓 pairing file、DDI 或 Apple 私有協定失效。
 - 個人簽署 profile 會過期，過期時可能需要重新簽署或使用電腦刷新。
 - 地圖及搜尋需要網路；定位控制本身透過 LocalDevVPN/裝置開發服務。
 - 留言板需要 Internet 及有效邀請／session；離線時留言板不可用，但不應影響
   已建立的 LocalDevVPN/CoreDevice 定位通道。
-- 留言板後端、Android/iOS 實際雙向發布及管理流程仍需在 `0.2.0 (4)` IPA
-  做跨裝置驗證；Windows 靜態檢查不能證明 Swift 編譯或互通成功。
+- 留言板的 Android/iOS 實際雙向發布及管理流程仍沒有跨裝置驗證紀錄（見「下一個
+  對話應先做什麼」）；Windows 靜態檢查不能證明 Swift 編譯或互通成功。
 - 第三方 App 可以拒絕模擬位置，且其服務條款仍然適用。
 
 ## 不要做的事
@@ -758,14 +745,16 @@ DDI 會在 App 第一次需要時下載到 iOS Application Support，並以 pinn
 - 不要把本專案搬回 `C:\Project\GFlyer`。
 - 不要修改 Android 專案來解決 iOS 問題。
 - 不要複製 StikDebug AGPL UI 或應用程式碼。
-- 不要提交 Apple signing secrets、Pairing File、DDI 或 `libidevice_ffi.a`。
+- 不要提交 Apple signing secrets、Pairing File、DDI 或 `libidevice_ffi.a`；日後若加入簽署 job，只能使用 GitHub Actions encrypted secrets。
 - 不要加入反偵測、修改遊戲客戶端或規避第三方檢查。
 
 ## 完成標準
 
-目前的第 1 至第 3 階段只有在新 workflow 的 Preview tests 與 Idevice archive
-通過，並在目標 iPhone 回歸傳送、第二次更新、Stop 清除、單點、多點、探索與
-搖桿後，才算驗證完成。這次新增的目前位置及背景播放需另外通過上述實機測試；
+最初移植的 UI、移動模式與本機資料功能（commit `eeae6c6`）只有在 GitHub Actions
+workflow 的 `Preview scheme tests` 與 `Idevice unsigned archive` 通過，並在目標
+iPhone 回歸傳送、第二次更新、Stop 清除、單點、多點、探索與搖桿後，才算驗證
+完成。目前位置及背景播放需另外通過「下一個對話應先做什麼」第 2 節與
+`docs/DEVICE_FEASIBILITY_CHECKLIST.md` 的實機項目；
 留言板還需通過 Android/iOS 雙向發布、回覆、管理與撤銷 session 測試。
 `0.3.0 (5)` 的播放選項、跨日期提醒、搖桿動力學、GPX、備份、座標圖鑑與
 中斷恢復已通過 macOS CI（commit `ada19c5`、run `33500571429`），仍需實機
