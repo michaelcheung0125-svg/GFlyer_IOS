@@ -57,7 +57,11 @@ This is a separate SwiftUI prototype for personal sideloading. It does not modif
   Favorite names are trimmed and cut to 80 Unicode code points when added or
   renamed, a blank rename is refused, and, like Android, an unnamed favorite is
   called 「收藏 <座標>」 and a coordinate that is already a favorite is not added
-  again (「此座標已經收藏過」)
+  again (「此座標已經收藏過」). Since `0.6.10` the map ☆ first asks for a name in a
+  「收藏位置」 alert, prefilled with the cached 國家 · 城市 label when there is one
+  (it never starts a lookup), and while simulating it saves the position of
+  the last successful push as of the moment ☆ was pressed (GFlyer-Suite
+  `docs/features/favorite-add.md`)
 - Country and city labels in the favorite, history and saved-route lists like
   GFlyer Android (GFlyer-Suite `docs/features/region-labels.md`). A favorite's
   second line reads `25.033900, 121.564500  ·  臺灣 · 臺北市` and a saved
@@ -99,7 +103,11 @@ This is a separate SwiftUI prototype for personal sideloading. It does not modif
   coordinates (except on 「⏲ 提醒中」) next to 「已前往 N / 總數」, counted
   before hiding. The history is kept apart from the visit reminders, only on
   the device under its own UserDefaults keys, and is not in the backup
-- Interrupted-session snapshots with a relaunch resume prompt (10-minute window)
+- Interrupted-session snapshots with a relaunch resume prompt (10-minute window).
+  Since `0.6.10` an interrupted multi-point route resumes with that run's own
+  travel mode, arrival action, manual advance and dwell, like Android
+  (route-arrival-actions.md I17); a snapshot written by `0.6.9` resumes as
+  `0.6.9` did
 - Manual step logging through a user-supplied Shortcut, with 1000/3000/5000
   presets, a custom amount, and a seven-day history. GFlyer never touches
   HealthKit itself, because a free Apple ID cannot carry that entitlement, so
@@ -161,8 +169,16 @@ update prompts, the app icon, playback fixes, and the clear-simulation
 behaviour described below. The per-version history lives in `HANDOFF.md`; the
 currently published release is listed in the public `altstore.json`.
 
-The current published version is `0.6.9 (22)` (GitHub release `ios-v0.6.9` in
-the public `GFlyer-updates` repository, 2026-09-30), the first one published
+The current published version is `0.6.10 (23)` (GitHub release `ios-v0.6.10`
+in the public `GFlyer-updates` repository, 2026-10-03). It ports the remaining
+Android items: the ☆ name prompt and saving the simulated position while
+simulating, resuming an interrupted multi-point route with that run's own
+arrival options, the message-board 「N/300」 counters and share-route picker
+text, and Gregorian visit-reminder dates. The owner chose to publish it
+without device testing, so none of these changes has been verified on the
+iPhone yet; the checks are listed in its entry in `HANDOFF.md`.
+
+The previous version, `0.6.9 (22)` (2026-09-30), was the first one published
 with GFlyer-Suite's `tools/release/release_manifest.py`. On 2026-10-01 the
 owner updated the iPhone to it through SideStore and reported that device
 testing passed. That report was not itemized, so it does not close the
@@ -264,7 +280,9 @@ badge without treating the user's own posts or replies as unread.
 Every length limit is counted in Unicode code points, the same unit as the
 Worker and Android (GFlyer-Suite `docs/features/message-board-limits.md`): user
 name 30, replies, remarks and announcements 300, tags 20, the tag inputs 120,
-the search field 80. Favorite and route names are normalized to 80 code points
+the search field 80. Since `0.6.10` the share remark, reply and announcement
+fields show Android's 「N/300」 counter, and the share-route picker shows the
+route name over 「N 個座標點」 (「N 個座標點，循環」 for a loop). Favorite and route names are normalized to 80 code points
 before sharing, so names saved by older versions no longer get rejected. Tag
 de-duplication is case-sensitive and the local messages use Android's wording.
 

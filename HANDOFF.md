@@ -107,6 +107,72 @@ C:\Project\GFlyer
   - `0.4.0 (6)` 已發佈到公開的 `GFlyer-updates`（release `ios-v0.4.0`）並
     確認可以從 SideStore 來源安裝到實機。來源檔必須維持舊版 AltStore 扁平
     格式，細節見 `docs/ALTSTORE_DISTRIBUTION.md`
+- `0.6.10 (23)`：2026-10-03 發佈到 `GFlyer-updates`（UTC 2026-10-02T17:55:14Z；release `ios-v0.6.10`，來源檔 commit
+  `c99976b`，使用教學 `c52f568`）；IPA 是 CI run `37043285603`（`af4308b`，升版 commit「Version 0.6.10 (23)」）的產物，
+  SHA-256 `054097d76a233d510564f95b18923716278b8c32f4b2260e4d83248107754a9b`，10,198,834 bytes；拆檢有 `Assets.car` 與
+  `AppIcon60x60@2x.png`，`MinimumOSVersion` 17.4。程式在 `21a881a`（分支 `release-0.6.10-prep`，CI run `36915563698`：
+  250 個單元測試全過、0 失敗）；2026-10-03 使用者同意合併後，`main` 快轉到這個分支。規格是 GFlyer-Suite `56a717f`
+  （`docs/features/favorite-add.md`、`route-arrival-actions.md` 的 I17、`message-board-limits.md` 的 I16、`region-labels.md`、
+  fixture `reminder/visit-reminder.json` 的 `format`）。**使用者決定不做實機測試先發佈，0.6.10 沒有經過實機驗證**；更新說明寫明
+  「這一版還沒經過實機驗證」，並列出請使用者順便測的幾項。Android 0.8.7 仍未發佈（暫緩中）。下面六項都是照 Android 移植
+  （DRIFT D27 剩下的項目與 D22 的殘留 Q4）：
+  - **收藏鈕問名稱**（`favorite-add.md`）：地圖 ☆ 先跳「收藏位置」alert（`UI/MainView.swift` 的 `requestFavorite`、
+    `FavoriteNameAlert`），顯示座標，名稱欄預填快取裡那一格的「國家 · 城市」標籤；只讀標籤快取，**不會**為了預填送出查詢，
+    快取裡沒有就是空的。「收藏」永遠可以按，留空就是「收藏 <座標>」，其餘照 N2。收藏目標座標已經收藏過時不跳對話框，只顯示
+    「此座標已經收藏過」。文字與判斷在新的 `Model/FavoriteAdd.swift`（`FavoriteAddTexts`、`FavoriteNameRequest`、
+    `FavoriteAddPrompt.forTarget`）。
+  - **模擬中收藏模擬位置**：`SimulationController` 另記一份收藏用的模擬位置（`FavoriteTargetTracker`，只在記憶體）：`send()`
+    推送成功時寫，推送失敗或按下停止（含自動停止、完整清除，不論之後清除成不成功）就清；`favoriteTargetCoordinate` 是它，沒有
+    時是選取點。對話框記下按 ☆ 那一刻的座標，重複檢查與存檔都用這同一個座標（`favoritePrompt()`、
+    `addFavorite(name:coordinate:)`；2026-10-01 使用者的決定）。Android `9250dd3` 的 `ui/MainScreen.kt:462` 仍是按鈕看選取點、
+    存的時候看收藏目標座標，等 Android 暫緩解除後再改。☆ 的實心／空心仍看選取點；無障礙標籤改成和 Android 相同的
+    「收藏選擇位置」（原本「收藏目前位置」）。
+  - **中斷恢復用那一趟的選項**（`route-arrival-actions.md` §3.10、§5.4，I17）：中斷快照（`Services/ActiveSessionStore.swift`）
+    多了四個選填鍵 `routeTravelMode`、`routePointAction`、`routeManualAdvance`、`routeDwellSeconds`（鍵名和 Android 相同，值是
+    iOS 的 rawValue），寫的是正在播放那一趟的選項（`recordedRouteOptions`）。恢復時由 `resumedRouteOptions(settings:)` 決定：
+    有任何一個鍵就用快照的值、不看目前的設定；四個鍵都沒有的 0.6.9 快照照 0.6.9 的做法用目前的設定；一律不倒數。鍵在但值認不得
+    或型別不對時只讓那一欄回到預設值，快照不丟。`Model/RouteArrival.swift` 拆出 `RoutePlaybackOptions.plainWalk` 與
+    `multiRoute(...)`，`SimulationController.startRoute` 多了 `resumedOptions` 參數。`encode(to:)` 仍是自動合成、鍵仍是
+    `gflyer.active-session.v1`，0.6.9 照樣解得開 0.6.10 的快照。
+  - **留言板 N/300 計數器**（`message-board-limits.md`，I16）：分享的「留言或備註」、回覆與公告三個輸入框正下方靠左顯示
+    「N/300」（`BoardTextLimits.counterLabel` 數 code point、不去空白、不夾住；`UI/MessageBoardViews.swift` 的
+    `BoardCharacterCounter`，`.numericCaption`、次要顏色，一律顯示、到上限不變色）。截斷（`codePointsCapped(at:)`）沒改。
+  - **留言板分享路線的選單**（`region-labels.md` 第 3 節固定文字表）：「收藏路線」的 `Picker` 改成 inline，每條路線是名稱一行、
+    下面一行「N 個座標點」或「N 個座標點，循環」（全形逗號，`BoardShareRouteText.summary`；0.6.9 是單行「名稱 · N 點」）。
+  - **到訪提醒的日期**：`VisitReminder.format(_:timeZone:)`（`Model/CoordinateLibraryModels.swift`）明確設定 `en_US_POSIX`、
+    西元曆與時區，一律是 `yyyy/MM/dd HH:00`、ASCII 數字，不受手機的曆法與 12／24 小時制影響（0.6.9 在佛曆、日本曆的 iPhone
+    年份會不同）；格式器依時區快取在 `NSCache`。
+  - 測試（都是新檔）：`FavoriteAddTests`（13 個）、`ResumeOptionsTests`（11 個，含照抄 fixture `route/arrival-actions.json`
+    的 `resumeOptions`）、`BoardCounterTests`（4 個，計數器與分享路線的文字）、`VisitReminderFormatTests`（照抄
+    `reminder/visit-reminder.json` 的 `format`）。路線在模擬器上開不起來（沒有定位授權），所以恢復選項測的是
+    `resumedRouteOptions` / `recordedRouteOptions` 與 `RouteArrivalPlan` 這些純函式。
+  - **尚待驗證**（實機，全部都還沒測）：
+    - 收藏（`favorite-add.md` §6）：沒有模擬時在已有標籤的格子選新點按 ☆：標題「收藏位置」、顯示座標、預填「國家 · 城市」，
+      按「收藏」→「收藏成功」、清單最前面是這個名稱；在從沒收藏過的地方按 ☆：欄位空白、看得到「留空就用座標當名稱」，直接按
+      「收藏」→「收藏 <座標>」；送出搜尋、結果出來之前按 ☆ 開始打名稱：結果清單出現後對話框與打的字都還在、按「收藏」照樣存下，
+      搜尋找不到地點而跳「操作失敗」時也一樣；選取點已收藏時按 ☆ 不跳對話框、顯示「此座標已經收藏過」；跑多點路線時按 ☆，
+      對話框與存下的座標是模擬位置，不是地圖上最後點的點；按停止後馬上按 ☆，座標是選取點；從收藏點用搖桿走開再按 ☆ 會跳對話框
+      （Android 0.8.7 這裡不問名稱）；按「取消」沒有新增、沒有訊息；飛航模式下對話框照樣打開，只預填快取裡有的，沒有錯誤；
+      裝 0.6.10 新增幾筆收藏後降回 0.6.9，收藏都還在。
+    - 中斷恢復（`route-arrival-actions.md` §6 的 I17 上機項目；路線播放中從 App 切換器關掉 GFlyer，10 分鐘內重開按「恢復」）：
+      定點傳送 + 繞圈 + 停留 3 秒、倒數「不用」的多點路線，播放中到設定頁把停留改成 10、倒數改成 5 秒、繞圈半徑改掉，再關掉、
+      恢復：照樣定點傳送、每點停留 3 秒、繞圈（用新的半徑）、不倒數；定點傳送 + 手動前進，恢復後到點仍等「下一點」；開始前把設定
+      設成定點傳送 + 繞圈、直接開始留言板路線，恢復後仍是純模擬移動、不倒數；恢復後再中斷、再恢復，仍是原本的選項；升級：0.6.9
+      播放「定點傳送 + 繞圈」的多點路線中用 SideStore 裝 0.6.10，10 分鐘內打開按「恢復」，照 0.6.9 的做法用目前的設定，照樣
+      定點傳送並繞圈、不倒數，再中斷、再恢復仍是同樣的選項；降級：0.6.10 播放中關掉、裝回 0.6.9、10 分鐘內重開，提示可以恢復、
+      不當機。
+    - 計數器（`message-board-limits.md` §7 的 I16 上機項目）：分享到留言板「分享設定」的留言或備註下方靠左、次要顏色的「0/300」，
+      切換目前座標／收藏座標／收藏路線數字不變；打「台」→「1/300」，🇹🇼 加 2、👨‍👩‍👧 加 5；貼上超過 300 個字 →「300/300」，多的字
+      沒進去、沒有閃出超過 300 的數字、顏色不變；「300/300」時在結尾打字內容與數字都不變，游標移到最前面打「台」→ 開頭多了
+      「台」、結尾少一個 code point、仍是「300/300」（在中間貼上也一樣）；回覆輸入框下「0/300」、送出按鈕在右邊並對輸入框加
+      計數器垂直置中，送出後回到「0/300」；管理員公告輸入框下「0/300」；標籤、使用者名稱、邀請碼、管理員啟用碼、管理員設定
+      邀請碼、搜尋與資料過時回報的補充說明**沒有**計數器；深色模式看得清楚，放大字級時計數器跟著放大、不被截掉，打字時數字不
+      左右抖動。
+    - 分享路線的選單（`region-labels.md` §6）：選擇分享內容 →「收藏路線」，每條路線看得到名稱與「N 個座標點」／
+      「N 個座標點，循環」兩行，選中的那列打勾。
+    - 到訪提醒：iPhone 設成佛曆或日本曆（另試 12 小時制）時，座標圖鑑裡有到訪提醒的那一列「還要等 N 天 M 小時（…）」括號裡
+      仍是西元年的 `yyyy/MM/dd HH:00`、24 小時制、ASCII 數字。
+
 - `0.6.9 (22)`：2026-09-30 發佈到 `GFlyer-updates`（release `ios-v0.6.9`，來源檔 commit `e8ff807`）；
   IPA 是 CI run `36774670035`（`b61e3d0`）的產物，SHA-256 `012afc51…cbe6708e33`，10,158,261 bytes。
   第一次用 GFlyer-Suite `tools/release/release_manifest.py` 發佈，同時建立了 `releases.json`（目前只有
@@ -644,10 +710,11 @@ GFlyerIOS/UI/LibraryViews.swift
 
 新對話開始時，先讀取本檔案、`AGENTS.md`、`README.md` 及 `docs/IMPLEMENTATION_PLAN.md`。
 
-目前狀態（2026-10-01）：
+目前狀態（2026-10-03）：
 
-- iOS 最新發佈是 `0.6.9 (22)`（release `ios-v0.6.9`，見上方「目前已完成」的 0.6.9 段）。
-  iOS：使用者 2026-10-01 回報 0.6.9 實機測試沒有問題（未逐項回報），所以各版的「尚待驗證」與下面
+- iOS 最新發佈是 `0.6.10 (23)`（release `ios-v0.6.10`，2026-10-03，見上方「目前已完成」的 0.6.10 段）。
+  使用者決定不做實機測試先發佈，**0.6.10 的改動都還沒有經過實機驗證**（要測的項目見 0.6.10 段的「尚待驗證」）。
+  上一版 `0.6.9 (22)`：使用者 2026-10-01 回報實機測試沒有問題（未逐項回報），所以各版的「尚待驗證」與下面
   第 2 節都**不能**當成已逐項驗證。
 - Android 最新發佈仍是 0.8.6；0.8.7 已實作、單元測試通過，使用者決定暫緩發佈。
 - 留言板 Worker 的 code point 上限（DRIFT D25，GFlyer-Suite `docs/features/message-board-limits.md`）
@@ -655,18 +722,20 @@ GFlyerIOS/UI/LibraryViews.swift
   使用者名稱就回 400；部署後 30 個通過長度檢查（假邀請碼回 401「邀請碼無效或已停用」），31 個回 400
   「使用者名稱最多 30 個字元」。0.6.9 留言板字數那一批的實機項目現在可以測。
 
-### 1. 第 2 階段：iOS `0.6.10` 從 Android 移植
+### 1. 第 2 階段：iOS `0.6.10` 從 Android 移植（已發佈，尚未實機驗證）
 
-以 Android 為準（GFlyer-Suite `docs/DRIFT.md` 的 D27 與 D22 的殘留）。以下今天仍是兩邊的差異，**還沒做**：
+以 Android 為準（GFlyer-Suite `docs/DRIFT.md` 的 D27 與 D22 的殘留）。下面六項已在 `0.6.10 (23)`（2026-10-03）
+發佈，但**都還沒有經過實機驗證**；要測的項目見上方 0.6.10 段的「尚待驗證」：
 
-1. 收藏按鈕先跳命名對話框，預填「國家 · 城市」標籤（目前不問名稱，直接用預設名稱）。
-2. 模擬中按收藏，存的是模擬位置（目前一律用選取點）。
-3. 中斷後恢復多點路線時，用那一趟自己的移動方式與到點選項（DRIFT D22 的殘留、Q4），不是恢復當下的
-   播放設定。
+1. 收藏按鈕先跳「收藏位置」命名對話框，預填快取裡的「國家 · 城市」標籤（0.6.9 不問名稱，直接用預設名稱）。
+2. 模擬中按收藏，存的是最近一次推送成功的模擬位置（按 ☆ 那一刻記下，重複檢查與存檔用同一個座標；0.6.9
+   一律用選取點）。Android 的 `ui/MainScreen.kt:462` 仍不一致，等 Android 暫緩解除後再改。
+3. 中斷後恢復多點路線時，用那一趟自己的移動方式、到點動作、手動前進與停留（DRIFT D22 的殘留、Q4），不是恢復
+   當下的播放設定；沒有這幾個鍵的 0.6.9 快照照 0.6.9 的做法。
 4. 留言板的 N/300 計數器（I16）。
-5. 到訪提醒的日期格式器指定曆法與 locale（`VisitReminder.displayFormatter`；佛曆、和曆的 iPhone
-   目前年份會不同）。
-6. 留言板分享路線的選單文字改成「N 個點」（目前是「名稱 · N 點」）。
+5. 到訪提醒的日期一律是西元曆 `yyyy/MM/dd HH:00`、ASCII 數字（`VisitReminder.format`；0.6.9 在佛曆、和曆的
+   iPhone 年份會不同）。
+6. 留言板分享路線的選單改成名稱一行 +「N 個座標點」／「N 個座標點，循環」一行（0.6.9 是「名稱 · N 點」）。
 
 ### 2. 從來沒有記錄過的實機檢查
 
@@ -703,7 +772,8 @@ Pairing File 內容。
   Android 也能刷新並使用 iOS 分享的內容；管理員發布公告、置頂、設定邀請碼、升級成員及撤銷測試裝置。
   不得把沒有 token 的 HTTP `401` 回應（包括上面部署後的探測）當成互通驗證。
 
-0.6.9 各批列出的「尚待驗證」（見上方 0.6.9 段）也沒有逐項回報，可以一起確認。
+0.6.10 的「尚待驗證」（見上方 0.6.10 段）完全沒有測過；0.6.9 各批列出的「尚待驗證」（見上方 0.6.9 段）也沒有
+逐項回報，可以一起確認。
 
 ## macOS 建置與依賴
 
