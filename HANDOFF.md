@@ -111,7 +111,7 @@ C:\Project\GFlyer
   `c99976b`，使用教學 `c52f568`）；IPA 是 CI run `37043285603`（`af4308b`，升版 commit「Version 0.6.10 (23)」）的產物，
   SHA-256 `054097d76a233d510564f95b18923716278b8c32f4b2260e4d83248107754a9b`，10,198,834 bytes；拆檢有 `Assets.car` 與
   `AppIcon60x60@2x.png`，`MinimumOSVersion` 17.4。程式在 `21a881a`（分支 `release-0.6.10-prep`，CI run `36915563698`：
-  250 個單元測試全過、0 失敗）；2026-10-03 使用者同意合併後，`main` 快轉到這個分支。規格是 GFlyer-Suite `56a717f`
+  執行 250 個單元測試：249 個通過、1 個依條件略過、0 失敗）；2026-10-03 使用者同意合併後，`main` 快轉到這個分支。規格是 GFlyer-Suite `56a717f`
   （`docs/features/favorite-add.md`、`route-arrival-actions.md` 的 I17、`message-board-limits.md` 的 I16、`region-labels.md`、
   fixture `reminder/visit-reminder.json` 的 `format`）。**使用者決定不做實機測試先發佈，0.6.10 沒有經過實機驗證**；更新說明寫明
   「這一版還沒經過實機驗證」，並列出請使用者順便測的幾項。Android 0.8.7 仍未發佈（暫緩中）。下面六項都是照 Android 移植
