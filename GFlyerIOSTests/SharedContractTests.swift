@@ -2622,4 +2622,55 @@ final class SharedContractTests: XCTestCase {
             XCTAssertTrue(actual >= -180 && actual < 180, "input=\(testCase.input) -> \(actual)")
         }
     }
+
+    /// contracts/fixtures/contact/email.json(docs/features/contact-us.md)
+    func testContactEmailMatchesTheSharedFixture() {
+        XCTAssertEqual(ContactEmail.address, "gflyer@jetpiggy.com")
+        XCTAssertEqual(ContactEmail.noMailAppMessage, "找不到可以寄電郵的 App，已複製地址 gflyer@jetpiggy.com。")
+        let cases: [(name: String, platform: String, version: String, build: String, system: String, device: String,
+                     subject: String, body: String)] = [
+            ("android", "Android", "0.8.7", "35", "Android 14（API 34）", "samsung SM-S9180",
+             "GFlyer 意見回報（Android v0.8.7）",
+             "\n\n\n----\n以下資料方便我們找出問題，請保留：\nApp：GFlyer Android v0.8.7（35）\n系統：Android 14（API 34）\n裝置：samsung SM-S9180"),
+            ("ios", "iOS", "0.6.10", "61", "iOS 18.6", "iPhone16,2",
+             "GFlyer 意見回報（iOS v0.6.10）",
+             "\n\n\n----\n以下資料方便我們找出問題，請保留：\nApp：GFlyer iOS v0.6.10（61）\n系統：iOS 18.6\n裝置：iPhone16,2"),
+            ("blank-values-become-unknown", "Android", "  ", "", " ", "",
+             "GFlyer 意見回報（Android v未知）",
+             "\n\n\n----\n以下資料方便我們找出問題，請保留：\nApp：GFlyer Android v未知（未知）\n系統：未知\n裝置：未知"),
+            ("surrounding-spaces-are-trimmed", "iOS", " 0.7.0 ", " 70", "iOS 26.0 ", " iPhone17,1 ",
+             "GFlyer 意見回報（iOS v0.7.0）",
+             "\n\n\n----\n以下資料方便我們找出問題，請保留：\nApp：GFlyer iOS v0.7.0（70）\n系統：iOS 26.0\n裝置：iPhone17,1"),
+        ]
+        for testCase in cases {
+            XCTAssertEqual(
+                ContactEmail.subject(platform: testCase.platform, version: testCase.version),
+                testCase.subject,
+                testCase.name
+            )
+            XCTAssertEqual(
+                ContactEmail.body(
+                    platform: testCase.platform,
+                    version: testCase.version,
+                    build: testCase.build,
+                    system: testCase.system,
+                    device: testCase.device
+                ),
+                testCase.body,
+                testCase.name
+            )
+        }
+    }
+
+    /// mailto: 的收件人、標題與內文經 URLComponents 編碼後讀回來不變
+    func testContactEmailURLCarriesRecipientSubjectAndBody() throws {
+        let subject = ContactEmail.subject(platform: "iOS", version: "0.6.10")
+        let body = ContactEmail.body(platform: "iOS", version: "0.6.10", build: "61", system: "iOS 18.6", device: "iPhone16,2")
+        let url = try XCTUnwrap(ContactEmail.mailtoURL(subject: subject, body: body))
+        let components = try XCTUnwrap(URLComponents(url: url, resolvingAgainstBaseURL: false))
+        XCTAssertEqual(components.scheme, "mailto")
+        XCTAssertEqual(components.path, "gflyer@jetpiggy.com")
+        XCTAssertEqual(components.queryItems?.first(where: { $0.name == "subject" })?.value, subject)
+        XCTAssertEqual(components.queryItems?.first(where: { $0.name == "body" })?.value, body)
+    }
 }

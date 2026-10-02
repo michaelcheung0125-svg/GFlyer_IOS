@@ -1,5 +1,6 @@
 import Foundation
 import SwiftUI
+import UIKit
 import UniformTypeIdentifiers
 
 extension UTType {
@@ -89,6 +90,7 @@ struct SetupView: View {
     @State private var forceClearMessage: String?
     @State private var showStepRecorder = false
     @State private var isForceClearing = false
+    @State private var contactMessage: String?
 
     init(
         controller: SimulationController,
@@ -145,6 +147,11 @@ struct SetupView: View {
                     Button("確定", role: .cancel) { forceClearMessage = nil }
                 } message: {
                     Text(forceClearMessage ?? "")
+                }
+                .alert("聯絡我們", isPresented: binding(for: $contactMessage)) {
+                    Button("確定", role: .cancel) { contactMessage = nil }
+                } message: {
+                    Text(contactMessage ?? "")
                 }
         }
     }
@@ -235,6 +242,11 @@ struct SetupView: View {
                 } label: {
                     Label("使用教學", systemImage: "book")
                 }
+            }
+            Button {
+                openContactEmail()
+            } label: {
+                Label("聯絡我們", systemImage: "envelope")
             }
         }
     }
@@ -697,6 +709,32 @@ struct SetupView: View {
             transferSummary = "已還原 \(result.favoriteCount) 個收藏、\(result.routeCount) 條路線、\(result.folderCount) 個資料夾與 \(result.presetCount) 個速度預設。"
         }
         pendingBackupData = nil
+    }
+
+    /// 「聯絡我們」：收件人、標題與內文都已填好（GFlyer-Suite docs/features/contact-us.md）。
+    /// 沒有電郵 App 接手時把地址複製到剪貼簿，訊息和 Android 一字不差。
+    private func openContactEmail() {
+        let version = updateChecker.currentVersion
+        let subject = ContactEmail.subject(platform: "iOS", version: version)
+        let body = ContactEmail.body(
+            platform: "iOS",
+            version: version,
+            build: updateChecker.currentBuild,
+            system: "iOS \(UIDevice.current.systemVersion)",
+            device: ContactEmail.hardwareIdentifier()
+        )
+        guard let url = ContactEmail.mailtoURL(subject: subject, body: body) else {
+            showNoMailApp()
+            return
+        }
+        openURL(url) { accepted in
+            if !accepted { showNoMailApp() }
+        }
+    }
+
+    private func showNoMailApp() {
+        UIPasteboard.general.string = ContactEmail.address
+        contactMessage = ContactEmail.noMailAppMessage
     }
 
     private func playbackBinding<Value>(
