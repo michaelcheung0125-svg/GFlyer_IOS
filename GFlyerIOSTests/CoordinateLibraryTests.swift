@@ -655,12 +655,77 @@ final class CoordinateLibraryTests: XCTestCase {
         XCTAssertFalse(library.refreshIfStale())
     }
 
-    private static func remoteLibrary(revision: Int) -> Data {
-        Data("""
+    /// 入口旁的「NEW」(GFlyer-Suite docs/features/coordinate-library-new-badge.md):第一次下載不亮、線上版多了
+    /// 座標才亮、打開圖鑑後不亮、重新開 App 仍記得、只有刪除的更新不亮。
+    @MainActor
+    func testNewBadgeLightsOnlyForAddedCoordinatesUntilTheLibraryIsOpened() async throws {
+        let suiteName = "gflyer.library-new-badge-tests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let cacheDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("gflyer-library-new-badge-tests-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: cacheDirectory) }
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [LibraryStubURLProtocol.self]
+        let session = URLSession(configuration: configuration)
+        LibraryStubURLProtocol.reset()
+        defer { LibraryStubURLProtocol.reset() }
+        func makeController() -> CoordinateLibraryController {
+            CoordinateLibraryController(
+                repository: CoordinateLibraryRepository(
+                    urlString: "https://example.com/coordinates/coordinates.json",
+                    session: session,
+                    cacheDirectory: cacheDirectory
+                ),
+                markStore: CoordinateMarkStore(defaults: defaults),
+                apiClient: MessageBoardAPIClient(baseURLString: "")
+            )
+        }
+        let library = makeController()
+
+        // 第一次下載:之前手上沒有資料,不算新座標
+        LibraryStubURLProtocol.respond(statusCode: 200, body: Self.remoteLibrary(revision: 5, ids: ["a1"]))
+        library.loadIfNeeded()
+        for _ in 0..<200 where library.library?.revision != 5 || library.isLoading {
+            try await Task.sleep(nanoseconds: 10_000_000)
+        }
+        XCTAssertEqual(library.library?.revision, 5)
+        XCTAssertFalse(library.hasNewCoordinates)
+
+        // 線上版多了 a2:亮,重新開 App 也還亮
+        LibraryStubURLProtocol.respond(statusCode: 200, body: Self.remoteLibrary(revision: 6, ids: ["a1", "a2"]))
+        library.refreshManually()
+        for _ in 0..<200 where library.library?.revision != 6 || library.isLoading {
+            try await Task.sleep(nanoseconds: 10_000_000)
+        }
+        XCTAssertEqual(library.library?.revision, 6)
+        XCTAssertTrue(library.hasNewCoordinates)
+        XCTAssertTrue(makeController().hasNewCoordinates)
+
+        // 打開圖鑑:不亮,重新開 App 也不亮
+        library.markNewCoordinatesSeen()
+        XCTAssertFalse(library.hasNewCoordinates)
+        XCTAssertFalse(makeController().hasNewCoordinates)
+
+        // 只有刪除的更新:不亮
+        LibraryStubURLProtocol.respond(statusCode: 200, body: Self.remoteLibrary(revision: 7, ids: ["a2"]))
+        library.refreshManually()
+        for _ in 0..<200 where library.library?.revision != 7 || library.isLoading {
+            try await Task.sleep(nanoseconds: 10_000_000)
+        }
+        XCTAssertEqual(library.library?.revision, 7)
+        XCTAssertFalse(library.hasNewCoordinates)
+    }
+
+    private static func remoteLibrary(revision: Int, ids: [String] = ["a1"]) -> Data {
+        let coordinates = ids
+            .map { #"{"id": "\#($0)", "categoryId": "purespot", "name": "\#($0)", "lat": 25.0, "lng": 121.5}"# }
+            .joined(separator: ", ")
+        return Data("""
         {
           "schemaVersion": 1, "revision": \(revision),
           "categories": [{"id": "purespot", "name": "純點"}],
-          "coordinates": [{"id": "a1", "categoryId": "purespot", "name": "甲", "lat": 25.0, "lng": 121.5}]
+          "coordinates": [\(coordinates)]
         }
         """.utf8)
     }

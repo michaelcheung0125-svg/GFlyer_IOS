@@ -60,7 +60,12 @@ struct CoordinateLibraryView: View {
                 Text(library.errorMessage ?? library.infoMessage ?? "")
             }
         }
-        .onAppear { library.loadIfNeeded() }
+        .onAppear {
+            library.loadIfNeeded()
+            library.markNewCoordinatesSeen()
+        }
+        // 開著時拿到的新座標會直接出現在清單上，關閉時也算看過（coordinate-library-new-badge.md 3.2）
+        .onDisappear { library.markNewCoordinatesSeen() }
     }
 
     private var tabChips: some View {

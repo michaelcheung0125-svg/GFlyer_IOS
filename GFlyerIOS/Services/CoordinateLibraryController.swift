@@ -27,6 +27,26 @@ enum CoordinateLibraryRefreshPolicy {
     }
 }
 
+/// 座標圖鑑入口旁的「NEW」：哪些座標是使用者還沒看過的新座標（GFlyer-Suite
+/// docs/features/coordinate-library-new-badge.md 3.1，fixture contracts/fixtures/coordinate-library/new-badge.json；
+/// Android 的 CoordinateLibraryNewBadge）。比的是 enabled 座標的 id。
+enum CoordinateLibraryNewBadge {
+    /// 工具列顯示的文字，三平台一字不差。
+    static let text = "NEW"
+
+    /// 採用線上新 revision 之後的「未看過」：加上這次新增的 id，拿掉已經不在新版的 id。
+    /// 採用前手上沒有任何資料（previousIDs 是 nil，第一次下載）時不算新增。
+    static func unseenAfterUpdate(unseen: Set<String>, previousIDs: Set<String>?, currentIDs: Set<String>) -> Set<String> {
+        let added = previousIDs.map { currentIDs.subtracting($0) } ?? []
+        return unseen.union(added).intersection(currentIDs)
+    }
+
+    /// enabled 座標的 id（清單裡看得到的那些）。
+    static func ids(_ library: CoordinateLibrary) -> Set<String> {
+        Set(library.enabledCoordinates.map(\.id))
+    }
+}
+
 @MainActor
 final class CoordinateLibraryController: ObservableObject {
     @Published private(set) var library: CoordinateLibrary?
@@ -35,6 +55,8 @@ final class CoordinateLibraryController: ObservableObject {
     @Published private(set) var marks: [String: Date] = [:]
     @Published private(set) var teleports: [String: LibraryTeleportRecord] = [:]
     @Published private(set) var hideTeleported = false
+    /// 有還沒看過的新座標：地圖工具列「座標圖鑑」旁顯示「NEW」。
+    @Published private(set) var hasNewCoordinates = false
     @Published var selectedTab: LibraryTab = .favorites
     @Published var selectedSubcategoryID: String?
     @Published var searchText = ""
@@ -63,6 +85,16 @@ final class CoordinateLibraryController: ObservableObject {
         marks = markStore.marks
         teleports = markStore.teleports
         hideTeleported = markStore.hideTeleported
+        hasNewCoordinates = !markStore.newCoordinateIDs.isEmpty
+    }
+
+    /// 圖鑑出現與關閉時呼叫：手上的座標都算看過，「NEW」消失（開著時拿到的新資料會直接出現在清單上，
+    /// 所以關閉時也算看過；GFlyer-Suite docs/features/coordinate-library-new-badge.md 3.2）。
+    func markNewCoordinatesSeen() {
+        if !markStore.newCoordinateIDs.isEmpty {
+            markStore.setNewCoordinateIDs([])
+        }
+        hasNewCoordinates = false
     }
 
     func loadIfNeeded() {
@@ -105,9 +137,13 @@ final class CoordinateLibraryController: ObservableObject {
         isLoading = true
         defer { isLoading = false }
         do {
+            let previous = library
             let refreshed = try await repository.refresh()
             // revision 沒有比較新也算成功；失敗不更新，下次回到前景再試
             lastSuccessfulCheckMilliseconds = monotonicMilliseconds()
+            if refreshed.revision > (previous?.revision ?? 0) {
+                rememberNewCoordinates(previous: previous, adopted: refreshed)
+            }
             apply(refreshed)
         } catch {
             if showErrors {
@@ -116,6 +152,17 @@ final class CoordinateLibraryController: ObservableObject {
                     : "更新座標圖鑑失敗：\(error.localizedDescription)"
             }
         }
+    }
+
+    /// 採用線上新 revision 時記下多出來的座標；第一次下載（之前手上沒有資料）不算。
+    private func rememberNewCoordinates(previous: CoordinateLibrary?, adopted: CoordinateLibrary) {
+        let unseen = CoordinateLibraryNewBadge.unseenAfterUpdate(
+            unseen: markStore.newCoordinateIDs,
+            previousIDs: previous.map(CoordinateLibraryNewBadge.ids),
+            currentIDs: CoordinateLibraryNewBadge.ids(adopted)
+        )
+        markStore.setNewCoordinateIDs(unseen)
+        hasNewCoordinates = !unseen.isEmpty
     }
 
     private func apply(_ newLibrary: CoordinateLibrary) {

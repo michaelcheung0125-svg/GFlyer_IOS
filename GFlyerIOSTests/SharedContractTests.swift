@@ -2698,4 +2698,30 @@ final class SharedContractTests: XCTestCase {
             )
         }
     }
+
+    /// contracts/fixtures/coordinate-library/new-badge.json(docs/features/coordinate-library-new-badge.md 3.1)
+    func testLibraryNewBadgeMatchesTheSharedFixture() {
+        XCTAssertEqual(CoordinateLibraryNewBadge.text, "NEW")
+        let cases: [(name: String, unseen: Set<String>, previous: Set<String>?, current: Set<String>, expected: Set<String>)] = [
+            ("first-download-is-not-new", [], nil, ["pc-1", "pure-2"], []),
+            ("added-coordinates-are-new", [], ["pc-1", "pure-2"], ["pc-1", "pure-2", "pc-3", "pure-4"], ["pc-3", "pure-4"]),
+            ("removals-only-are-not-new", [], ["pc-1", "pure-2", "pc-3"], ["pc-1", "pc-3"], []),
+            ("same-ids-with-edits-are-not-new", [], ["pc-1", "pure-2"], ["pure-2", "pc-1"], []),
+            ("keeps-unseen-from-an-earlier-revision", ["pc-3"], ["pc-1", "pc-3"], ["pc-1", "pc-3", "pc-5"], ["pc-3", "pc-5"]),
+            ("drops-unseen-that-were-removed-again", ["pc-3", "pc-5"], ["pc-1", "pc-3", "pc-5"], ["pc-1", "pc-5"], ["pc-5"]),
+            ("first-download-keeps-nothing-that-is-gone", ["pc-9"], nil, ["pc-1"], []),
+            ("a-coordinate-that-comes-back-is-new-again", [], ["pc-1"], ["pc-1", "pc-2"], ["pc-2"]),
+        ]
+        for testCase in cases {
+            XCTAssertEqual(
+                CoordinateLibraryNewBadge.unseenAfterUpdate(
+                    unseen: testCase.unseen,
+                    previousIDs: testCase.previous,
+                    currentIDs: testCase.current
+                ),
+                testCase.expected,
+                testCase.name
+            )
+        }
+    }
 }

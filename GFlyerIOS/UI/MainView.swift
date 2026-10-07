@@ -294,6 +294,7 @@ struct MainView: View {
                         position: $position,
                         cameraDistance: $cameraDistance,
                         isLocating: isLocating,
+                        libraryHasNew: coordinateLibrary.hasNewCoordinates,
                         onLocate: locateCurrentPosition,
                         onFavorite: requestFavorite,
                         onFeedback: announce
@@ -624,6 +625,8 @@ private struct MapToolBar: View {
     @Binding var position: MapCameraPosition
     @Binding var cameraDistance: CLLocationDistance
     let isLocating: Bool
+    /// 座標圖鑑有還沒看過的新座標:按鈕右上角顯示「NEW」(GFlyer-Suite docs/features/coordinate-library-new-badge.md)
+    let libraryHasNew: Bool
     let onLocate: () -> Void
     /// ☆ 只負責觸發;命名 sheet 與它的狀態在 `MainView`,理由見 `MainView.favoriteNameRequest`。
     let onFavorite: () -> Void
@@ -689,7 +692,11 @@ private struct MapToolBar: View {
                 mapButton("square.and.arrow.up", label: "分享到留言板") { showBoardShare = true }
             }
             HStack(spacing: Spacing.xs) {
-                mapButton("books.vertical", label: "座標圖鑑") { showLibrary = true }
+                mapButton(
+                    "books.vertical",
+                    label: "座標圖鑑",
+                    badge: libraryHasNew ? CoordinateLibraryNewBadge.text : nil
+                ) { showLibrary = true }
                 stepRecordButton
             }
             HStack(spacing: Spacing.xs) {
@@ -742,6 +749,7 @@ private struct MapToolBar: View {
         label: String,
         tint: Color? = nil,
         isBusy: Bool = false,
+        badge: String? = nil,
         action: @escaping () -> Void
     ) -> some View {
         Button(action: action) {
@@ -757,11 +765,23 @@ private struct MapToolBar: View {
             .frame(width: Metrics.tapTarget, height: Metrics.tapTarget)
             // 沒有這行時，可點區域只有圖示筆畫本身而不是整個方框
             .contentShape(Rectangle())
+            .overlay(alignment: .topTrailing) {
+                if let badge {
+                    // 和留言板按鈕的未讀徽章同一個寫法:系統紅是 iOS 未讀徽章的慣例,不是 statusDanger
+                    Text(badge)
+                        .font(.system(size: 8, weight: .bold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, Spacing.xs)
+                        .frame(minWidth: 14, minHeight: 14)
+                        .background(.red, in: Capsule())
+                        .allowsHitTesting(false)
+                }
+            }
         }
         // 原本是 .plain，那會連按壓高亮一起拿掉，所以按下去畫面毫無變化。
         .buttonStyle(PressFeedbackButtonStyle())
         .accessibilityLabel(label)
-        .accessibilityValue(isBusy ? "定位中" : "")
+        .accessibilityValue(isBusy ? "定位中" : (badge ?? ""))
     }
 
     private func zoom(_ factor: Double) {
