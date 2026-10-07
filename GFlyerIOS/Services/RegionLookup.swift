@@ -3,6 +3,8 @@ import Foundation
 /// 收藏位置與收藏路線清單上的「國家 · 城市」:快取鍵、Nominatim 請求、回應 → 標籤的純函式,
 /// 照 Android `RegionLookup.key` 與 `GeocoderRepository.reverseRegion`(GFlyer-Suite
 /// docs/features/region-labels.md §3.2、§3.4、§3.5;對照 fixture `region/nominatim-labels.json`)。
+/// ☆ 的命名 sheet 也用同一個標籤預填名稱;那一格還沒有標籤時可以插隊反查,仍守 1.1 秒的間隔
+/// (`RegionLookup.lookUpUrgently`)。
 enum RegionLabel {
     /// 國家與城市之間、以及收藏路線列接標籤用的分隔:U+0020 U+00B7 U+0020。
     static let separator = " · "
@@ -124,14 +126,18 @@ struct TaskSleepRegionLookupClock: RegionLookupClock {
     }
 }
 
-/// 收藏位置與收藏路線第一點的「國家 · 城市」反查佇列與本機快取,照 Android `data/RegionLookup.kt`
-/// (GFlyer-Suite docs/features/region-labels.md §3.1、§3.3、§3.6、§3.7)。由 `SimulationController` 持有。
+/// 收藏位置與收藏路線第一點的「國家 · 城市」反查佇列與本機快取,照 Android `data/RegionLookup.kt` 與
+/// `data/RegionLookupQueue.kt`(GFlyer-Suite docs/features/region-labels.md §3.1、§3.3、§3.6、§3.7)。
+/// 由 `SimulationController` 持有。
 ///
-/// - Nominatim 的規範是每秒最多一次請求:同一時間只有一個請求,依排入的順序處理;每次真的送出請求之後
+/// - Nominatim 的規範是每秒最多一次請求:同一時間只有一個請求,由單一工作依佇列順序處理;每次真的送出請求之後
 ///   (成功或失敗)等 1.1 秒才處理下一筆。已經有快取而跳過的不等,第一筆也不等。
-/// - 已經有快取、這次執行排過隊、這次執行失敗過的快取鍵一律跳過,所以同一格只送第一個排進來的座標,
-///   呼叫端很頻繁地送同一份清單也不會多送請求。
-/// - 失敗不重試、不寫進快取,使用者也看不到任何訊息;下次啟動(新的 `SimulationController`)再試一次。
+/// - 一般請求(收藏清單)排在隊尾。已經有快取、已經在佇列裡或正在查、這次執行被封鎖的快取鍵一律跳過,
+///   所以同一格只送一個座標,呼叫端很頻繁地送同一份清單也不會多送請求。
+/// - ☆ 的命名 sheet 可以插隊(`lookUpUrgently`,2026-10-08 起):排到最前面(最新的優先),仍守 1.1 秒的間隔,
+///   正在進行的請求不會被中斷;同一格在佇列裡最多一筆(一般 + 緊急合計)。
+/// - 一般請求查失敗就封鎖那一格到下次啟動(新的 `SimulationController`):不重試、不寫進快取,使用者也看不到任何訊息。
+///   緊急請求查失敗不封鎖:之後一次一般請求、或再按 ☆ 還能再排;一樣不會自己重試。
 /// - 查到的結果存在自己的 `UserDefaults` 鍵,不過期,不隨刪除收藏、清除歷史、還原備份而清掉,也不在備份裡。
 @MainActor
 final class RegionLookup {
@@ -150,11 +156,21 @@ final class RegionLookup {
     private let transport: any RegionLookupTransport
     private let clock: any RegionLookupClock
     private let userAgent: String
-    /// 排隊中、還沒處理的座標。只在記憶體裡:App 結束時還沒查的,下次啟動會因為沒有快取再排進來。
+    /// 排隊中、還沒處理的座標,依送出的順序;同一個快取鍵最多一筆。只在記憶體裡:App 結束時還沒查的,
+    /// 下次啟動會因為沒有快取再排進來。
     private var pending: [GeoCoordinate] = []
-    /// 這次執行排過隊的鍵。只增不減:處理完的鍵不是進了快取就是進了 `failed`,效果相同(和 Android 一樣)。
+    /// 這次執行排過隊的鍵(在 `pending` 裡、正在查,或已經處理完)。處理完的鍵不是進了快取就是進了 `failed`,
+    /// 效果相同,所以一般不移除(和 Android 一樣)。唯一的例外:`urgent` 裡的鍵查失敗時從這裡移除、不進 `failed`,
+    /// 之後一次一般請求還能再排(region-labels.md §3.3、§3.6)。
     private var queued: Set<String> = []
+    /// 這次執行被封鎖的鍵:一般請求查失敗過,一般與緊急請求都不再送。
     private var failed: Set<String> = []
+    /// 最近一次由緊急請求排進佇列、或搬到最前面的鍵(Android `RegionLookupQueue.urgent`)。查失敗時不封鎖;
+    /// 查到、或處理前已經有快取時移除。緊急請求等的是正在查的一般請求時不加進來,那一筆失敗照一般規則封鎖。
+    private var urgent: Set<String> = []
+    /// 等某一格結果的緊急請求(☆ 的命名 sheet)。那一格處理完(查到、失敗、處理前已有快取)就全部交出結果並移除。
+    /// 等待的一方不等了(sheet 關掉、逾時)也不移除:結果照樣交給它,請求也照樣送出。
+    private var waiters: [String: [CheckedContinuation<String?, Never>]] = [:]
     private var worker: Task<Void, Never>?
 
     init(
@@ -170,7 +186,7 @@ final class RegionLookup {
         labels = Self.loadCache(from: defaults)
     }
 
-    /// 這些座標的地區還沒查過就依序排進佇列;已知的、排過隊的、這次已失敗的都跳過。
+    /// 一般請求:這些座標的地區還沒查過就依序排進隊尾;已知的、排過隊的(在佇列裡或正在查)、這次被封鎖的都跳過。
     func request(_ coordinates: [GeoCoordinate]) {
         for coordinate in coordinates {
             let key = RegionLabel.key(for: coordinate)
@@ -178,11 +194,40 @@ final class RegionLookup {
             queued.insert(key)
             pending.append(coordinate)
         }
-        guard worker == nil, !pending.isEmpty else { return }
-        worker = Task { [weak self] in
-            guard let self else { return }
-            await drain()
+        startWorkerIfNeeded()
+    }
+
+    /// 緊急請求(☆ 的命名 sheet;region-labels.md §3.3、favorite-add.md §3.4):這一格還沒有標籤就插到佇列最前面,
+    /// 等到結果為止。查到是標籤;查不到、或這一格這次執行已被封鎖是 nil。送的是 `coordinate` 原值,不是格子中心。
+    ///
+    /// - 已有快取:直接回傳標籤,不送。被封鎖:馬上回 nil,不送。
+    /// - 還在佇列裡沒送出:從原位置移出,換成 `coordinate` 插到最前面;佇列裡仍只有一筆。
+    /// - 正在查:不再排,等那一筆的結果(那一筆仍算原本的請求:一般請求失敗照樣封鎖)。
+    /// - 其他:記進排過隊,插到最前面(也排在先前還沒送出的緊急請求前面)。
+    ///
+    /// 間隔不變,由同一個工作照 1.1 秒處理;佇列閒著而且間隔已經過了就馬上送。等待的一方被取消(sheet 關掉、逾時)
+    /// 不撤回請求:照樣送出、照樣寫進快取,結果也照樣交回來。10 秒的上限由呼叫端自己算。
+    func lookUpUrgently(_ coordinate: GeoCoordinate) async -> String? {
+        let key = RegionLabel.key(for: coordinate)
+        // 檢查狀態、排隊與掛上等待者都在 continuation 的本體裡:本體同步執行,中間沒有 `await`,
+        // `finish` 不會插在中間記下結果、讓這個等待者拿不到(Android 用同一把鎖做到)
+        return await withCheckedContinuation { continuation in
+            guard enqueueUrgently(coordinate, key: key) else {
+                // 已有快取或被封鎖:不排、不等
+                continuation.resume(returning: labels[key])
+                return
+            }
+            waiters[key, default: []].append(continuation)
+            startWorkerIfNeeded()
         }
+    }
+
+    /// 排隊中、還沒送出的座標,依送出的順序。給測試看佇列,App 不用。
+    var pendingCoordinates: [GeoCoordinate] { pending }
+
+    /// 有幾個緊急請求在等這一格的結果。給測試用,App 不用。
+    func waiterCount(for coordinate: GeoCoordinate) -> Int {
+        waiters[RegionLabel.key(for: coordinate)]?.count ?? 0
     }
 
     /// 等佇列處理完。App 不需要等,給測試用。
@@ -190,28 +235,78 @@ final class RegionLookup {
         if let worker { await worker.value }
     }
 
-    /// 單一工作依序處理佇列。整段在主執行緒上,只有等網路與等間隔時讓出,所以 `request` 在處理途中
-    /// 加進來的座標會接在後面;佇列清空時的最後一次等待也已經等完,之後再開始的工作不會太早送出。
+    /// 照 Android `RegionLookupQueue.enqueueUrgent` 排進佇列。回傳之後會不會有這一格的結果:
+    /// 已有快取或被封鎖是 false(不排),其他(排進去、搬到最前面、正在查)是 true。
+    private func enqueueUrgently(_ coordinate: GeoCoordinate, key: String) -> Bool {
+        guard labels[key] == nil, !failed.contains(key) else { return false }
+        if let index = pending.firstIndex(where: { RegionLabel.key(for: $0) == key }) {
+            // 同一格換成這次的座標(使用者要收藏的那一點),搬到最前面
+            pending.remove(at: index)
+            pending.insert(coordinate, at: 0)
+            urgent.insert(key)
+        } else if !queued.contains(key) {
+            queued.insert(key)
+            pending.insert(coordinate, at: 0)
+            urgent.insert(key)
+        }
+        // 其他:排過隊、不在佇列裡、沒有快取也沒被封鎖,就是正在查;不再排,等那一筆的結果
+        return true
+    }
+
+    /// 佇列閒著就開始處理。上一個工作結束時最後一次等待已經等完,所以新的工作馬上送出也不會太早。
+    private func startWorkerIfNeeded() {
+        guard worker == nil, !pending.isEmpty else { return }
+        worker = Task { [weak self] in
+            guard let self else { return }
+            await drain()
+        }
+    }
+
+    /// 單一工作依序處理佇列。整段在主執行緒上,只有等網路與等間隔時讓出,所以途中加進來的一般請求接在後面、
+    /// 緊急請求插在最前面;佇列清空時的最後一次等待也已經等完,之後再開始的工作不會太早送出。
     private func drain() async {
         while !pending.isEmpty {
             let coordinate = pending.removeFirst()
             let key = RegionLabel.key(for: coordinate)
-            if labels[key] != nil { continue }
+            if let known = labels[key] {
+                // 處理前已經有快取:不送、不等,但等這一格的一樣要拿到標籤
+                finish(key, label: known)
+                continue
+            }
             guard let request = RegionLabel.request(for: coordinate, userAgent: userAgent) else {
-                failed.insert(key)
+                finish(key, label: nil)
                 continue
             }
             let response = await transport.response(for: request)
-            if let label = RegionLabel.label(status: response?.statusCode, body: response?.body) {
+            let label = RegionLabel.label(status: response?.statusCode, body: response?.body)
+            if let label {
+                // 先寫好快取再交出結果:等待者醒來時,清單與下次預填都已經看得到這個標籤
                 labels[key] = label
                 persist()
                 onLabelsChange?(labels)
-            } else {
-                failed.insert(key)
             }
+            finish(key, label: label)
             await clock.sleep(seconds: Self.requestIntervalSeconds)
         }
         worker = nil
+    }
+
+    /// 記下這一格的結果並交給它所有的等待者(Android `RegionLookup.finish` 與 `RegionLookupQueue.markDone` /
+    /// `markFailed`)。記結果與取走等待者在同一段沒有 `await` 的程式裡:`lookUpUrgently` 要嘛在這之前掛上
+    /// (拿到這一次的結果),要嘛在之後才來(看得到快取、封鎖,或照規則重新排隊)。
+    private func finish(_ key: String, label: String?) {
+        if label != nil {
+            urgent.remove(key)
+        } else if urgent.remove(key) != nil {
+            // 緊急請求查失敗不封鎖:放掉這一格,之後一次一般請求或再按 ☆ 還能再排
+            queued.remove(key)
+        } else {
+            failed.insert(key)
+        }
+        let resumed = waiters.removeValue(forKey: key) ?? []
+        for waiter in resumed {
+            waiter.resume(returning: label)
+        }
     }
 
     /// 每查到一筆就立刻寫回。

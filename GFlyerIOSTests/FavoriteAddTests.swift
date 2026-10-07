@@ -200,9 +200,12 @@ final class FavoriteAddTests: XCTestCase {
         XCTAssertEqual(controller.favorites, savedWhileSimulating)
     }
 
-    // MARK: - 預填
+    // MARK: - 預填與插隊反查
 
-    func testPrefillIsTheCachedLabelOfTheTargetCellAndNeverStartsALookup() async throws {
+    /// 預填是收藏目標座標所在格的快取標籤;`favoritePrompt()` 本身只讀快取、不送出反查。2026-10-08 起(規格 §3.4)
+    /// 快取裡沒有時,命名 sheet 經 `favoriteNameLabel(for:)` 對按下時的原始座標插隊反查一次;有快取的格子不送。
+    /// 模擬中看的、送的都是模擬位置那一點,不是選取點。
+    func testPrefillIsTheCachedLabelAndOnlyAnUncachedCellIsLookedUpOnce() async throws {
         let suiteName = "gflyer.favorite-add-tests.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
         defer { defaults.removePersistentDomain(forName: suiteName) }
@@ -212,38 +215,62 @@ final class FavoriteAddTests: XCTestCase {
         ])
         let controller = harness.controller
         XCTAssertEqual(controller.regionLabels.count, 2)
+        await harness.nominatim.respond(to: FavoriteSpot.seoul, body: #"{"address":{"city":"首爾","country":"南韓"}}"#)
 
-        // 同一個快取格裡的另一個座標:標籤原文
+        // 同一個快取格裡的另一個座標:標籤原文;sheet 不等,就算問了也直接回標籤、不送
         controller.select(FavoriteSpot.taipeiSameCell)
-        XCTAssertEqual(
-            controller.favoritePrompt(),
-            .askName(FavoriteNameRequest(coordinate: FavoriteSpot.taipeiSameCell, suggestedName: "臺灣 · 臺北市"))
-        )
-        // 從來沒查過的格子:空字串
-        controller.select(FavoriteSpot.pacific)
-        XCTAssertEqual(
-            controller.favoritePrompt(),
-            .askName(FavoriteNameRequest(coordinate: FavoriteSpot.pacific, suggestedName: ""))
-        )
+        guard case let .askName(cached) = controller.favoritePrompt() else {
+            return XCTFail("沒有收藏過的座標應該問名稱")
+        }
+        XCTAssertEqual(cached, FavoriteNameRequest(coordinate: FavoriteSpot.taipeiSameCell, suggestedName: "臺灣 · 臺北市"))
+        let cachedLabel = await controller.favoriteNameLabel(for: cached.coordinate)
+        XCTAssertEqual(cachedLabel, "臺灣 · 臺北市")
         // 模擬中看模擬位置那一格,不是選取點那一格
         await teleport(controller, to: FavoriteSpot.osaka)
-        controller.select(FavoriteSpot.taipei)
+        controller.select(FavoriteSpot.pacific)
         XCTAssertEqual(
             controller.favoritePrompt(),
             .askName(FavoriteNameRequest(coordinate: FavoriteSpot.osaka, suggestedName: "日本 · 大阪市"))
         )
-
         await harness.lookup.waitUntilIdle()
-        let requestsAfterPrompts = await harness.nominatim.requestCount
-        XCTAssertEqual(requestsAfterPrompts, 0, "按 ☆ 與預填都不送出反查")
-        XCTAssertEqual(harness.lookup.labels.count, 2)
+        var requested = await harness.nominatim.requested
+        XCTAssertEqual(requested, [], "有快取的格子不送")
 
-        // 對照組:真的收藏之後,新的座標才排進反查佇列(region-labels.md §3.1)
-        controller.select(FavoriteSpot.pacific)
+        // 從來沒查過的格子:預填空字串。按 ☆ 本身不送;sheet 問的時候才對按下時的原始座標送一次
+        await teleport(controller, to: FavoriteSpot.seoul)
+        controller.select(FavoriteSpot.taipei)
+        guard case let .askName(uncached) = controller.favoritePrompt() else {
+            return XCTFail("沒有收藏過的座標應該問名稱")
+        }
+        XCTAssertEqual(uncached, FavoriteNameRequest(coordinate: FavoriteSpot.seoul, suggestedName: ""))
+        await harness.lookup.waitUntilIdle()
+        requested = await harness.nominatim.requested
+        XCTAssertEqual(requested, [], "按 ☆ 與預填本身不送出反查")
+        let found = await controller.favoriteNameLabel(for: uncached.coordinate)
+        XCTAssertEqual(found, "南韓 · 首爾")
+        requested = await harness.nominatim.requested
+        XCTAssertEqual(requested, ["37.5665,126.978"], "送的是模擬位置那一點的原始座標")
+        XCTAssertEqual(controller.regionLabels["37.57,126.98"], "南韓 · 首爾", "查到的標籤進快取,清單看得到")
+        // 同一格再按 ☆:已經有快取,直接預填、不再送
+        XCTAssertEqual(
+            controller.favoritePrompt(),
+            .askName(FavoriteNameRequest(coordinate: FavoriteSpot.seoul, suggestedName: "南韓 · 首爾"))
+        )
+
+        // 查不到的格子(假的 Nominatim 沒有回應):緊急請求查失敗不封鎖,收藏存下去時清單的一般請求會再查一次
+        // (region-labels.md §3.3、§3.6)
+        let missing = await controller.favoriteNameLabel(for: FavoriteSpot.pacific)
+        XCTAssertNil(missing)
         XCTAssertEqual(controller.addFavorite(name: "太平洋", coordinate: FavoriteSpot.pacific), "收藏成功")
         await harness.lookup.waitUntilIdle()
-        let requestsAfterSaving = await harness.nominatim.requestCount
-        XCTAssertEqual(requestsAfterSaving, 1)
+        requested = await harness.nominatim.requested
+        XCTAssertEqual(requested, ["37.5665,126.978", "10.0,-150.0", "10.0,-150.0"])
+        // 那一次也失敗:封鎖到下次啟動,再問也不送
+        let blocked = await controller.favoriteNameLabel(for: FavoriteSpot.pacific)
+        XCTAssertNil(blocked)
+        await harness.lookup.waitUntilIdle()
+        let requestCount = await harness.nominatim.requestCount
+        XCTAssertEqual(requestCount, 3)
     }
 
     // MARK: - addFavorite(name:coordinate:)
@@ -390,6 +417,7 @@ private enum FavoriteSpot {
     static let osaka = GeoCoordinate(latitude: 34.6937, longitude: 135.5023)
     static let pacific = GeoCoordinate(latitude: 10.0, longitude: -150.0)
     static let mongKok = GeoCoordinate(latitude: 22.3193, longitude: 114.1694)
+    static let seoul = GeoCoordinate(latitude: 37.5665, longitude: 126.978)
 }
 
 /// 可以讓傳送或清除失敗的假 backend。`canControlDeviceLocation` 是 false:不需要配對檔,也不會跳去 LocalDevVPN。
@@ -436,13 +464,26 @@ private enum FavoriteTestBackendError: LocalizedError {
     }
 }
 
-/// 不連網的反查,只數送出了幾個請求(每個都當作連線失敗),等待也不真的等。
+/// 不連網的反查:依序記下送出請求的座標(「緯度,經度」,寫法和送出的 lat / lon 相同),依座標回應;
+/// 沒有設定回應的當作連線失敗。等待也不真的等。
 private actor FavoriteTestNominatim: RegionLookupTransport, RegionLookupClock {
-    private(set) var requestCount = 0
+    private(set) var requested: [String] = []
+    private var responses: [String: RegionLookupResponse] = [:]
+
+    var requestCount: Int { requested.count }
+
+    func respond(to coordinate: GeoCoordinate, body: String) {
+        let key = "\(String(coordinate.latitude)),\(String(coordinate.longitude))"
+        responses[key] = RegionLookupResponse(statusCode: 200, body: Data(body.utf8))
+    }
 
     func response(for request: URLRequest) async -> RegionLookupResponse? {
-        requestCount += 1
-        return nil
+        let items = request.url.flatMap { URLComponents(url: $0, resolvingAgainstBaseURL: false)?.queryItems } ?? []
+        let latitude = items.first { $0.name == "lat" }?.value ?? "?"
+        let longitude = items.first { $0.name == "lon" }?.value ?? "?"
+        let key = "\(latitude),\(longitude)"
+        requested.append(key)
+        return responses[key]
     }
 
     func sleep(seconds: TimeInterval) async { }

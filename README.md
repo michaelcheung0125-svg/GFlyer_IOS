@@ -57,17 +57,22 @@ This is a separate SwiftUI prototype for personal sideloading. It does not modif
   Favorite names are trimmed and cut to 80 Unicode code points when added or
   renamed, a blank rename is refused, and, like Android, an unnamed favorite is
   called 「收藏 <座標>」 and a coordinate that is already a favorite is not added
-  again (「此座標已經收藏過」). Since `0.6.10` the map ☆ first asks for a name in a
-  「收藏位置」 alert, prefilled with the cached 國家 · 城市 label when there is one
-  (it never starts a lookup), and while simulating it saves the position of
-  the last successful push as of the moment ☆ was pressed (GFlyer-Suite
-  `docs/features/favorite-add.md`)
+  again (「此座標已經收藏過」). The map ☆ first asks for a name in a 「收藏位置」
+  sheet (since `0.6.11`; an alert in `0.6.10`), and while simulating it saves the
+  position of the last successful push as of the moment ☆ was pressed. The name
+  is prefilled with the cached 國家 · 城市 label; when the area has not been
+  looked up yet, ☆ sends an urgent Nominatim lookup ahead of the queue, shows
+  「正在查詢地名…」 for up to 10 s and fills the name once, only if the user has
+  not edited the field, like Android (GFlyer-Suite
+  `docs/features/favorite-add.md`, DRIFT D29)
 - Country and city labels in the favorite, history and saved-route lists like
-  GFlyer Android (GFlyer-Suite `docs/features/region-labels.md`). A favorite's
-  second line reads `25.033900, 121.564500  ·  臺灣 · 臺北市` and a saved
-  route's `12 個點 · 循環 · 臺灣 · 臺北市` (the label of its first point); each
-  row gains 「收藏於」, 「定位於」 or 「儲存於」 with the medium date and short time
-  in the system language. The labels come from OpenStreetMap Nominatim (see
+  GFlyer Android (GFlyer-Suite `docs/features/region-labels.md`). Since `0.6.11`
+  a favorite or history row shows the coordinate alone on its second line and
+  `收藏於 <日期時間>  ·  臺灣 · 臺北市` (「定位於」 for history) on its third, at
+  most two lines; a saved route's second line stays
+  `12 個點 · 循環 · 臺灣 · 臺北市` (the label of its first point) with
+  「儲存於 <日期時間>」 below it. Dates use the medium date and short time in the
+  system language. The labels come from OpenStreetMap Nominatim (see
   [Privacy](#privacy)): favorites and the first point of each saved route are
   looked up when the app starts and whenever those lists change, one request
   at a time with at least 1.1 s between requests, cached per 0.01° cell
@@ -294,15 +299,17 @@ a public HTTPS URL.
 
 ## Privacy
 
-收藏位置與收藏路線第一點的座標，會在 App 開啟或收藏變動時送往 OpenStreetMap 的 Nominatim 服務，反查所在的國家與城市；查到的結果只存在本機，不會放進備份檔。
+收藏位置與收藏路線第一點的座標，會在 App 開啟或收藏變動時送往 OpenStreetMap 的 Nominatim 服務，反查所在的國家與城市；查到的結果只存在本機，不會放進備份檔。按 ☆ 收藏一個所在地區還沒查過的地點時，它的座標會立刻送去反查、預先填入名稱，之後按取消也一樣。
 
 The coordinates of your favorites and of the first point of each saved route
 are sent to the public Nominatim service when the app starts or those lists
-change, to look up their country and city. The results are stored only on the
-device and are not included in backup files. Each request carries only that
-coordinate, the fixed language `zh-TW` and the `GFlyer/<version> (iOS)`
-User-Agent; history entries are never sent. This is the only feature that
-contacts Nominatim: place search uses Apple's MapKit.
+change, to look up their country and city. When you press ☆ to add a favorite
+in an area that has not been looked up yet, that coordinate is sent to
+Nominatim right away to prefill the name, even if you then cancel. The results
+are stored only on the device and are not included in backup files. Each
+request carries only that coordinate, the fixed language `zh-TW` and the
+`GFlyer/<version> (iOS)` User-Agent; history entries are never sent. This is
+the only feature that contacts Nominatim: place search uses Apple's MapKit.
 
 ## macOS prerequisites
 

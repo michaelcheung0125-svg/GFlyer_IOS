@@ -423,9 +423,12 @@ final class RegionLabelTests: XCTestCase {
         var requested = await nominatim.requested
         XCTAssertEqual(requested, ["25.0339,121.5645", "34.6937,135.5023", "40.7128,-74.006", "-33.8688,151.2093"])
         XCTAssertEqual(controller.regionLabels, ["25.03,121.56": "臺灣 · 臺北市", "40.71,-74.01": "美國 · 紐約"])
+        // 收藏位置與歷史的標籤接在第三行的時間後面(2026-10-08 起,region-labels.md §3.8)
+        let savedAt = Date(timeIntervalSince1970: 1_790_401_200)
+        let dateTime = DateFormatter.localizedString(from: savedAt, dateStyle: .medium, timeStyle: .short)
         XCTAssertEqual(
-            LibraryRowText.place(Place.taipei, labels: controller.regionLabels),
-            "25.033900, 121.564500  ·  臺灣 · 臺北市"
+            placeTimeLine(LibraryRowText.favoriteSavedPrefix, Place.taipei, at: savedAt, labels: controller.regionLabels),
+            "收藏於 " + dateTime + "  ·  臺灣 · 臺北市"
         )
         XCTAssertEqual(
             LibraryRowText.route(controller.savedRoutes[0], labels: controller.regionLabels),
@@ -434,10 +437,13 @@ final class RegionLabelTests: XCTestCase {
         XCTAssertEqual(LibraryRowText.route(controller.savedRoutes[1], labels: controller.regionLabels), "2 個點 · 單程")
         // 歷史只在剛好和某個收藏落在同一格時顯示標籤
         XCTAssertEqual(
-            LibraryRowText.place(Place.taipeiSameCell, labels: controller.regionLabels),
-            "25.030100, 121.560100  ·  臺灣 · 臺北市"
+            placeTimeLine(LibraryRowText.historySavedPrefix, Place.taipeiSameCell, at: savedAt, labels: controller.regionLabels),
+            "定位於 " + dateTime + "  ·  臺灣 · 臺北市"
         )
-        XCTAssertEqual(LibraryRowText.place(Place.pacific, labels: controller.regionLabels), "10.000000, -150.000000")
+        XCTAssertEqual(
+            placeTimeLine(LibraryRowText.historySavedPrefix, Place.pacific, at: savedAt, labels: controller.regionLabels),
+            "定位於 " + dateTime
+        )
 
         // 收藏變動時把新的座標排進來
         controller.select(Place.seoul)
@@ -466,8 +472,9 @@ final class RegionLabelTests: XCTestCase {
 
     func testRowTextsMatchAndroid() {
         let labels = ["25.03,121.56": "臺灣 · 臺北市"]
-        XCTAssertEqual(LibraryRowText.place(Place.taipei, labels: labels), "25.033900, 121.564500  ·  臺灣 · 臺北市")
-        XCTAssertEqual(LibraryRowText.place(Place.osaka, labels: labels), "34.693700, 135.502300", "沒有標籤時連同分隔一起省略")
+        // 收藏位置與歷史的第二行只有座標(2026-10-08 起;標籤移到第三行,見下面與 SavedPlaceRowTextTests)
+        XCTAssertEqual(Place.taipei.display, "25.033900, 121.564500")
+        XCTAssertEqual(Place.osaka.display, "34.693700, 135.502300")
 
         let twelve = (0..<12).map { GeoCoordinate(latitude: 25.0339 + Double($0) * 0.001, longitude: 121.5645) }
         XCTAssertEqual(
@@ -479,12 +486,22 @@ final class RegionLabelTests: XCTestCase {
         // 日期時間跟系統語言與時區(中等日期 + 短時間);前綴與後面的半形空白必須一字不差
         let date = Date(timeIntervalSince1970: 1_790_401_200)
         let dateTime = DateFormatter.localizedString(from: date, dateStyle: .medium, timeStyle: .short)
-        XCTAssertEqual(LibraryRowText.saved(LibraryRowText.favoriteSavedPrefix, at: date), "收藏於 " + dateTime)
-        XCTAssertEqual(LibraryRowText.saved(LibraryRowText.historySavedPrefix, at: date), "定位於 " + dateTime)
+        // 收藏位置與歷史:時間後面接「  ·  」+ 標籤,沒有標籤時連同分隔一起省略;收藏路線只有時間
+        XCTAssertEqual(
+            placeTimeLine(LibraryRowText.favoriteSavedPrefix, Place.taipei, at: date, labels: labels),
+            "收藏於 " + dateTime + "  ·  臺灣 · 臺北市"
+        )
+        XCTAssertEqual(placeTimeLine(LibraryRowText.favoriteSavedPrefix, Place.osaka, at: date, labels: labels), "收藏於 " + dateTime)
+        XCTAssertEqual(placeTimeLine(LibraryRowText.historySavedPrefix, Place.osaka, at: date, labels: labels), "定位於 " + dateTime)
         XCTAssertEqual(LibraryRowText.saved(LibraryRowText.routeSavedPrefix, at: date), "儲存於 " + dateTime)
     }
 
     // MARK: - 輔助
+
+    /// 收藏位置與定位歷史的第三行,標籤照清單的查法(`SavedPlacesView.libraryRowLabel`)從快取表取。
+    private func placeTimeLine(_ prefix: String, _ coordinate: GeoCoordinate, at date: Date, labels: [String: String]) -> String {
+        LibraryRowText.saved(prefix, at: date, label: RegionLabel.label(in: labels, for: coordinate))
+    }
 
     private func makeLookup(_ defaults: UserDefaults, _ nominatim: FakeNominatim) -> RegionLookup {
         RegionLookup(defaults: defaults, transport: nominatim, clock: nominatim, userAgent: "GFlyer/test (iOS)")

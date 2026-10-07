@@ -130,9 +130,11 @@ Exit criterion: a 30-minute foreground route completes without losing the tunnel
   failed sets, no retry until the next launch) with a cache under the new key
   `gflyer.region-labels.v1` that is never expired and never in the backup.
   Favorites and then the first point of each saved route are requested at
-  start and on every `refreshStoredData()`; history never is. The lists show
-  the label after the coordinate (`"  ·  "`) or after 「N 個點 · 循環|單程」
-  (`" · "`) and a 「收藏於／定位於／儲存於」 date line. `RegionLabelTests` copies
+  start and on every `refreshStoredData()`; history never is. Since 0.6.11 the
+  ☆ name sheet also sends an urgent lookup for an unlooked-up area (front of the
+  queue, same 1.1 s spacing). Favorite and history rows show the label on the
+  date line (「收藏於／定位於 <date>  ·  <label>」, at most two lines); saved
+  routes show it after 「N 個點 · 循環|單程」 (`" · "`) above a 「儲存於」 date line. `RegionLabelTests` copies
   `region/nominatim-labels.json` and tests the queue with a fake transport
   and clock. Device validation pending
 - Named routes and route-draft recovery after relaunch (implemented; validation pending)

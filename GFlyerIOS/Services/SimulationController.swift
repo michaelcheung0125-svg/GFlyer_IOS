@@ -890,9 +890,17 @@ final class SimulationController: ObservableObject {
     }
 
     /// 按 ☆ 時要做什麼:收藏目標座標已經收藏過就只顯示訊息,否則問名稱,預填這一格快取裡的標籤。
-    /// 只讀 `regionLabels`,不呼叫 `regionLookup.request`(規格 §3.4)。
+    /// 這裡只讀 `regionLabels`;那一格沒有標籤時的插隊反查由命名 sheet 打開後經 `favoriteNameLabel(for:)` 送出(規格 §3.4)。
     func favoritePrompt() -> FavoriteAddPrompt {
         FavoriteAddPrompt.forTarget(favoriteTargetCoordinate, favorites: favorites, regionLabels: regionLabels)
+    }
+
+    /// 命名 sheet 等地名用:`coordinate`(按 ☆ 那一刻記下的座標)那一格還沒有標籤就插隊反查,等到結果為止
+    /// (GFlyer-Suite docs/features/favorite-add.md §3.4、region-labels.md §3.3)。查到是標籤;查不到、或這一格這次執行
+    /// 已被封鎖是 nil。10 秒的上限由 sheet 自己算;sheet 關掉也不撤回請求。查到的標籤照舊經 `onLabelsChange`
+    /// 更新 `regionLabels`,清單直接看得到。
+    func favoriteNameLabel(for coordinate: GeoCoordinate) async -> String? {
+        await regionLookup.lookUpUrgently(coordinate)
     }
 
     /// 和 Android 的 `MainViewModel.addFavorite` 相同:座標已經收藏過就不新增(原本會取代那一筆),

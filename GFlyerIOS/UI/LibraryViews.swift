@@ -113,14 +113,19 @@ struct SavedPlacesView: View {
         }
     }
 
-    /// 名稱一行;座標與「國家 · 城市」一行;「收藏於／定位於 <日期時間>」小字一行,不限行數。
+    /// 名稱一行;座標一行;「收藏於／定位於 <日期時間>  ·  國家 · 城市」小字最多兩行,超出從結尾以 … 截斷
+    /// (和 Android 的 `maxLines = 2` 相同,region-labels.md §3.8):時間在前面一定看得到,先被截掉的是地區的尾巴。
     private func libraryRowLabel(_ place: SavedPlace, savedPrefix: String) -> some View {
         VStack(alignment: .leading, spacing: Spacing.xs) {
             Text(place.name).foregroundStyle(.primary).lineLimit(1)
-            Text(LibraryRowText.place(place.coordinate, labels: controller.regionLabels))
+            Text(place.coordinate.display)
                 .font(.numericCaption).foregroundStyle(.secondary).lineLimit(1)
-            Text(LibraryRowText.saved(savedPrefix, at: place.createdAt))
-                .font(.caption2).foregroundStyle(.secondary)
+            Text(LibraryRowText.saved(
+                savedPrefix,
+                at: place.createdAt,
+                label: RegionLabel.label(in: controller.regionLabels, for: place.coordinate)
+            ))
+            .font(.caption2).foregroundStyle(.secondary).lineLimit(2)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -166,17 +171,13 @@ struct SavedRoutesView: View {
 
 /// 收藏位置、定位歷史與收藏路線清單每一列的說明文字,和 Android 一字不差
 /// (GFlyer-Suite docs/features/region-labels.md §3.8)。
+///
+/// 收藏位置與定位歷史(2026-10-08 起):第二行只有座標(`GeoCoordinate.display`),「國家 · 城市」接在第三行的時間後面
+/// (`saved(_:at:label:)` → `SavedPlaceRowText.timeLine`)。收藏路線不變:標籤接在點數後面(`route`),第三行只有時間。
 enum LibraryRowText {
     static let favoriteSavedPrefix = "收藏於"
     static let historySavedPrefix = "定位於"
     static let routeSavedPrefix = "儲存於"
-
-    /// 「25.033900, 121.564500  ·  臺灣 · 臺北市」:座標後面是兩個空白 + U+00B7 + 兩個空白,
-    /// 和標籤內部的「 · 」不同。還沒查到標籤時只有座標。
-    static func place(_ coordinate: GeoCoordinate, labels: [String: String]) -> String {
-        let parts: [String?] = [coordinate.display, RegionLabel.label(in: labels, for: coordinate)]
-        return parts.compactMap { $0 }.joined(separator: "  ·  ")
-    }
 
     /// 「12 個點 · 循環 · 臺灣 · 臺北市」:整條路線只看第一點的標籤,沒有就只有「12 個點 · 循環」。
     static func route(_ route: SavedRoute, labels: [String: String]) -> String {
@@ -185,10 +186,20 @@ enum LibraryRowText {
         return parts.compactMap { $0 }.joined(separator: RegionLabel.separator)
     }
 
-    /// 「收藏於 2026年9月24日 下午1:40」:前綴、一個半形空白,再接系統語言與時區的中等日期 + 短時間,
+    /// 收藏路線的第三行「儲存於 2026年9月24日 下午1:40」:前綴、一個半形空白,再接系統語言與時區的中等日期 + 短時間,
     /// 和 Android 的 `DateFormat.getDateTimeInstance(MEDIUM, SHORT)` 相同。
     static func saved(_ prefix: String, at date: Date) -> String {
         "\(prefix) \(savedAtFormatter.string(from: date))"
+    }
+
+    /// 收藏位置與定位歷史的第三行「收藏於 2026年9月24日 下午1:40  ·  臺灣 · 臺北市」(歷史是「定位於」)。
+    /// 日期時間和 `saved(_:at:)` 相同;`label` 是 nil 或空白時連同「  ·  」一起省略(`SavedPlaceRowText.timeLine`)。
+    static func saved(_ prefix: String, at date: Date, label: String?) -> String {
+        SavedPlaceRowText.timeLine(
+            prefix: prefix,
+            formattedTime: savedAtFormatter.string(from: date),
+            regionLabel: label
+        )
     }
 
     private static let savedAtFormatter: DateFormatter = {
