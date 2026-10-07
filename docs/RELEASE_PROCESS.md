@@ -150,7 +150,7 @@ python ../GFlyer-Suite/tools/release/release_manifest.py build ios \
 
 ```bash
 git -C ../GFlyer-updates fetch origin
-git -C ../GFlyer-updates rebase origin/main   # Android 也會推這個 repo
+git -C ../GFlyer-updates rebase origin/main   # Android 與每天同步座標圖鑑的 GitHub Actions 也會推這個 repo
 python ../GFlyer-Suite/tools/release/release_manifest.py project \
   <暫存目錄>/release-manifest-ios-0.4.5.json --updates-dir ../GFlyer-updates --dry-run
 python ../GFlyer-Suite/tools/release/release_manifest.py project \
