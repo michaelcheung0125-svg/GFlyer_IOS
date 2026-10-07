@@ -580,4 +580,142 @@ final class CoordinateLibraryTests: XCTestCase {
         XCTAssertEqual(library.teleports["a2"]?.count, 1)
         XCTAssertEqual(library.teleports["a1"]?.count, 1)
     }
+
+    /// 回到前景時每天重新檢查(GFlyer-Suite docs/features/coordinate-library-refresh.md):還沒打開過圖鑑不抓、
+    /// 未滿 24 小時不抓、滿 24 小時抓到新 revision;失敗不顯示訊息、也不算成功,下次回到前景再試。
+    @MainActor
+    func testRefreshIfStaleChecksTheOnlineLibraryAgainOnlyAfterADay() async throws {
+        let suiteName = "gflyer.library-refresh-tests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let cacheDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("gflyer-library-refresh-tests-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: cacheDirectory) }
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [LibraryStubURLProtocol.self]
+        LibraryStubURLProtocol.reset()
+        defer { LibraryStubURLProtocol.reset() }
+        LibraryStubURLProtocol.respond(statusCode: 200, body: Self.remoteLibrary(revision: 5))
+        var now: Int64 = 1_000_000
+        let library = CoordinateLibraryController(
+            repository: CoordinateLibraryRepository(
+                urlString: "https://example.com/coordinates/coordinates.json",
+                session: URLSession(configuration: configuration),
+                cacheDirectory: cacheDirectory
+            ),
+            markStore: CoordinateMarkStore(defaults: defaults),
+            apiClient: MessageBoardAPIClient(baseURLString: ""),
+            monotonicMilliseconds: { now }
+        )
+
+        // 還沒打開過圖鑑:回到前景不抓(第一次打開圖鑑才下載,D9)
+        XCTAssertFalse(library.refreshIfStale())
+        XCTAssertEqual(LibraryStubURLProtocol.requestCount, 0)
+
+        library.loadIfNeeded()
+        for _ in 0..<200 where library.library?.revision != 5 || library.isLoading {
+            try await Task.sleep(nanoseconds: 10_000_000)
+        }
+        XCTAssertEqual(library.library?.revision, 5)
+        XCTAssertEqual(LibraryStubURLProtocol.requestCount, 1)
+
+        // 未滿 24 小時:不抓
+        LibraryStubURLProtocol.respond(statusCode: 200, body: Self.remoteLibrary(revision: 6))
+        now += CoordinateLibraryRefreshPolicy.intervalMilliseconds - 1
+        XCTAssertFalse(library.refreshIfStale())
+
+        // 剛好 24 小時:在背景抓到新的 revision,不顯示訊息
+        now += 1
+        XCTAssertTrue(library.refreshIfStale())
+        for _ in 0..<200 where library.library?.revision != 6 || library.isLoading {
+            try await Task.sleep(nanoseconds: 10_000_000)
+        }
+        XCTAssertEqual(library.library?.revision, 6)
+        XCTAssertEqual(LibraryStubURLProtocol.requestCount, 2)
+        XCTAssertNil(library.errorMessage)
+        XCTAssertFalse(library.refreshIfStale(), "剛成功過")
+
+        // 失敗:不顯示訊息、不算成功,下次回到前景再試
+        LibraryStubURLProtocol.respond(statusCode: 500, body: Data())
+        now += CoordinateLibraryRefreshPolicy.intervalMilliseconds
+        XCTAssertTrue(library.refreshIfStale())
+        for _ in 0..<200 where LibraryStubURLProtocol.requestCount < 3 || library.isLoading {
+            try await Task.sleep(nanoseconds: 10_000_000)
+        }
+        XCTAssertEqual(LibraryStubURLProtocol.requestCount, 3)
+        XCTAssertEqual(library.library?.revision, 6)
+        XCTAssertNil(library.errorMessage)
+
+        LibraryStubURLProtocol.respond(statusCode: 200, body: Self.remoteLibrary(revision: 6))
+        XCTAssertTrue(library.refreshIfStale(), "失敗不算成功,馬上回到前景也再試")
+        for _ in 0..<200 where LibraryStubURLProtocol.requestCount < 4 || library.isLoading {
+            try await Task.sleep(nanoseconds: 10_000_000)
+        }
+        XCTAssertEqual(LibraryStubURLProtocol.requestCount, 4)
+        XCTAssertFalse(library.refreshIfStale())
+    }
+
+    private static func remoteLibrary(revision: Int) -> Data {
+        Data("""
+        {
+          "schemaVersion": 1, "revision": \(revision),
+          "categories": [{"id": "purespot", "name": "純點"}],
+          "coordinates": [{"id": "a1", "categoryId": "purespot", "name": "甲", "lat": 25.0, "lng": 121.5}]
+        }
+        """.utf8)
+    }
+}
+
+/// 座標圖鑑下載用的 URLProtocol:回傳設定好的狀態碼與內容並計算請求次數,不連網路。
+private final class LibraryStubURLProtocol: URLProtocol {
+    private static let lock = NSLock()
+    private static var response: (statusCode: Int, body: Data)?
+    private static var count = 0
+
+    static var requestCount: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return count
+    }
+
+    static func respond(statusCode: Int, body: Data) {
+        lock.lock()
+        defer { lock.unlock() }
+        response = (statusCode, body)
+    }
+
+    static func reset() {
+        lock.lock()
+        defer { lock.unlock() }
+        response = nil
+        count = 0
+    }
+
+    override class func canInit(with request: URLRequest) -> Bool { true }
+
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+
+    override func startLoading() {
+        Self.lock.lock()
+        Self.count += 1
+        let stub = Self.response
+        Self.lock.unlock()
+        guard let url = request.url,
+              let stub,
+              let httpResponse = HTTPURLResponse(
+                  url: url,
+                  statusCode: stub.statusCode,
+                  httpVersion: "HTTP/1.1",
+                  headerFields: nil
+              )
+        else {
+            client?.urlProtocol(self, didFailWithError: URLError(.badServerResponse))
+            return
+        }
+        client?.urlProtocol(self, didReceive: httpResponse, cacheStoragePolicy: .notAllowed)
+        client?.urlProtocol(self, didLoad: stub.body)
+        client?.urlProtocolDidFinishLoading(self)
+    }
+
+    override func stopLoading() {}
 }

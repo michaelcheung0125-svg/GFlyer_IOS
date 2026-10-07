@@ -7,6 +7,26 @@ enum LibraryTab: Equatable, Hashable {
     case category(String)
 }
 
+/// 座標圖鑑回到前景時要不要再檢查線上版（GFlyer-Suite docs/features/coordinate-library-refresh.md 3.2，
+/// fixture contracts/fixtures/coordinate-library/refresh-interval.json；Android 的 CoordinateLibraryRefresh）。
+/// 時間是單調時鐘的毫秒讀數（含休眠），不受使用者改裝置時間影響。
+enum CoordinateLibraryRefreshPolicy {
+    /// 線上版每天更新一次；距離上次成功檢查滿 24 小時才再抓。
+    static let intervalMilliseconds: Int64 = 24 * 60 * 60 * 1_000
+
+    /// 還沒成功過、已滿 24 小時（剛好 24 小時也算）或時鐘倒退時要再檢查。
+    static func isStale(lastSuccessMilliseconds: Int64?, nowMilliseconds: Int64) -> Bool {
+        guard let lastSuccessMilliseconds else { return true }
+        let elapsed = nowMilliseconds - lastSuccessMilliseconds
+        return elapsed < 0 || elapsed >= intervalMilliseconds
+    }
+
+    /// Darwin 的 CLOCK_MONOTONIC 在休眠時也會走（CLOCK_UPTIME_RAW 才不會）。
+    static func systemMilliseconds() -> Int64 {
+        Int64(clock_gettime_nsec_np(CLOCK_MONOTONIC) / 1_000_000)
+    }
+}
+
 @MainActor
 final class CoordinateLibraryController: ObservableObject {
     @Published private(set) var library: CoordinateLibrary?
@@ -24,16 +44,21 @@ final class CoordinateLibraryController: ObservableObject {
     private let repository: CoordinateLibraryRepository
     private let markStore: CoordinateMarkStore
     private let apiClient: MessageBoardAPIClient
+    private let monotonicMilliseconds: () -> Int64
     private var hasLoaded = false
+    /// 這次啟動最後一次成功下載並解析線上版的單調時鐘讀數（毫秒）；只記在記憶體。
+    private var lastSuccessfulCheckMilliseconds: Int64?
 
     init(
         repository: CoordinateLibraryRepository = CoordinateLibraryRepository(),
         markStore: CoordinateMarkStore = CoordinateMarkStore(),
-        apiClient: MessageBoardAPIClient = MessageBoardAPIClient()
+        apiClient: MessageBoardAPIClient = MessageBoardAPIClient(),
+        monotonicMilliseconds: @escaping () -> Int64 = CoordinateLibraryRefreshPolicy.systemMilliseconds
     ) {
         self.repository = repository
         self.markStore = markStore
         self.apiClient = apiClient
+        self.monotonicMilliseconds = monotonicMilliseconds
         favorites = markStore.favorites
         marks = markStore.marks
         teleports = markStore.teleports
@@ -58,12 +83,31 @@ final class CoordinateLibraryController: ObservableObject {
         }
     }
 
+    /// App 回到前景時呼叫（MainView 的 scenePhase 變成 active）：距離上次成功檢查線上版滿 24 小時才在背景再抓，
+    /// 成功失敗都不顯示訊息（GFlyer-Suite docs/features/coordinate-library-refresh.md）。
+    /// 這次啟動還沒打開過圖鑑就不抓，保留「第一次打開圖鑑才下載」（D9）。回傳有沒有開始檢查。
+    @discardableResult
+    func refreshIfStale() -> Bool {
+        guard hasLoaded, !isLoading,
+              CoordinateLibraryRefreshPolicy.isStale(
+                  lastSuccessMilliseconds: lastSuccessfulCheckMilliseconds,
+                  nowMilliseconds: monotonicMilliseconds()
+              )
+        else { return false }
+        Task { [weak self] in
+            await self?.refresh(showErrors: false)
+        }
+        return true
+    }
+
     private func refresh(showErrors: Bool) async {
         guard !isLoading else { return }
         isLoading = true
         defer { isLoading = false }
         do {
             let refreshed = try await repository.refresh()
+            // revision 沒有比較新也算成功；失敗不更新，下次回到前景再試
+            lastSuccessfulCheckMilliseconds = monotonicMilliseconds()
             apply(refreshed)
         } catch {
             if showErrors {

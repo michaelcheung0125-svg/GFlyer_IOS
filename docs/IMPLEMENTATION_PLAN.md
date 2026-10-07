@@ -217,7 +217,13 @@ Exit criterion: a 30-minute foreground route completes without losing the tunnel
   「⏲ 提醒中」. `SharedContractTests` copies
   `coordinate-library/teleport-history.json`; `CoordinateLibraryTests` covers
   0.6.8 data, a corrupt history and the controller listing. Device validation
-  pending
+  pending. Not released yet (2026-10-08): once the library has been opened in
+  this launch, becoming active re-downloads it in the background when the last
+  successful check is at least 24 hours old (`CLOCK_MONOTONIC`, includes
+  sleep), silently, per `docs/features/coordinate-library-refresh.md`; the
+  online JSON itself is regenerated every day by GFlyer-updates.
+  `SharedContractTests` copies `coordinate-library/refresh-interval.json`;
+  `CoordinateLibraryTests` stubs the download to check the 24-hour rule
 - Message-board length limits counted in Unicode code points with Android's
   local messages (`0.6.9`, `docs/features/message-board-limits.md`; the Worker
   with the same limits was deployed on 2026-10-01; covered by

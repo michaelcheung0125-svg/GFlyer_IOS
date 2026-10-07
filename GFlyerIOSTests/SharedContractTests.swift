@@ -2673,4 +2673,29 @@ final class SharedContractTests: XCTestCase {
         XCTAssertEqual(components.queryItems?.first(where: { $0.name == "subject" })?.value, subject)
         XCTAssertEqual(components.queryItems?.first(where: { $0.name == "body" })?.value, body)
     }
+
+    /// contracts/fixtures/coordinate-library/refresh-interval.json(docs/features/coordinate-library-refresh.md 3.2)
+    func testLibraryRefreshIntervalMatchesTheSharedFixture() {
+        XCTAssertEqual(CoordinateLibraryRefreshPolicy.intervalMilliseconds, 86_400_000)
+        let cases: [(name: String, lastSuccess: Int64?, now: Int64, stale: Bool)] = [
+            ("never-succeeded", nil, 5_000, true),
+            ("just-checked", 1_000_000, 1_000_000, false),
+            ("one-millisecond-short-of-a-day", 1_000_000, 87_399_999, false),
+            ("exactly-a-day", 1_000_000, 87_400_000, true),
+            ("several-days", 1_000_000, 260_200_000, true),
+            ("clock-went-backwards", 1_000_000, 999_999, true),
+            ("beyond-32-bit-uptime-short-of-a-day", 9_000_000_000, 9_086_399_999, false),
+            ("beyond-32-bit-uptime-a-day-later", 9_000_000_000, 9_086_400_000, true),
+        ]
+        for testCase in cases {
+            XCTAssertEqual(
+                CoordinateLibraryRefreshPolicy.isStale(
+                    lastSuccessMilliseconds: testCase.lastSuccess,
+                    nowMilliseconds: testCase.now
+                ),
+                testCase.stale,
+                testCase.name
+            )
+        }
+    }
 }

@@ -770,6 +770,17 @@ GFlyerIOS/UI/LibraryViews.swift
   已在 2026-10-01 部署（Worker version `c29f0e54-b672-4005-9c78-bb9c74069404`）。部署前 30 個 🚶 的
   使用者名稱就回 400；部署後 30 個通過長度檢查（假邀請碼回 401「邀請碼無效或已停用」），31 個回 400
   「使用者名稱最多 30 個字元」。0.6.9 留言板字數那一批的實機項目現在可以測。
+- 座標圖鑑的線上版 2026-10-08 起每天香港時間 04:17 由 GFlyer-updates 的 GitHub Actions 自動重新產生
+  （`tools/coordinates/`，GFlyer-Suite `data/README.md`）；已發佈的 iOS 不用改，打開圖鑑時就會拿到新的 revision。
+
+### 0. 尚未發佈：座標圖鑑回到前景時每天重新檢查（2026-10-08，還沒有經過 CI）
+
+GFlyer-Suite `docs/features/coordinate-library-refresh.md`（Android 同一天在 GFlyer `f0bf1f8` 做了同樣的事，也尚未發佈）。
+`CoordinateLibraryController.refreshIfStale()`：`scenePhase` 變成 `.active` 時，這次啟動已經打開過圖鑑、而且距離上次成功下載
+線上版滿 24 小時（`clock_gettime_nsec_np(CLOCK_MONOTONIC)`，含休眠）才在背景再抓，成功失敗都不顯示訊息；沒打開過圖鑑不抓（D9）。
+測試：`SharedContractTests.testLibraryRefreshIntervalMatchesTheSharedFixture`（照抄 fixture `coordinate-library/refresh-interval.json`）、
+`CoordinateLibraryTests.testRefreshIfStaleChecksTheOnlineLibraryAgainOnlyAfterADay`（假的 URLProtocol 數請求次數、注入時鐘）。
+**只在 Windows 用 tree-sitter 解析過，還沒有編譯、沒有跑過測試**，下一次 CI run 是第一次。上機要測的項目見規格第 6 節。
 
 ### 1. iOS `0.6.11`：第一次按 ☆ 就查地名、清單的地名移到時間那一行、聯絡我們（已發佈，尚未實機驗證）
 

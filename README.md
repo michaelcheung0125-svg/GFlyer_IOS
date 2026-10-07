@@ -98,7 +98,10 @@ This is a separate SwiftUI prototype for personal sideloading. It does not modif
   postcards (the same reasons, request and single failure message as Android);
   unlike Android there is no bundled seed, so the first load needs network
   access. The parser keeps JSON booleans and numbers apart like the backup
-  import
+  import. The online JSON is regenerated every day; once the library has been
+  opened, coming back to the app re-downloads it in the background when the
+  last successful check is 24 hours old (GFlyer-Suite
+  `docs/features/coordinate-library-refresh.md`, not released yet)
 - Coordinate-library teleport history and 「隱藏已前往」 like GFlyer Android
   (GFlyer-Suite `docs/features/library-teleport-history.md`): 「傳送」 on a
   library row records the time and a count (「預覽」, an invalid coordinate

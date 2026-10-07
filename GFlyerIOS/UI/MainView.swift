@@ -159,6 +159,7 @@ struct MainView: View {
                 guard phase == .active, !Self.isCapturingScreenshots else { return }
                 messageBoard.refreshInBackground()
                 updateChecker.checkIfDue()
+                coordinateLibrary.refreshIfStale()
             }
             .onChange(of: controller.selectedCoordinate) { _, coordinate in
                 if suppressNextRecenter {
