@@ -6,6 +6,16 @@
 - 原始碼位於 `GFlyerIOS/`；XcodeGen 設定位於 `project.yml`。
 - 不要把 Android Kotlin 檔案、Android build output 或 Android backend 搬回本專案。
 
+## 跨平台功能（改功能前先判斷）
+
+- 這個 App 不是唯一的平台：Android 版在 `C:\Project\GFlyer`（**參考實作**），Windows 版規劃在 GFlyer-Suite 的 `apps/windows/`。跨平台的規格（`docs/features/`）、共用 fixture（`contracts/`）、功能對照表 `docs/PARITY.md`、差異紀錄 `docs/DRIFT.md` 與發佈工具都在 `C:\Project\GFlyer-Suite`。
+- 改任何使用者看得到的功能或資料格式之前，先查 GFlyer-Suite `docs/PARITY.md` 對應的那一列與 `docs/DRIFT.md`：
+  - **平台專屬**（PARITY 標 ➖，例如 LocalDevVPN、Pairing File、DDI、捷徑）：照本檔規則做，不用動 Suite。
+  - **Android 也有這個功能，或會碰到共用格式**（備份、留言板 API、座標圖鑑資料、GPX、`contracts/` 裡的任何東西）：照 `C:\Project\GFlyer-Suite\AGENTS.md` 的流程 —— 先改 `docs/features/` 規格與 `contracts/`，再改這個 App；行為與文字以 Android 為準，使用者看得到的文字三平台一字不差。
+- 讀 Android 的程式碼來對照永遠可以；**要修改 Android 或其他 repo，必須是使用者這次指定的範圍**（`HANDOFF.md` 開頭「唯一工作目錄」那句是寫給單純 iOS 工作的 session）。
+- 改完回報時一定要列出：Android 要不要跟著改、Windows 要不要（目前多半只需寫進規格）、要不要記進 `DRIFT.md`，並問使用者要「現在一起改」還是「先記進 DRIFT」。不要自己決定跳過另一個平台。
+- 跨 repo 的修改在各 repo 各自 commit，後 commit 的一邊在訊息寫出先 commit 那一邊的 hash。
+
 ## 目前目標
 
 - 先完成「裝置級 GPS 模擬」硬性可行性測試，再擴充完整 GFlyer 功能。
