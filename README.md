@@ -174,16 +174,24 @@ update prompts, the app icon, playback fixes, and the clear-simulation
 behaviour described below. The per-version history lives in `HANDOFF.md`; the
 currently published release is listed in the public `altstore.json`.
 
-The current published version is `0.6.10 (23)` (GitHub release `ios-v0.6.10`
-in the public `GFlyer-updates` repository, 2026-10-03). It ports the remaining
-Android items: the ☆ name prompt and saving the simulated position while
-simulating, resuming an interrupted multi-point route with that run's own
-arrival options, the message-board 「N/300」 counters and share-route picker
-text, and Gregorian visit-reminder dates. The owner chose to publish it
-without device testing, so none of these changes has been verified on the
-iPhone yet; the checks are listed in its entry in `HANDOFF.md`.
+The current published version is `0.6.11 (24)` (GitHub release `ios-v0.6.11`
+in the public `GFlyer-updates` repository, 2026-10-08). It follows Android
+(GFlyer-Suite DRIFT D29): the ☆ name prompt is now a 「收藏位置」 sheet that
+looks up an area it has not seen before right away and fills in the place name
+unless the user has already edited the field, favorite and history rows show
+「國家 · 城市」 after the date, and the privacy text says so. It is also the first release with 「聯絡我們」 in Settings › 關於.
+The owner chose to publish it without device testing, so none of these changes
+has been verified on the iPhone yet; the checks are listed in its entry in
+`HANDOFF.md`.
 
-The previous version, `0.6.9 (22)` (2026-09-30), was the first one published
+`0.6.10 (23)` (2026-10-03) ported the remaining Android items: the ☆ name
+prompt and saving the simulated position while simulating, resuming an
+interrupted multi-point route with that run's own arrival options, the
+message-board 「N/300」 counters and share-route picker text, and Gregorian
+visit-reminder dates. It was also published without device testing and has
+not been verified on the iPhone either.
+
+`0.6.9 (22)` (2026-09-30) was the first one published
 with GFlyer-Suite's `tools/release/release_manifest.py`. On 2026-10-01 the
 owner updated the iPhone to it through SideStore and reported that device
 testing passed. That report was not itemized, so it does not close the

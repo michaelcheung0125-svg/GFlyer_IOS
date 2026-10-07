@@ -107,6 +107,54 @@ C:\Project\GFlyer
   - `0.4.0 (6)` 已發佈到公開的 `GFlyer-updates`（release `ios-v0.4.0`）並
     確認可以從 SideStore 來源安裝到實機。來源檔必須維持舊版 AltStore 扁平
     格式，細節見 `docs/ALTSTORE_DISTRIBUTION.md`
+- `0.6.11 (24)`：2026-10-08 發佈到 `GFlyer-updates`（UTC 2026-10-07T19:04:17Z；release `ios-v0.6.11`，來源檔 commit
+  `1f4bc11`，使用教學 `ded36bb`）；IPA 是 CI run `37670130014`（`85b5018`，升版 commit「Version 0.6.11 (24)」，在 `main`）的產物，
+  SHA-256 `2f1ef69922f678a074ac9c3eeb03c863b128b5c37b98868f412d34404561a681`，10,248,477 bytes，`MinimumOSVersion` 17.4，拆開確認 `Assets.car` 與 `AppIcon60x60@2x.png` 都在。
+  程式在 `3eefbf6`（分支 `release-0.6.11-prep`，CI run `37669247211`：執行 287 個單元測試：286 個通過、1 個依條件略過、0 失敗；
+  `main` 也包含這個 commit）。照 Android GFlyer `1798fbe` 移植，規格是 GFlyer-Suite `docs/features/favorite-add.md`（§3.4、第 5 節
+  「iOS 0.6.11 實作重點」）與 `region-labels.md`（§3.3、§3.8、§3.9），GFlyer-Suite DRIFT D29（2026-10-08 使用者實機測試 Android 後的
+  決定）。**使用者決定不做實機測試先發佈，0.6.11 沒有經過實機驗證**；更新說明寫明「這一版還沒經過實機驗證」，並列出請使用者順便測的
+  幾項。Android 0.8.7 仍未發佈（暫緩中；D29 的 Android 部分在 `1798fbe`）。內容：
+  - **☆ 的命名改成 sheet**（`favorite-add.md` §3.3、§3.4）：0.6.10 的系統 alert（`FavoriteNameAlert`）換成新檔
+    `UI/FavoriteNameSheet.swift`，仍用一行 `.modifier(...)` 掛在 `MainView` 原本的位置。`.sheet(item:)`、`.presentationDetents([.medium])`，
+    標題「收藏位置」，「取消」「收藏」在上方工具列（「收藏」永遠可以按）；座標一行、「名稱」小字、`TextField("留空就用座標當名稱")`，
+    打開時不自動取得焦點、不加 `.onSubmit`。往下滑關掉等於「取消」。存的仍是按 ☆ 那一刻記下的座標（`FavoriteNameRequest` 改成
+    `Identifiable`，每按一次 ☆ 是新的 sheet、重新預填）。
+  - **第一次按 ☆ 就查地名**（`region-labels.md` §3.3）：`Services/RegionLookup.swift` 新增 `lookUpUrgently`。那一格沒有快取時插到佇列最前面
+    （最新的優先），仍是同一個 worker、每次請求後等 1.1 秒；同一格在佇列裡最多一筆（已排隊的搬到最前面、換成這次的座標；正在查的就等那一筆）；
+    這次執行被封鎖的格子不送；緊急請求查失敗不封鎖（另記 `urgent` 集合，之後一次一般請求還能再查，那次也失敗才封鎖）；結果交給同一格的
+    所有等待者（`CheckedContinuation`），sheet 關掉不撤回請求，查到的標籤照樣進快取與清單。`SimulationController.favoriteNameLabel(for:)`
+    轉呼叫它；按 ☆ 本身（`favoritePrompt()`）仍只讀快取。
+  - **名稱欄位的填入規則**（`Model/FavoriteAdd.swift`）：`FavoriteNameField` 照 Android 的同名型別，使用者改過文字（包括打了字又刪光）或已經
+    有過地名就鎖住，晚到的地名最多填一次、絕不蓋掉使用者打的字；`FavoriteNameLookup` 同時等反查與 10 秒，先到的決定結果。等待中欄位下方
+    顯示「正在查詢地名…」，查到、查不到或 10 秒後消失。`FavoriteAddTexts` 加 `nameLabel`、`lookingUpHint`。
+  - **收藏與定位歷史的列**（`region-labels.md` §3.8）：第二行只有座標，第三行「收藏於／定位於 <日期時間>  ·  國家 · 城市」，最多兩行、超出
+    從結尾以 … 截斷（新檔 `Model/SavedPlaceRowText.swift` 的 `SavedPlaceRowText.timeLine`；`UI/LibraryViews.swift` 的 `libraryRowLabel` 與
+    `LibraryRowText.saved(_:at:label:)`）。收藏路線的列不變。
+  - **隱私說明**：`README.md` 與 `docs/PROJECT_OVERVIEW.md` 加上第二句（按 ☆ 收藏還沒查過的地點時座標會立刻送去反查，之後按取消也一樣），
+    中文和 Android 一字不差，英文也用 Android 的同一句。
+  - **聯絡我們**（GFlyer-Suite `docs/features/contact-us.md`）：`65328bb`（2026-10-03）在 設定 › 關於 的「使用教學」下面加了「聯絡我們」：
+    打開郵件，收件人 gflyer@jetpiggy.com，標題與內文填好 App 版本、iOS 版本與裝置（`Model/ContactEmail.swift`、`UI/SetupView.swift`）；
+    沒有 App 接 `mailto:` 時複製地址並跳提示，文字和 Android 相同。這個 commit 當時只在 Windows 用 Swift parser 檢查過，**0.6.11 的兩個
+    CI run 是它第一次編譯與跑測試**（`SharedContractTests` 的 `testContactEmailMatchesTheSharedFixture`、
+    `testContactEmailURLCarriesRecipientSubjectAndBody`，照抄 fixture `contact/email.json`）。
+  - 測試：新檔 `FavoriteNameSheetTests`（17 個）、`RegionLookupUrgentTests`（11 個）、`SavedPlaceRowTextTests`（7 個）；`FavoriteAddTests`
+    的預填測試改寫成 `testPrefillIsTheCachedLabelAndOnlyAnUncachedCellIsLookedUpOnce`（有快取的格子不送；沒有快取的格子對按下時的
+    原始座標送一次），`RegionLabelTests` 的清單文字改成新格式。依條件略過的那 1 個在 `VisitReminderFormatTests`（只有它用 `XCTSkipUnless`）。
+  - **尚待驗證**（實機，全部都還沒測；GFlyer-Suite `favorite-add.md` §6、`region-labels.md` §6 的 iOS 項目）：
+    - 收藏：在從來沒查過的地方（例如從沒收藏過的城市）第一次按 ☆：sheet 馬上出現、沒有鍵盤、有「名稱」小字，欄位下方「正在查詢地名…」，
+      一兩秒內欄位填上「國家 · 城市」、提示消失，直接按「收藏」→ 名稱就是那個地名，清單上也有地名；同樣是新地方，地名到之前先開始打字：
+      地名到了也不蓋掉打的字，按「收藏」存的是打的字；打了字又全部刪光：地名到了也不填。
+    - 離線：飛航模式下在沒查過的地方按 ☆：提示很快消失、欄位空白、沒有任何錯誤訊息，按「收藏」→「收藏 <座標>」；同一次執行在同一格
+      再按 ☆，提示一出現就消失；恢復網路、重開 App 後清單補上地名。飛航模式下按 ☆ 後按「取消」，恢復網路後在同一格再按 ☆：會再查並填上。
+    - 取消再打開：在沒查過的地方按 ☆ 後馬上按「取消」（或往下滑關掉，等於取消），過幾秒在同一格再按 ☆：直接預填地名（取消不撤回）。
+    - 其他：App 剛開啟、收藏很多時在新地方按 ☆，地名仍在幾秒內出現；鍵盤出現時欄位與「收藏」不被蓋住（小螢幕 iPhone、橫向）；
+      送出搜尋、結果出來之前按 ☆ 開始打名稱，結果出現後 sheet 和打到一半的字都還在。
+    - 清單：收藏位置與定位歷史每一列是名稱／座標／「收藏於 …  ·  國家 · 城市」（歷史「定位於 …」），在窄的 iPhone 上第三行最多兩行、
+      太長從結尾以 … 截斷，時間一定看得到；收藏路線的列不變。
+    - 聯絡我們：設定 › 關於 ›「聯絡我們」打開「郵件」，收件人 gflyer@jetpiggy.com，標題與內文（App 版本、iOS 版本、裝置）正確、中文沒有亂碼；
+      沒有可以寄電郵的 App 時看到「找不到可以寄電郵的 App，已複製地址 gflyer@jetpiggy.com。」、地址已複製。
+
 - `0.6.10 (23)`：2026-10-03 發佈到 `GFlyer-updates`（UTC 2026-10-02T17:55:14Z；release `ios-v0.6.10`，來源檔 commit
   `c99976b`，使用教學 `c52f568`）；IPA 是 CI run `37043285603`（`af4308b`，升版 commit「Version 0.6.10 (23)」）的產物，
   SHA-256 `054097d76a233d510564f95b18923716278b8c32f4b2260e4d83248107754a9b`，10,198,834 bytes；拆檢有 `Assets.car` 與
@@ -710,26 +758,39 @@ GFlyerIOS/UI/LibraryViews.swift
 
 新對話開始時，先讀取本檔案、`AGENTS.md`、`README.md` 及 `docs/IMPLEMENTATION_PLAN.md`。
 
-目前狀態（2026-10-03）：
+目前狀態（2026-10-08）：
 
-- iOS 最新發佈是 `0.6.10 (23)`（release `ios-v0.6.10`，2026-10-03，見上方「目前已完成」的 0.6.10 段）。
-  使用者決定不做實機測試先發佈，**0.6.10 的改動都還沒有經過實機驗證**（要測的項目見 0.6.10 段的「尚待驗證」）。
-  上一版 `0.6.9 (22)`：使用者 2026-10-01 回報實機測試沒有問題（未逐項回報），所以各版的「尚待驗證」與下面
-  第 2 節都**不能**當成已逐項驗證。
-- Android 最新發佈仍是 0.8.6；0.8.7 已實作、單元測試通過，使用者決定暫緩發佈。
+- iOS 最新發佈是 `0.6.11 (24)`（release `ios-v0.6.11`，2026-10-08，見上方「目前已完成」的 0.6.11 段）。
+  使用者決定不做實機測試先發佈，**0.6.11 的改動都還沒有經過實機驗證**（要測的項目見 0.6.11 段的「尚待驗證」）。
+  上一版 `0.6.10 (23)`（2026-10-03）也是不做實機測試先發佈，**同樣還沒有經過實機驗證**。再上一版 `0.6.9 (22)`：
+  使用者 2026-10-01 回報實機測試沒有問題（未逐項回報），所以各版的「尚待驗證」與下面第 3 節都**不能**當成已逐項驗證。
+- Android 最新發佈仍是 0.8.6；0.8.7 已實作、單元測試通過，使用者決定暫緩發佈。D29 的 Android 部分（GFlyer `1798fbe`）
+  也在 0.8.7 裡，使用者 2026-10-08 在 Samsung SM-S9480（Android 17）上機測試過那個 commit。
 - 留言板 Worker 的 code point 上限（DRIFT D25，GFlyer-Suite `docs/features/message-board-limits.md`）
   已在 2026-10-01 部署（Worker version `c29f0e54-b672-4005-9c78-bb9c74069404`）。部署前 30 個 🚶 的
   使用者名稱就回 400；部署後 30 個通過長度檢查（假邀請碼回 401「邀請碼無效或已停用」），31 個回 400
   「使用者名稱最多 30 個字元」。0.6.9 留言板字數那一批的實機項目現在可以測。
 
-### 1. 第 2 階段：iOS `0.6.10` 從 Android 移植（已發佈，尚未實機驗證）
+### 1. iOS `0.6.11`：第一次按 ☆ 就查地名、清單的地名移到時間那一行、聯絡我們（已發佈，尚未實機驗證）
+
+以 Android 為準（GFlyer-Suite `docs/DRIFT.md` 的 D29，Android GFlyer `1798fbe`）。下面四項已在 `0.6.11 (24)`（2026-10-08）
+發佈，但**都還沒有經過實機驗證**；要測的項目見上方 0.6.11 段的「尚待驗證」：
+
+1. ☆ 的命名從系統 alert 改成「收藏位置」sheet（半高、不自動跳鍵盤、有「名稱」小字）。
+2. 那一格還沒有地名時，按 ☆ 立刻插隊反查（仍守 1.1 秒間隔），sheet 顯示「正在查詢地名…」最多 10 秒，
+   使用者還沒動過欄位才填入一次；隱私說明（`README.md`、`docs/PROJECT_OVERVIEW.md`）加上第二句。
+3. 收藏與定位歷史的列：第三行「收藏於／定位於 <日期時間>  ·  國家 · 城市」，最多兩行（0.6.10 地名在座標那一行）。
+4. 設定 › 關於 的「聯絡我們」（`65328bb`，第一次隨 0.6.11 編譯與發佈）。
+
+### 2. 第 2 階段：iOS `0.6.10` 從 Android 移植（已發佈，尚未實機驗證）
 
 以 Android 為準（GFlyer-Suite `docs/DRIFT.md` 的 D27 與 D22 的殘留）。下面六項已在 `0.6.10 (23)`（2026-10-03）
 發佈，但**都還沒有經過實機驗證**；要測的項目見上方 0.6.10 段的「尚待驗證」：
 
-1. 收藏按鈕先跳「收藏位置」命名對話框，預填快取裡的「國家 · 城市」標籤（0.6.9 不問名稱，直接用預設名稱）。
+1. 收藏按鈕先跳「收藏位置」命名對話框，預填快取裡的「國家 · 城市」標籤（0.6.9 不問名稱，直接用預設名稱）。0.6.11 起
+   對話框是 sheet，沒有快取時會插隊反查（上面第 1 節）。
 2. 模擬中按收藏，存的是最近一次推送成功的模擬位置（按 ☆ 那一刻記下，重複檢查與存檔用同一個座標；0.6.9
-   一律用選取點）。Android 的 `ui/MainScreen.kt:462` 仍不一致，等 Android 暫緩解除後再改。
+   一律用選取點）。Android 也已在 GFlyer `19deca8`（0.8.7，尚未發佈）把按鈕的重複檢查改成同一個座標。
 3. 中斷後恢復多點路線時，用那一趟自己的移動方式、到點動作、手動前進與停留（DRIFT D22 的殘留、Q4），不是恢復
    當下的播放設定；沒有這幾個鍵的 0.6.9 快照照 0.6.9 的做法。
 4. 留言板的 N/300 計數器（I16）。
@@ -737,7 +798,7 @@ GFlyerIOS/UI/LibraryViews.swift
    iPhone 年份會不同）。
 6. 留言板分享路線的選單改成名稱一行 +「N 個座標點」／「N 個座標點，循環」一行（0.6.9 是「名稱 · N 點」）。
 
-### 2. 從來沒有記錄過的實機檢查
+### 3. 從來沒有記錄過的實機檢查
 
 下面每一項都沒有出現在任何實機紀錄裡（`docs/DEVICE_FEASIBILITY_CHECKLIST.md` 到現在整份都是空的）。
 有結果時記到該檔案（完整清除記到 `docs/TROUBLESHOOTING_CASES.md` 案例 4）；失敗時記下失敗階段（pairing、
@@ -772,8 +833,8 @@ Pairing File 內容。
   Android 也能刷新並使用 iOS 分享的內容；管理員發布公告、置頂、設定邀請碼、升級成員及撤銷測試裝置。
   不得把沒有 token 的 HTTP `401` 回應（包括上面部署後的探測）當成互通驗證。
 
-0.6.10 的「尚待驗證」（見上方 0.6.10 段）完全沒有測過；0.6.9 各批列出的「尚待驗證」（見上方 0.6.9 段）也沒有
-逐項回報，可以一起確認。
+0.6.11 與 0.6.10 的「尚待驗證」（見上方 0.6.11、0.6.10 段）完全沒有測過；0.6.9 各批列出的「尚待驗證」（見上方 0.6.9 段）
+也沒有逐項回報，可以一起確認。
 
 ## macOS 建置與依賴
 
@@ -823,7 +884,7 @@ DDI 會在 App 第一次需要時下載到 iOS Application Support，並以 pinn
 最初移植的 UI、移動模式與本機資料功能（commit `eeae6c6`）只有在 GitHub Actions
 workflow 的 `Preview scheme tests` 與 `Idevice unsigned archive` 通過，並在目標
 iPhone 回歸傳送、第二次更新、Stop 清除、單點、多點、探索與搖桿後，才算驗證
-完成。目前位置及背景播放需另外通過「下一個對話應先做什麼」第 2 節與
+完成。目前位置及背景播放需另外通過「下一個對話應先做什麼」第 3 節與
 `docs/DEVICE_FEASIBILITY_CHECKLIST.md` 的實機項目；
 留言板還需通過 Android/iOS 雙向發布、回覆、管理與撤銷 session 測試。
 `0.3.0 (5)` 的播放選項、跨日期提醒、搖桿動力學、GPX、備份、座標圖鑑與
