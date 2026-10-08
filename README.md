@@ -101,7 +101,10 @@ This is a separate SwiftUI prototype for personal sideloading. It does not modif
   import. The online JSON is regenerated every day; once the library has been
   opened, coming back to the app re-downloads it in the background when the
   last successful check is 24 hours old (GFlyer-Suite
-  `docs/features/coordinate-library-refresh.md`, not released yet)
+  `docs/features/coordinate-library-refresh.md`), and when an update adds
+  coordinates the 座標圖鑑 map toolbar button shows a red 「NEW」 until the
+  library is opened (`docs/features/coordinate-library-new-badge.md`); both
+  since `0.6.12`
 - Coordinate-library teleport history and 「隱藏已前往」 like GFlyer Android
   (GFlyer-Suite `docs/features/library-teleport-history.md`): 「傳送」 on a
   library row records the time and a count (「預覽」, an invalid coordinate
