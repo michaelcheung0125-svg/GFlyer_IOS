@@ -10,6 +10,7 @@ struct CoordinateLibraryView: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
+                statusHeader
                 tabChips
                 if !library.subcategories.isEmpty { subcategoryChips }
                 searchField
@@ -66,6 +67,23 @@ struct CoordinateLibraryView: View {
         }
         // 開著時拿到的新座標會直接出現在清單上，關閉時也算看過（coordinate-library-new-badge.md 3.2）
         .onDisappear { library.markNewCoordinatesSeen() }
+    }
+
+    /// 圖鑑頂端的兩行小字，和 Android 一字不差（GFlyer-Suite docs/features/coordinate-library-refresh.md 3.5）：
+    /// 「更新」是資料最後一次有變動的日期，官網沒有新資料時不會變；第二行的最後檢查時間讓人看得出有在檢查。
+    @ViewBuilder
+    private var statusHeader: some View {
+        if let current = library.library {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(CoordinateLibraryStatusText.summary(current))
+                Text(CoordinateLibraryStatusText.checked(library.lastCheckedAt))
+            }
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, Spacing.md)
+            .padding(.top, Spacing.xs)
+        }
     }
 
     private var tabChips: some View {

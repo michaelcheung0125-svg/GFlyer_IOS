@@ -717,6 +717,68 @@ final class CoordinateLibraryTests: XCTestCase {
         XCTAssertFalse(library.hasNewCoordinates)
     }
 
+    /// 圖鑑頂端的「最後檢查」(GFlyer-Suite docs/features/coordinate-library-refresh.md 3.5):成功下載才更新
+    /// (revision 沒有比較新也算)、失敗不變、重新開 App 仍記得。
+    @MainActor
+    func testLastCheckedAtRecordsOnlySuccessfulDownloads() async throws {
+        let suiteName = "gflyer.library-checked-at-tests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let cacheDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("gflyer-library-checked-at-tests-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: cacheDirectory) }
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [LibraryStubURLProtocol.self]
+        let session = URLSession(configuration: configuration)
+        LibraryStubURLProtocol.reset()
+        defer { LibraryStubURLProtocol.reset() }
+        var now = Date(timeIntervalSince1970: 1_791_592_245)
+        func makeController() -> CoordinateLibraryController {
+            CoordinateLibraryController(
+                repository: CoordinateLibraryRepository(
+                    urlString: "https://example.com/coordinates/coordinates.json",
+                    session: session,
+                    cacheDirectory: cacheDirectory
+                ),
+                markStore: CoordinateMarkStore(defaults: defaults),
+                apiClient: MessageBoardAPIClient(baseURLString: ""),
+                wallClock: { now }
+            )
+        }
+        let library = makeController()
+        XCTAssertNil(library.lastCheckedAt)
+
+        LibraryStubURLProtocol.respond(statusCode: 200, body: Self.remoteLibrary(revision: 5))
+        library.loadIfNeeded()
+        for _ in 0..<200 where library.library?.revision != 5 || library.isLoading {
+            try await Task.sleep(nanoseconds: 10_000_000)
+        }
+        XCTAssertEqual(library.library?.revision, 5)
+        XCTAssertEqual(library.lastCheckedAt, now)
+        let firstCheck = now
+
+        // 失敗:不變
+        now = now.addingTimeInterval(3_600)
+        LibraryStubURLProtocol.respond(statusCode: 500, body: Data())
+        library.refreshManually()
+        for _ in 0..<200 where LibraryStubURLProtocol.requestCount < 2 || library.isLoading {
+            try await Task.sleep(nanoseconds: 10_000_000)
+        }
+        XCTAssertEqual(LibraryStubURLProtocol.requestCount, 2)
+        XCTAssertEqual(library.lastCheckedAt, firstCheck)
+
+        // revision 沒有比較新也算檢查過;重新開 App 仍記得
+        now = now.addingTimeInterval(3_600)
+        LibraryStubURLProtocol.respond(statusCode: 200, body: Self.remoteLibrary(revision: 5))
+        library.refreshManually()
+        for _ in 0..<200 where LibraryStubURLProtocol.requestCount < 3 || library.isLoading {
+            try await Task.sleep(nanoseconds: 10_000_000)
+        }
+        XCTAssertEqual(LibraryStubURLProtocol.requestCount, 3)
+        XCTAssertEqual(library.lastCheckedAt, now)
+        XCTAssertEqual(makeController().lastCheckedAt, now)
+    }
+
     private static func remoteLibrary(revision: Int, ids: [String] = ["a1"]) -> Data {
         let coordinates = ids
             .map { #"{"id": "\#($0)", "categoryId": "purespot", "name": "\#($0)", "lat": 25.0, "lng": 121.5}"# }

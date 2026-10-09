@@ -47,6 +47,45 @@ enum CoordinateLibraryNewBadge {
     }
 }
 
+/// 座標圖鑑頂端的兩行小字（GFlyer-Suite docs/features/coordinate-library-refresh.md 3.5，
+/// fixture contracts/fixtures/coordinate-library/status-text.json；Android 的 CoordinateLibraryStatusText）。
+/// 第一行的「更新」是資料最後一次有變動的日期；官網沒有新資料時它不會變，所以另外一行寫最後檢查的時間。
+enum CoordinateLibraryStatusText {
+    /// 第一行：revision、資料的 updatedAt（原樣，空的就省略那一段）、enabled 座標數（不加千分位）。
+    static func summary(revision: Int64, updatedAt: String, count: Int) -> String {
+        var parts = ["revision \(revision)"]
+        if !updatedAt.isEmpty { parts.append("更新 \(updatedAt)") }
+        parts.append("共 \(count) 筆")
+        return parts.joined(separator: " · ")
+    }
+
+    static func summary(_ library: CoordinateLibrary) -> String {
+        summary(revision: library.revision, updatedAt: library.updatedAt, count: library.enabledCoordinates.count)
+    }
+
+    /// 第二行：最後一次成功下載並解析線上版的時間（牆上時鐘、裝置時區，秒捨去）；從來沒成功過另有一句。
+    static func checked(_ checkedAt: Date?, timeZone: TimeZone = .current) -> String {
+        guard let checkedAt else { return "還沒有檢查過線上版" }
+        return "最後檢查 " + formatter(timeZone: timeZone).string(from: checkedAt)
+    }
+
+    private static let formatters = NSCache<NSString, DateFormatter>()
+
+    /// 一定要明確設定 en_US_POSIX、西元曆與時區：不設的話，佛曆／日本曆的 iPhone 會顯示 2569 年或令和年，
+    /// 12 小時制的地區也可能蓋掉 HH（和 LibraryTeleportHistory 的完整時間同一個格式）。
+    private static func formatter(timeZone: TimeZone) -> DateFormatter {
+        let key = NSString(string: timeZone.identifier)
+        if let cached = formatters.object(forKey: key) { return cached }
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.timeZone = timeZone
+        formatter.dateFormat = "yyyy/MM/dd HH:mm"
+        formatters.setObject(formatter, forKey: key)
+        return formatter
+    }
+}
+
 @MainActor
 final class CoordinateLibraryController: ObservableObject {
     @Published private(set) var library: CoordinateLibrary?
@@ -57,6 +96,8 @@ final class CoordinateLibraryController: ObservableObject {
     @Published private(set) var hideTeleported = false
     /// 有還沒看過的新座標：地圖工具列「座標圖鑑」旁顯示「NEW」。
     @Published private(set) var hasNewCoordinates = false
+    /// 最後一次成功下載並解析線上版的時間：圖鑑頂端的「最後檢查」；存在本機，重新開 App 仍在。
+    @Published private(set) var lastCheckedAt: Date?
     @Published var selectedTab: LibraryTab = .favorites
     @Published var selectedSubcategoryID: String?
     @Published var searchText = ""
@@ -67,6 +108,7 @@ final class CoordinateLibraryController: ObservableObject {
     private let markStore: CoordinateMarkStore
     private let apiClient: MessageBoardAPIClient
     private let monotonicMilliseconds: () -> Int64
+    private let wallClock: () -> Date
     private var hasLoaded = false
     /// 這次啟動最後一次成功下載並解析線上版的單調時鐘讀數（毫秒）；只記在記憶體。
     private var lastSuccessfulCheckMilliseconds: Int64?
@@ -75,17 +117,20 @@ final class CoordinateLibraryController: ObservableObject {
         repository: CoordinateLibraryRepository = CoordinateLibraryRepository(),
         markStore: CoordinateMarkStore = CoordinateMarkStore(),
         apiClient: MessageBoardAPIClient = MessageBoardAPIClient(),
-        monotonicMilliseconds: @escaping () -> Int64 = CoordinateLibraryRefreshPolicy.systemMilliseconds
+        monotonicMilliseconds: @escaping () -> Int64 = CoordinateLibraryRefreshPolicy.systemMilliseconds,
+        wallClock: @escaping () -> Date = Date.init
     ) {
         self.repository = repository
         self.markStore = markStore
         self.apiClient = apiClient
         self.monotonicMilliseconds = monotonicMilliseconds
+        self.wallClock = wallClock
         favorites = markStore.favorites
         marks = markStore.marks
         teleports = markStore.teleports
         hideTeleported = markStore.hideTeleported
         hasNewCoordinates = !markStore.newCoordinateIDs.isEmpty
+        lastCheckedAt = markStore.libraryCheckedAt
     }
 
     /// 圖鑑出現與關閉時呼叫：手上的座標都算看過，「NEW」消失（開著時拿到的新資料會直接出現在清單上，
@@ -141,6 +186,12 @@ final class CoordinateLibraryController: ObservableObject {
             let refreshed = try await repository.refresh()
             // revision 沒有比較新也算成功；失敗不更新，下次回到前景再試
             lastSuccessfulCheckMilliseconds = monotonicMilliseconds()
+            // 沒有設定線上網址時 refresh 不連網就回傳手上的資料，那不算檢查（GFlyer-Suite coordinate-library-refresh.md 3.5）
+            if repository.isConfigured {
+                let now = wallClock()
+                markStore.setLibraryCheckedAt(now)
+                lastCheckedAt = now
+            }
             if refreshed.revision > (previous?.revision ?? 0) {
                 rememberNewCoordinates(previous: previous, adopted: refreshed)
             }

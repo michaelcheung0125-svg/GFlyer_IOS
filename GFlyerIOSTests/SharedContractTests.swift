@@ -2699,6 +2699,43 @@ final class SharedContractTests: XCTestCase {
         }
     }
 
+    /// contracts/fixtures/coordinate-library/status-text.json(docs/features/coordinate-library-refresh.md 3.5)
+    func testLibraryStatusTextMatchesTheSharedFixture() throws {
+        let summaries: [(name: String, revision: Int64, updatedAt: String, count: Int, expected: String)] = [
+            ("online-library", 5, "2026-10-08", 7207, "revision 5 · 更新 2026-10-08 · 共 7207 筆"),
+            ("no-thousands-separator", 12, "2026-12-01", 12345, "revision 12 · 更新 2026-12-01 · 共 12345 筆"),
+            ("empty-updated-at-is-left-out", 3, "", 0, "revision 3 · 共 0 筆"),
+        ]
+        for testCase in summaries {
+            XCTAssertEqual(
+                CoordinateLibraryStatusText.summary(
+                    revision: testCase.revision,
+                    updatedAt: testCase.updatedAt,
+                    count: testCase.count
+                ),
+                testCase.expected,
+                testCase.name
+            )
+        }
+        let checked: [(name: String, epochMs: Int64?, timeZone: String, expected: String)] = [
+            ("never-checked", nil, "Asia/Hong_Kong", "還沒有檢查過線上版"),
+            ("hong-kong-drops-seconds", 1_791_592_245_000, "Asia/Hong_Kong", "最後檢查 2026/10/10 08:30"),
+            ("hong-kong-just-after-midnight", 1_790_784_300_000, "Asia/Hong_Kong", "最後檢查 2026/10/01 00:05"),
+            ("new-york-daylight-saving", 1_791_592_245_000, "America/New_York", "最後檢查 2026/10/09 20:30"),
+            ("utc", 1_791_592_245_000, "UTC", "最後檢查 2026/10/10 00:30"),
+            ("new-year-in-hong-kong", 1_798_732_800_000, "Asia/Hong_Kong", "最後檢查 2027/01/01 00:00"),
+        ]
+        for testCase in checked {
+            let timeZone = try XCTUnwrap(TimeZone(identifier: testCase.timeZone), testCase.name)
+            let date = testCase.epochMs.map { Date(timeIntervalSince1970: TimeInterval($0) / 1_000) }
+            XCTAssertEqual(
+                CoordinateLibraryStatusText.checked(date, timeZone: timeZone),
+                testCase.expected,
+                testCase.name
+            )
+        }
+    }
+
     /// contracts/fixtures/coordinate-library/new-badge.json(docs/features/coordinate-library-new-badge.md 3.1)
     func testLibraryNewBadgeMatchesTheSharedFixture() {
         XCTAssertEqual(CoordinateLibraryNewBadge.text, "NEW")

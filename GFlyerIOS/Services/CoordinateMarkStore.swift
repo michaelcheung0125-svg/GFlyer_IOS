@@ -17,6 +17,8 @@ final class CoordinateMarkStore {
     private let hideTeleportedKey = "gflyer.coordinate-hide-teleported.v1"
     /// 還沒看過的新座標 id，同樣用自己的鍵（GFlyer-Suite docs/features/coordinate-library-new-badge.md 3.4）。
     private let newCoordinatesKey = "gflyer.coordinate-new-ids.v1"
+    /// 最後一次成功下載並解析線上版的時間，epoch 秒（GFlyer-Suite docs/features/coordinate-library-refresh.md 3.5）。
+    private let libraryCheckedAtKey = "gflyer.coordinate-library-checked-at.v1"
     private var snapshot: Snapshot
 
     private(set) var favorites: Set<String>
@@ -26,6 +28,8 @@ final class CoordinateMarkStore {
     private(set) var hideTeleported: Bool
     /// 地圖工具列「座標圖鑑」旁的「NEW」：不是空的就顯示，打開圖鑑就清空。
     private(set) var newCoordinateIDs: Set<String>
+    /// 圖鑑頂端的「最後檢查」；從來沒成功過是 nil。
+    private(set) var libraryCheckedAt: Date?
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
@@ -40,6 +44,8 @@ final class CoordinateMarkStore {
         teleports = LibraryTeleportHistory.decode(defaults.data(forKey: teleportsKey))
         hideTeleported = defaults.bool(forKey: hideTeleportedKey)
         newCoordinateIDs = Set(defaults.stringArray(forKey: newCoordinatesKey) ?? [])
+        libraryCheckedAt = (defaults.object(forKey: libraryCheckedAtKey) as? Double)
+            .map { Date(timeIntervalSince1970: $0) }
     }
 
     /// 回傳切換後是否為最愛。
@@ -95,6 +101,11 @@ final class CoordinateMarkStore {
     func setNewCoordinateIDs(_ ids: Set<String>) {
         newCoordinateIDs = ids
         defaults.set(ids.sorted(), forKey: newCoordinatesKey)
+    }
+
+    func setLibraryCheckedAt(_ date: Date) {
+        libraryCheckedAt = date
+        defaults.set(date.timeIntervalSince1970, forKey: libraryCheckedAtKey)
     }
 
     private func persistTeleports() {
