@@ -229,7 +229,12 @@ Exit criterion: a 30-minute foreground route completes without losing the tunnel
   `docs/features/coordinate-library-new-badge.md`. `SharedContractTests`
   copies `coordinate-library/refresh-interval.json` and `new-badge.json`;
   `CoordinateLibraryTests` stubs the download to check the 24-hour rule and
-  the badge
+  the badge. `0.6.13` (2026-10-10, device validation pending) adds the two
+  status lines at the top of the library (spec 3.5): the summary and
+  「最後檢查 yyyy/MM/dd HH:mm」 from the last successful download, stored in
+  UserDefaults `gflyer.coordinate-library-checked-at.v1`; `SharedContractTests`
+  copies `status-text.json` and `CoordinateLibraryTests` checks success,
+  failure and restart
 - Message-board length limits counted in Unicode code points with Android's
   local messages (`0.6.9`, `docs/features/message-board-limits.md`; the Worker
   with the same limits was deployed on 2026-10-01; covered by

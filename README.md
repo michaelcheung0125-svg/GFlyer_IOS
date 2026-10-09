@@ -104,7 +104,9 @@ This is a separate SwiftUI prototype for personal sideloading. It does not modif
   `docs/features/coordinate-library-refresh.md`), and when an update adds
   coordinates the 座標圖鑑 map toolbar button shows a red 「NEW」 until the
   library is opened (`docs/features/coordinate-library-new-badge.md`); both
-  since `0.6.12`
+  since `0.6.12`. Since `0.6.13` the library starts with the same two lines as
+  Android: the revision, data date and count, and 「最後檢查」 with the time of
+  the last successful download, so an unchanged site still shows it checked
 - Coordinate-library teleport history and 「隱藏已前往」 like GFlyer Android
   (GFlyer-Suite `docs/features/library-teleport-history.md`): 「傳送」 on a
   library row records the time and a count (「預覽」, an invalid coordinate

@@ -107,7 +107,17 @@ C:\Project\GFlyer
   - `0.4.0 (6)` 已發佈到公開的 `GFlyer-updates`（release `ios-v0.4.0`）並
     確認可以從 SideStore 來源安裝到實機。來源檔必須維持舊版 AltStore 扁平
     格式，細節見 `docs/ALTSTORE_DISTRIBUTION.md`
-- `0.6.12 (25)`：2026-10-08 發佈到 `GFlyer-updates`（UTC 2026-10-08T00:03:18Z；release `ios-v0.6.12`，來源檔 commit
+- `0.6.13 (26)`：2026-10-10 發佈到 `GFlyer-updates`（UTC 2026-10-09T23:10:48Z；release `ios-v0.6.13`，來源檔 commit
+  `5142e46`）；IPA 是 CI run `38002512691`（`0ba45f8`，升版 commit「Version 0.6.13 (26)」，在 `main`）的產物，
+  SHA-256 `d2168375ad0fceb222a94630a23990e856de98eff18b0d1dfda77c4244c4980b`，10,271,513 bytes，`MinimumOSVersion` 17.4，
+  拆開確認 `Assets.car` 與 `AppIcon60x60@2x.png` 都在；從公開網址下載回來的雜湊相同。CI 執行 293 個單元測試：292 個通過、
+  1 個依條件略過、0 失敗。和 Android 0.8.8 同一天發佈。**使用者選了要發新版，沒有經過實機驗證**；App 介紹不用改。內容：
+  - **圖鑑頂端兩行小字**（`f0ec702`，GFlyer-Suite `docs/features/coordinate-library-refresh.md` 3.5，照 Android GFlyer `847a13e`）：
+    「revision 5 · 更新 2026-10-08 · 共 7207 筆」與「最後檢查 yyyy/MM/dd HH:mm」（從來沒成功過是「還沒有檢查過線上版」）。
+    最後一次成功下載並解析線上版的時間存在 UserDefaults `gflyer.coordinate-library-checked-at.v1`。起因是使用者 2026-10-10
+    回報「過了兩天資料仍是 10 月 8 日」：官網沒有新座標，顯示的是資料最後一次有變動的日期，看起來像沒在更新。
+  - 線上版同一天改成每 6 小時同步（GFlyer-updates `406c367`），不用 App 改。
+- `0.6.12 (25)`：2026-10-08 發佈到 `GFlyer-updates`（UTC 2026-10-08T00:03:46Z；release `ios-v0.6.12`，來源檔 commit
   `da26cdc`）；IPA 是 CI run `37686634952`（`9fdc0f9`，升版 commit「Version 0.6.12 (25)」，在 `main`）的產物，
   SHA-256 `117fec1863c6eab32f674b6476f0d82a185b3c660340ba00e5d666fa4f43c885`，10,263,057 bytes，`MinimumOSVersion` 17.4，
   拆開確認 `Assets.car` 與 `AppIcon60x60@2x.png` 都在；從公開網址下載回來的雜湊相同。CI 執行 291 個單元測試：290 個通過、
@@ -767,20 +777,24 @@ GFlyerIOS/UI/LibraryViews.swift
 
 新對話開始時，先讀取本檔案、`AGENTS.md`、`README.md` 及 `docs/IMPLEMENTATION_PLAN.md`。
 
-目前狀態（2026-10-08）：
+目前狀態（2026-10-10）：
 
-- iOS 最新發佈是 `0.6.12 (25)`（release `ios-v0.6.12`，2026-10-08，見上方「目前已完成」的 0.6.12 段），使用者要求直接發佈，
-  **0.6.12 的改動沒有經過實機驗證**（要測的項目見下面第 0 節）。上兩版 `0.6.11 (24)`（2026-10-08）與 `0.6.10 (23)`（2026-10-03）
+- iOS 最新發佈是 `0.6.13 (26)`（release `ios-v0.6.13`，2026-10-10，見上方「目前已完成」的 0.6.13 段），**沒有經過實機驗證**；
+  上一版 `0.6.12 (25)`（2026-10-08）也是使用者要求直接發佈，**0.6.12 的改動沒有經過實機驗證**（要測的項目見下面第 0 節）。
+  再上兩版 `0.6.11 (24)`（2026-10-08）與 `0.6.10 (23)`（2026-10-03）
   也是不做實機測試先發佈，**同樣還沒有經過實機驗證**。再上一版 `0.6.9 (22)`：
   使用者 2026-10-01 回報實機測試沒有問題（未逐項回報），所以各版的「尚待驗證」與下面第 3 節都**不能**當成已逐項驗證。
-- Android `0.8.7 (38)` 2026-10-08 已發佈（GFlyer-updates release `v0.8.7`，`latest.json` commit `448e9b5`；程式到 GFlyer `66752f7`），
-  和 iOS 0.6.12 同一天。D29 的 Android 部分（GFlyer `1798fbe`）使用者 2026-10-08 在 Samsung SM-S9480（Android 17）上機測試過；
+- Android 最新發佈是 `0.8.8 (39)`（2026-10-10，GFlyer-updates release `v0.8.8`，`latest.json` commit `9bae666`；程式到 GFlyer `3a8e9bc`），
+  和 iOS 0.6.13 同一天：圖鑑頂端的最後檢查時間、懸浮列剪貼簿清單按「前往」只拿掉那一個（Android 專屬）、使用者自己的找菇改善；
+  沒有上機驗證（找菇那一個使用者實機測過）。上一版 `0.8.7 (38)` 2026-10-08 發佈（release `v0.8.7`，`latest.json` commit `448e9b5`；
+  程式到 GFlyer `66752f7`），和 iOS 0.6.12 同一天。D29 的 Android 部分（GFlyer `1798fbe`）使用者 2026-10-08 在 Samsung SM-S9480（Android 17）上機測試過；
   座標圖鑑每天重新檢查與「NEW」那兩個 commit 發佈前沒有連接手機，**沒有上機驗證**。
 - 留言板 Worker 的 code point 上限（DRIFT D25，GFlyer-Suite `docs/features/message-board-limits.md`）
   已在 2026-10-01 部署（Worker version `c29f0e54-b672-4005-9c78-bb9c74069404`）。部署前 30 個 🚶 的
   使用者名稱就回 400；部署後 30 個通過長度檢查（假邀請碼回 401「邀請碼無效或已停用」），31 個回 400
   「使用者名稱最多 30 個字元」。0.6.9 留言板字數那一批的實機項目現在可以測。
-- 座標圖鑑的線上版 2026-10-08 起每天香港時間 04:17 由 GFlyer-updates 的 GitHub Actions 自動重新產生
+- 座標圖鑑的線上版由 GFlyer-updates 的 GitHub Actions 自動重新產生：2026-10-08 起每天香港時間 04:17，2026-10-10 起每 6 小時
+  （香港時間 02:17、08:17、14:17、20:17；一天一次時 GitHub 的排程晚了好幾小時）
   （`tools/coordinates/`，GFlyer-Suite `data/README.md`）；已發佈的 iOS 不用改，打開圖鑑時就會拿到新的 revision。
 
 ### 0. iOS `0.6.12`：座標圖鑑每天重新檢查、有新座標時的「NEW」（已發佈，尚未實機驗證）
@@ -795,7 +809,8 @@ GFlyerIOS/UI/LibraryViews.swift
    enabled 座標記成「未看過」（UserDefaults `gflyer.coordinate-new-ids.v1`），地圖工具列「座標圖鑑」按鈕右上角顯示紅色「NEW」，
    圖鑑出現與關閉時清空；第一次下載、只有刪除或修改的更新不亮。
 
-要測的項目見兩份規格的第 6 節。「NEW」要等線上版真的多了座標才會亮（每天香港時間 04:17 的自動更新）。
+要測的項目見兩份規格的第 6 節。「NEW」要等線上版真的多了座標才會亮（每 6 小時的自動更新）。
+0.6.13 加的圖鑑頂端兩行小字（最後檢查時間）也還沒有實機驗證，要測的項目見 `coordinate-library-refresh.md` 第 6 節的 3.5。
 
 ### 1. iOS `0.6.11`：第一次按 ☆ 就查地名、清單的地名移到時間那一行、聯絡我們（已發佈，尚未實機驗證）
 
