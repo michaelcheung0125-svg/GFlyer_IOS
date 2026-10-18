@@ -52,7 +52,7 @@ SwiftUI / MapKit
         <-> GFlyer Android message board
 ```
 
-The platform boundary must remain narrow. Route planning, GPX, favorites, history, speed, cooldown, and joystick behavior must not call `idevice` directly.
+The platform boundary must remain narrow. Route planning, GPX, favorites, history, speed, and joystick behavior must not call `idevice` directly.
 The message-board client is a separate Internet boundary: it receives only its
 own authentication and post payloads and must never receive Pairing File, DDI,
 signing, CoreDevice, or location-transport secrets.
@@ -242,7 +242,6 @@ Exit criterion: a 30-minute foreground route completes without losing the tunnel
 - Interrupted-session resume: periodic active-session snapshots with a
   10-minute expiry and a relaunch resume prompt (implemented in `0.3.0 (5)`;
   validation pending)
-- Cooldown timer
 - Route polyline editing and waypoint reorder
 
 Exit criterion: behavior matches the existing Android model tests where the platform does not impose a different constraint.

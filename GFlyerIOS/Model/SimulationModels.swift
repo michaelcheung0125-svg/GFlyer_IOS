@@ -844,19 +844,3 @@ enum ExplorationTexts {
         return value < 0 ? "-" + grouped : grouped
     }
 }
-
-enum CooldownEstimator {
-    static func estimateSeconds(distanceMetres: Double) -> Int {
-        switch distanceMetres {
-        case ..<1_000: return 30
-        case ..<5_000: return 120
-        case ..<10_000: return 300
-        case ..<25_000: return 600
-        case ..<100_000: return 1_800
-        case ..<250_000: return 2_700
-        case ..<500_000: return 3_600
-        case ..<1_000_000: return 5_400
-        default: return 7_200
-        }
-    }
-}
