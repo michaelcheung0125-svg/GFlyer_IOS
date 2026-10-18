@@ -271,10 +271,10 @@ final class RegionLabelTests: XCTestCase {
         XCTAssertEqual(request.value(forHTTPHeaderField: "Accept"), "application/json")
         // connectTimeoutMillis 與 readTimeoutMillis 都是 8000;URLRequest 只有一個逾時,兩段都受它限制
         XCTAssertEqual(request.timeoutInterval, 8)
-        // fixture 不釘 User-Agent 的值,只要求一定要有;iOS 沿用 AppUpdateChecker 的寫法
+        // fixture 不釘 User-Agent 的值,只要求一定要有;規格 §3.4 寫出 iOS 的寫法(附上聯絡電郵)
         XCTAssertEqual(request.value(forHTTPHeaderField: "User-Agent"), "GFlyer/0.6.9 (iOS)")
         let version = try XCTUnwrap(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String)
-        XCTAssertEqual(RegionLabel.userAgent(), "GFlyer/\(version) (iOS)")
+        XCTAssertEqual(RegionLabel.userAgent(), "GFlyer/\(version) (iOS; +gflyer@jetpiggy.com)")
     }
 
     // MARK: - 佇列與快取

@@ -346,8 +346,8 @@ Exit criterion: a 30-minute route continues while another App is in the foregrou
   requests.
 - Send only favorite coordinates and the first point of each saved route to
   OpenStreetMap Nominatim for the country · city labels, one request at a time
-  with at least 1.1 s between requests and the `GFlyer/<version> (iOS)`
-  User-Agent; never send history. Keep the results only in
+  with at least 1.1 s between requests and the
+  `GFlyer/<version> (iOS; +gflyer@jetpiggy.com)` User-Agent; never send history. Keep the results only in
   `gflyer.region-labels.v1`, never in the backup file, and keep README's
   privacy sentence (GFlyer-Suite `docs/features/region-labels.md` §3.9) true.
 - Do not include anti-detection or third-party client modification features.

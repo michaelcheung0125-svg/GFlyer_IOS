@@ -25,11 +25,12 @@ enum RegionLabel {
         labels[key(for: coordinate)]
     }
 
-    /// `GFlyer/<版本> (iOS)`,和 `AppUpdateChecker` 相同。Nominatim 的規範要求能辨識 App,
-    /// 不能用 URLSession 預設的 User-Agent。
+    /// `GFlyer/<版本> (iOS; +gflyer@jetpiggy.com)`。Nominatim 的規範要求能辨識 App、最好附上聯絡方式,
+    /// 不能用 URLSession 預設的 User-Agent。Android 是 `GFlyer/<版本> (+gflyer@jetpiggy.com)`
+    /// (GFlyer-Suite docs/features/region-labels.md 3.4)。
     static func userAgent(bundle: Bundle = .main) -> String {
         let version = bundle.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0"
-        return "GFlyer/\(version) (iOS)"
+        return "GFlyer/\(version) (iOS; +\(ContactEmail.address))"
     }
 
     /// `GET https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=10&accept-language=zh-TW&lat=…&lon=…`。

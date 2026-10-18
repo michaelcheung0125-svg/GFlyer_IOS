@@ -324,7 +324,7 @@ in an area that has not been looked up yet, that coordinate is sent to
 Nominatim right away to prefill the name, even if you then cancel. The results
 are stored only on the device and are not included in backup files. Each
 request carries only that coordinate, the fixed language `zh-TW` and the
-`GFlyer/<version> (iOS)` User-Agent; history entries are never sent. This is
+`GFlyer/<version> (iOS; +gflyer@jetpiggy.com)` User-Agent; history entries are never sent. This is
 the only feature that contacts Nominatim: place search uses Apple's MapKit.
 
 ## macOS prerequisites
