@@ -2623,6 +2623,77 @@ final class SharedContractTests: XCTestCase {
         }
     }
 
+    /// contracts/fixtures/cross-date/warning-text.json(docs/features/cross-date-warning.md)
+    func testCrossDateWarningTextMatchesTheSharedFixture() throws {
+        XCTAssertEqual(CrossDateWarningText.title, "跨日時區提醒")
+        XCTAssertEqual(CrossDateWarningText.summary, "目的地日期以經度估算，與手機目前日期不同，可能會跨日。")
+        XCTAssertEqual(CrossDateWarningText.confirmButton, "仍要傳送")
+        XCTAssertEqual(CrossDateWarningText.cancelButton, "取消")
+        XCTAssertEqual(CrossDateWarningText.settingTitle, "跨日時區提示")
+        XCTAssertEqual(CrossDateWarningText.settingDescription, "傳送前比較手機與目的地的當地日期")
+
+        let longitudeOffsets: [(longitude: Double, minutes: Int)] = [
+            (114.1694, 480), (0.0, 0), (-150.0, -600), (7.4, 0), (7.5, 60), (-7.5, 0), (-7.6, -60),
+            (172.4, 660), (172.5, 840), (179.0, 840), (-172.5, -720), (-179.0, -720),
+        ]
+        for testCase in longitudeOffsets {
+            XCTAssertEqual(
+                LongitudeTimeZoneEstimator.offsetMinutes(longitude: testCase.longitude),
+                testCase.minutes,
+                "longitude=\(testCase.longitude)"
+            )
+        }
+
+        let offsetTexts: [(minutes: Int, text: String)] = [
+            (480, "GMT+08:00"), (0, "GMT+00:00"), (-600, "GMT-10:00"), (840, "GMT+14:00"),
+            (-720, "GMT-12:00"), (330, "GMT+05:30"), (-570, "GMT-09:30"),
+        ]
+        for testCase in offsetTexts {
+            XCTAssertEqual(CrossDateWarningText.offsetText(minutes: testCase.minutes), testCase.text, "minutes=\(testCase.minutes)")
+        }
+
+        let cases: [(name: String, instant: String, deviceTimeZone: String, latitude: Double, longitude: Double,
+                     offsetMinutes: Int?, lines: [String]?)] = [
+            ("taipei-to-hawaii-previous-day", "2026-08-31T20:00:00Z", "Asia/Taipei", 21.3, -150.0, -600, [
+                "目的地日期以經度估算，與手機目前日期不同，可能會跨日。",
+                "手機：2026年9月1日 · Asia/Taipei",
+                "目的地（估算）：2026年8月31日 · GMT-10:00",
+                "目的地座標 21.300000, -150.000000",
+            ]),
+            ("hong-kong-to-london-zero-offset", "2026-10-19T17:00:00Z", "Asia/Hong_Kong", 51.5074, -0.1278, 0, [
+                "目的地日期以經度估算，與手機目前日期不同，可能會跨日。",
+                "手機：2026年10月20日 · Asia/Hong_Kong",
+                "目的地（估算）：2026年10月19日 · GMT+00:00",
+                "目的地座標 51.507400, -0.127800",
+            ]),
+            ("los-angeles-across-the-date-line", "2026-10-19T05:00:00Z", "America/Los_Angeles", -17.7134, 178.065, 840, [
+                "目的地日期以經度估算，與手機目前日期不同，可能會跨日。",
+                "手機：2026年10月18日 · America/Los_Angeles",
+                "目的地（估算）：2026年10月19日 · GMT+14:00",
+                "目的地座標 -17.713400, 178.065000",
+            ]),
+            ("same-date-no-warning", "2026-08-31T20:00:00Z", "Asia/Taipei", 25.0, 121.5, nil, nil),
+        ]
+        let formatter = ISO8601DateFormatter()
+        for testCase in cases {
+            let now = try XCTUnwrap(formatter.date(from: testCase.instant), testCase.name)
+            let deviceZone = try XCTUnwrap(TimeZone(identifier: testCase.deviceTimeZone), testCase.name)
+            let warning = CrossDateChecker.warning(
+                destination: GeoCoordinate(latitude: testCase.latitude, longitude: testCase.longitude),
+                now: now,
+                deviceTimeZone: deviceZone
+            )
+            guard let expectedLines = testCase.lines else {
+                XCTAssertNil(warning, testCase.name)
+                continue
+            }
+            let unwrapped = try XCTUnwrap(warning, testCase.name)
+            XCTAssertEqual(unwrapped.destinationUTCOffsetMinutes, testCase.offsetMinutes, testCase.name)
+            XCTAssertEqual(CrossDateWarningText.lines(for: unwrapped), expectedLines, testCase.name)
+            XCTAssertEqual(CrossDateWarningText.message(for: unwrapped), expectedLines.joined(separator: "\n"), testCase.name)
+        }
+    }
+
     /// contracts/fixtures/contact/email.json(docs/features/contact-us.md)
     func testContactEmailMatchesTheSharedFixture() {
         XCTAssertEqual(ContactEmail.address, "gflyer@jetpiggy.com")

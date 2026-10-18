@@ -436,7 +436,12 @@ struct SetupView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
-            Toggle("跨日期傳送提醒", isOn: playbackBinding(\.crossDateWarningEnabled))
+            VStack(alignment: .leading, spacing: Spacing.xs) {
+                Toggle(CrossDateWarningText.settingTitle, isOn: playbackBinding(\.crossDateWarningEnabled))
+                Text(CrossDateWarningText.settingDescription)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
             Picker("搖桿速度上限", selection: playbackBinding(\.joystickMaxSpeedKilometresPerHour)) {
                 ForEach(PlaybackSettings.joystickMaxSpeedOptions, id: \.self) { speed in
                     Text("\(speed) km/h").tag(speed)

@@ -70,14 +70,14 @@ struct MainView: View {
                     Text(controller.lastError ?? "未知錯誤")
                 }
                 .alert(
-                    "跨日期提醒",
+                    CrossDateWarningText.title,
                     isPresented: crossDateAlertBinding,
                     presenting: controller.pendingCrossDateWarning
                 ) { _ in
-                    Button("仍要傳送") { controller.confirmCrossDateStart() }
-                    Button("取消", role: .cancel) { controller.cancelCrossDateStart() }
+                    Button(CrossDateWarningText.confirmButton) { controller.confirmCrossDateStart() }
+                    Button(CrossDateWarningText.cancelButton, role: .cancel) { controller.cancelCrossDateStart() }
                 } message: { warning in
-                    Text(Self.crossDateMessage(for: warning))
+                    Text(CrossDateWarningText.message(for: warning))
                 }
                 .alert(
                     "有新版本",
@@ -400,10 +400,6 @@ struct MainView: View {
             },
             set: { if !$0 { controller.dismissArrivalRulesNotice() } }
         )
-    }
-
-    private static func crossDateMessage(for warning: CrossDateWarning) -> String {
-        "目的地當地日期約為 \(warning.destinationDateText)，與本機日期 \(warning.deviceDateText) 不同。部分遊戲的每日任務或獎勵可能受影響。"
     }
 
     private func updateMessage(for update: AvailableUpdate) -> String {

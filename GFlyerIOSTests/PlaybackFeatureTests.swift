@@ -24,8 +24,8 @@ final class PlaybackFeatureTests: XCTestCase {
             deviceTimeZone: deviceZone
         )
         let unwrapped = try XCTUnwrap(warning)
-        XCTAssertEqual(unwrapped.deviceDateText, "2026-09-01")
-        XCTAssertEqual(unwrapped.destinationDateText, "2026-08-31")
+        XCTAssertEqual(unwrapped.deviceDateText, "2026年9月1日")
+        XCTAssertEqual(unwrapped.destinationDateText, "2026年8月31日")
         XCTAssertEqual(unwrapped.destinationUTCOffsetMinutes, -600)
 
         XCTAssertNil(
