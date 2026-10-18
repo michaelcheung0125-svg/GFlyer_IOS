@@ -416,7 +416,7 @@ struct SetupView: View {
                 }
                 Text(controller.playbackSettings.startDelaySeconds == 0
                      ? "按「開始」後立即啟動多點路線。"
-                     : "按「開始」後倒數 \(controller.playbackSettings.startDelaySeconds) 秒才啟動，方便切回遊戲畫面。")
+                     : "按「開始」後倒數 \(controller.playbackSettings.startDelaySeconds) 秒才啟動，方便切換到要測試的 App。")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
