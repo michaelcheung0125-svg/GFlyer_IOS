@@ -50,7 +50,6 @@
 
 | # | 待辦 | 為甚麼和怎樣做 | 做完的標準 |
 |---|---|---|---|
-| 2 | 升級 idevice 的釘選版本（2026-10-20 升到 `3854a5d`，`0944cb4`，CI 已過；0.6.15 已發佈，等實機） | 現在釘的 `37ee77c`（2026-08-07）之後，上游加了配對的取消（`393b438`），也修了配對資料的解碼（`6fb49ae`） | `scripts/build_idevice.sh` 和 `THIRD_PARTY_NOTICES.md` 的 revision 一起更新；現有的定位模擬在實機照常 |
 | 3 | 配對主機的 FFI：Rust 只管配對，廣播交給 Swift | 上游的 `pairable_host_accept()` 用 Rust 的 `mdns_sd` 自己送 multicast 封包。iOS App 送 multicast 要 Apple 個別核准的 multicast 權限，免費 Apple ID 也拿不到。StikPair 為了同一個原因把廣播改到 Swift，但它的授權禁止商業用途，不抄它的程式。做法：在 `scripts/build_idevice.sh` 建置時加入 GFlyer 自己的 FFI 函式，不改上游的檔案。它綁好 TCP port、產生 service identifier 和 TXT（含 `authTag`），用 callback 交給 Swift，再等裝置連入，可以取消。只有 iOS 用得到，所以放在這個 repo，不放 GFlyer-Suite 的 `native/idevice/` | CI 建出的 `libidevice_ffi.a` 有新函式，App 連結成功 |
 | 4 | Swift 的配對流程 | 用 `NetService` 廣播 `_remotepairing-pairable-host._tcp`；`Info.plist` 加 `NSBonjourServices`，並改寫本機網路的說明（現在只提 LocalDevVPN）。PIN 用本機通知顯示，使用者在「設定」裏就看得到，不用切回 App。使用者切去「設定」時，用 `BGContinuedProcessingTask`（iOS 26 起）讓 App 繼續等待，不用無聲音訊之類的做法（審查指南 2.5.4）。有逾時和取消；入口只在 iOS 27 以上出現 | iOS 27 實機上，「設定」的開發者模式頁列出 GFlyer，輸入 PIN 後配對成功 |
 | 5 | 存檔和匯出 | 配對成功後寫進 `PairingFileStore` 的同一個位置，檔案保護和手動匯入相同；新的配對成功才取代舊檔。可以匯出到「檔案」，給 SideStore 等其他工具用 | 重開 App 後用新檔建立通道並傳送一次；SideStore 收得下匯出的檔 |
@@ -118,6 +117,7 @@
 ## 已做
 
 - **第 1 項：CI 從 Xcode 16.4 升到 Xcode 26**（2026-10-19，`754e800`、`d6905e7`；實機 2026-10-20）：兩個 job 改在 `macos-26` 用 Xcode 26.6（Swift 6.3.3、iOS 26.5 SDK）建置。CI run `39272157905` 兩個 job 綠燈，294 個測試通過，編譯警告和 Xcode 16.4 時同樣 5 個。拆開 IPA：檔案和 Xcode 16.4 時相同，有 `Assets.car` 和 `AppIcon60x60@2x.png`；版本 0.6.13 (26)，`MinimumOSVersion` 17.4，`DTSDKName` iphoneos26.5。`Info.plist` 加了 `UIDesignRequiresCompatibility`，CI 截圖和 Xcode 16.4 時一樣。iOS 26 的模擬器第一次啟動要 50 秒左右才畫出畫面，原本固定等 8 秒，截到的是空白畫面，截圖步驟已改成等畫面出現。實機：用 Xcode 26 建置的 0.6.14 (27)（`ec4feb6`）2026-10-19 發佈，使用者 2026-10-20 經 SideStore 更新後回報沒有問題，沒有逐項回報。
+- **第 2 項：升級 idevice 的釘選版本**（2026-10-20，`0944cb4`；實機 2026-10-20）：從 `37ee77c` 升到上游 2026-10-08 的 `3854a5d`，包含配對主機的取消（`393b438`）、OPACK 解碼（`6fb49ae`）和 10 月 8 日的四個擁有權修正。Swift 用到的 19 個 idevice 函式，簽名和擁有權都沒有變，七個 features 都還在。GFlyer-Suite `native/idevice/` 升到同一個 revision（Suite `40386f4`），Windows 的 DLL 還沒有重建。用它建置的 0.6.15 (28)（`3bd4fb2`）2026-10-20 發佈，使用者經 SideStore 更新後回報沒有問題，沒有逐項回報。
 
 2026-10-09 和 2026-10-19 的研究結果寫在上面，來源見下一節。
 
