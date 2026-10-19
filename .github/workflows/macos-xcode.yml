@@ -250,6 +250,22 @@ jobs:
               exit 1
             fi
           done
+          # 在手機上配對（docs/APP_STORE_PLAN.md 第 3、4 項）要用上游 ffi/src/pairing_host.rs
+          # 的三個函式：Swift 自己用 NetService 廣播、自己 accept 連線，再把 socket 交給
+          # pairable_host_accept_fd。它們由 build_idevice.sh 的 tunnel_tcp_stack 帶進來的
+          # remote_pairing feature 編入，換 revision 或改 features 時可能無聲地消失，所以在這裏擋。
+          # 不要改用 pairable_host_accept：它用 Rust 自己送 multicast，iOS 上要另外申請權限。
+          for symbol in pairable_host_prepare pairable_host_accept_fd pairable_host_free; do
+            if ! grep -q "$symbol(" GFlyerIOS/Vendor/idevice/include/idevice.h; then
+              echo "idevice.h does not declare $symbol." >&2
+              exit 1
+            fi
+            if ! nm -gU GFlyerIOS/Vendor/idevice/lib/libidevice_ffi.a 2>/dev/null | grep -q " _$symbol\$"; then
+              echo "libidevice_ffi.a does not export $symbol." >&2
+              exit 1
+            fi
+          done
+          echo "Pairing host functions are present."
 
       # 存檔緊接在驗證之後，不等整個 job 結束。這樣就算後面的 Swift 編譯失敗，
       # 這份 .a 仍然留給下一次用——修編譯錯誤那種來回 push 最需要這一點。
