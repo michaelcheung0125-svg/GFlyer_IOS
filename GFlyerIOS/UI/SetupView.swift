@@ -74,6 +74,7 @@ struct SetupView: View {
     @ObservedObject private var pairingStore: PairingFileStore
     @ObservedObject private var deviceLocation: DeviceLocationService
     @ObservedObject private var vpn: LocalDevVPNBridge
+    @ObservedObject private var onDevicePairing: OnDevicePairingController
     /// 和 GFlyerIOSApp 讀同一個鍵；那邊負責套用，這裡只負責改。
     @AppStorage(AppAppearance.storageKey) private var appearanceRawValue = AppAppearance.system.rawValue
     @State private var showImporter = false
@@ -103,6 +104,7 @@ struct SetupView: View {
         _pairingStore = ObservedObject(wrappedValue: controller.pairingStore)
         _deviceLocation = ObservedObject(wrappedValue: controller.deviceLocation)
         _vpn = ObservedObject(wrappedValue: controller.vpn)
+        _onDevicePairing = ObservedObject(wrappedValue: controller.onDevicePairing)
     }
 
     var body: some View {
@@ -271,6 +273,7 @@ struct SetupView: View {
     private var pairingSection: some View {
         Section("首次設定") {
             LabeledContent("Pairing File", value: pairingStore.isImported ? "已匯入" : "未匯入")
+            if onDevicePairing.isAvailable { onDevicePairingRows }
             Button {
                 pendingImport = .pairingFile
                 showImporter = true
@@ -286,6 +289,86 @@ struct SetupView: View {
                     }
                 }
             }
+        }
+    }
+
+    /// iOS 27 起才有（docs/APP_STORE_PLAN.md 第 4 項）。這裏的說明是暫時的：
+    /// 每一步的文字要等看過 iOS 27 實機畫面，照畫面一字不差地寫（第 6 項）。
+    @ViewBuilder
+    private var onDevicePairingRows: some View {
+        if onDevicePairing.phase.isActive {
+            activePairingRows
+        } else {
+            Button {
+                onDevicePairing.start()
+            } label: {
+                Label(OnDevicePairingController.continuedTaskTitle, systemImage: "iphone.radiowaves.left.and.right")
+            }
+            .disabled(controller.isMotionActive)
+            pairingResultText
+            Text(controller.isMotionActive
+                 ? "模擬進行中不能配對，請先按停止。"
+                 : "iOS 27 起不用電腦：按下之後到「設定」的「開發者模式」選 GFlyer，再輸入 GFlyer 給的 PIN。配對成功後會取代現有的 Pairing File。")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    @ViewBuilder
+    private var activePairingRows: some View {
+        HStack(spacing: Spacing.md) {
+            ProgressView()
+            Text(pairingStatusText)
+        }
+        if case let .enterPIN(pin) = onDevicePairing.phase {
+            LabeledContent("PIN") {
+                Text(pin)
+                    .font(.title2.monospacedDigit().weight(.semibold))
+                    .textSelection(.enabled)
+            }
+        }
+        if onDevicePairing.needsLocalNetworkPermission {
+            Text("GFlyer 還沒有本機網路權限，「設定」找不到它。系統詢問時請按「允許」。")
+                .font(.caption)
+                .foregroundStyle(Color.statusAttention)
+        }
+        if let message = onDevicePairing.lastAttemptMessage {
+            Text("上一次沒有成功，可以在「設定」再選一次 GFlyer。\n\(message)")
+                .font(.caption)
+                .foregroundStyle(Color.statusAttention)
+        }
+        LabeledContent("剩下時間") {
+            Text(String(format: "%d:%02d", onDevicePairing.secondsRemaining / 60, onDevicePairing.secondsRemaining % 60))
+                .font(.numericLabel)
+        }
+        Button("取消配對", role: .destructive) {
+            onDevicePairing.cancel()
+        }
+    }
+
+    private var pairingStatusText: String {
+        switch onDevicePairing.phase {
+        case .starting: return "正在準備"
+        case .waitingForDevice: return "等待「設定」連線"
+        case .deviceConnected: return "「設定」已連線"
+        case .enterPIN: return "請在「設定」輸入這組 PIN"
+        case .idle, .succeeded, .failed: return ""
+        }
+    }
+
+    @ViewBuilder
+    private var pairingResultText: some View {
+        switch onDevicePairing.phase {
+        case .succeeded:
+            Label("配對完成，Pairing File 已更新。", systemImage: "checkmark.circle")
+                .font(.caption)
+                .foregroundStyle(Color.statusOK)
+        case let .failed(message):
+            Text(message)
+                .font(.caption)
+                .foregroundStyle(Color.statusDanger)
+        case .idle, .starting, .waitingForDevice, .deviceConnected, .enterPIN:
+            EmptyView()
         }
     }
 

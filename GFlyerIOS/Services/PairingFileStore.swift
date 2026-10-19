@@ -30,13 +30,18 @@ final class PairingFileStore: ObservableObject {
     }
 
     func importFile(from sourceURL: URL) throws {
-        let fileManager = FileManager.default
         let accessing = sourceURL.startAccessingSecurityScopedResource()
         defer {
             if accessing { sourceURL.stopAccessingSecurityScopedResource() }
         }
 
-        let data = try Data(contentsOf: sourceURL)
+        try save(Data(contentsOf: sourceURL))
+    }
+
+    /// 匯入和「在這支 iPhone 上配對」共用：同一個位置、同樣的檔案保護。
+    /// 不是合法的 plist 就丟出錯誤，舊檔保持不變。
+    func save(_ data: Data) throws {
+        let fileManager = FileManager.default
         _ = try PropertyListSerialization.propertyList(from: data, options: [], format: nil)
         try fileManager.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
         try data.write(to: url, options: .atomic)

@@ -41,6 +41,8 @@ final class SimulationController: ObservableObject {
     let backend: any LocationSimulationBackend
     let deviceLocation = DeviceLocationService()
     let vpn: LocalDevVPNBridge
+    /// 「在這支 iPhone 上配對」。放在這裏而不是設定頁，關掉設定頁時配對才不會中斷。
+    private(set) lazy var onDevicePairing = OnDevicePairingController(pairingStore: pairingStore)
 
     private let dataStore: LocalDataStore
     private let sessionStore: ActiveSessionStore
