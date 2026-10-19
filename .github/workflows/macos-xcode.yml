@@ -255,16 +255,29 @@ jobs:
           # pairable_host_accept_fd。它們由 build_idevice.sh 的 tunnel_tcp_stack 帶進來的
           # remote_pairing feature 編入，換 revision 或改 features 時可能無聲地消失，所以在這裏擋。
           # 不要改用 pairable_host_accept：它用 Rust 自己送 multicast，iOS 上要另外申請權限。
+          # idevice.h 是 cbindgen 掃原始碼產生的，不看 features，所以一定要看 .a 裏有沒有。
+          lib=GFlyerIOS/Vendor/idevice/lib/libidevice_ffi.a
+          exported="$RUNNER_TEMP/idevice-exported-symbols.txt"
+          nm -g "$lib" > "$exported" 2> "$RUNNER_TEMP/idevice-nm-errors.txt" || true
+          missing=0
           for symbol in pairable_host_prepare pairable_host_accept_fd pairable_host_free; do
             if ! grep -q "$symbol(" GFlyerIOS/Vendor/idevice/include/idevice.h; then
               echo "idevice.h does not declare $symbol." >&2
-              exit 1
+              missing=1
             fi
-            if ! nm -gU GFlyerIOS/Vendor/idevice/lib/libidevice_ffi.a 2>/dev/null | grep -q " _$symbol\$"; then
+            if ! grep -qE "[[:space:]]T[[:space:]]+_${symbol}\$" "$exported"; then
               echo "libidevice_ffi.a does not export $symbol." >&2
-              exit 1
+              missing=1
             fi
           done
+          if [ "$missing" -ne 0 ]; then
+            echo "Defined symbols in the library: $(grep -cE '[[:space:]]T[[:space:]]' "$exported")" >&2
+            echo "Matching lines (tunnel_create_rppairing and rp_pairing_file_read are linked by the app today):" >&2
+            grep -E 'tunnel_create_rppairing|pairable_host|rp_pairing_file_read' "$exported" | head -20 >&2 || true
+            echo "nm errors:" >&2
+            head -5 "$RUNNER_TEMP/idevice-nm-errors.txt" >&2 || true
+            exit 1
+          fi
           echo "Pairing host functions are present."
 
       # 存檔緊接在驗證之後，不等整個 job 結束。這樣就算後面的 Swift 編譯失敗，
