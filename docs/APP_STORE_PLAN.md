@@ -50,10 +50,19 @@
 
 | # | 待辦 | 為甚麼和怎樣做 | 做完的標準 |
 |---|---|---|---|
-| 4 | Swift 的配對流程 | 程式已寫好（`983f3ae`，CI run `39311965583` 綠燈），已發佈為 `0.6.16 (29)`（2026-10-20），等 iOS 27 實機。網路全由 Swift 做（`GFlyerIOS/Services/PairingHost.swift`）：開一個 IPv4、IPv6 都收得到的 TCP socket，port 由系統挑；呼叫 `pairable_host_prepare` 取得 service identifier 和 TXT，用 dns_sd 以 service identifier 作名稱廣播 `_remotepairing-pairable-host._tcp`。不用 `NetService`，它已經 deprecated，dns_sd 就是它底下的 API。「設定」連進來之後，把連線的 fd 交給 `pairable_host_accept_fd`；一次沒有成功（例如 PIN 打錯）就繼續等下一次。取消和 5 分鐘逾時要對連線呼叫 `shutdown`，因為上游會 `dup` 這個 fd，只 `close` 不會讓它返回。連線要設 `SO_NOSIGPIPE`，否則對方先斷線時，SIGPIPE 會結束整個 App。`Info.plist` 加了 `NSBonjourServices` 和 `BGTaskSchedulerPermittedIdentifiers`（`<bundle id>.pairing.*`），本機網路的說明也改了。使用者切去「設定」時，`BGContinuedProcessingTask`（iOS 26 起）讓 App 繼續等，不用無聲音訊之類的做法（審查指南 2.5.4）；它的進度用經過的秒數。PIN 用本機通知和這個背景工作的標題顯示，使用者在「設定」裏就看得到。入口只在 iOS 27 以上的 idevice 版出現，模擬進行中不能按。配對成功就寫進 `PairingFileStore`，第 5 項的存檔部分因此已經做了。設定頁上的說明是暫時的，第 6 項照實機畫面改寫 | iOS 27 實機上，「設定」的開發者模式頁列出 GFlyer，輸入 PIN 後配對成功 |
 | 5 | 存檔和匯出 | 存檔已在第 4 項做好：配對成功後寫進 `PairingFileStore` 的同一個位置（`save(_:)`，和手動匯入共用），檔案保護相同；新的配對成功才取代舊檔。剩下的是匯出到「檔案」，給 SideStore 等其他工具用 | 重開 App 後用新檔建立通道並傳送一次；SideStore 收得下匯出的檔 |
-| 6 | App 內的配對說明 | 每一步的文字要和 iOS 27 實機畫面一字不差，先拿到使用者的截圖再寫 | 沒看過說明的人照畫面能完成配對 |
+| 6 | App 內的配對說明 | 已照 2026-10-20 的實機截圖重寫（`02c741c`，見下面「iOS 27 實機畫面」），還沒有發佈。0.6.16 的說明和更新說明都漏了「私隱與保安」，使用者照著找不到。步驟用香港繁體中文的名稱，因為截圖是這樣；配對進行中步驟也留在畫面上 | 沒看過說明的人照畫面能完成配對 |
 | 7 | 發佈有「在這支 iPhone 上配對」的親友版 | 照 `docs/RELEASE_PROCESS.md` | 實機驗證並記進 `HANDOFF.md`；PARITY「在手機上配對」的 iOS 格子改成 ✅ |
+
+### iOS 27 實機畫面（2026-10-20，香港繁體中文）
+
+使用者用 0.6.16 在 iOS 27 的 iPhone 上配對成功時的截圖，一步一步：
+
+1. 「設定」>「私隱與保安」，「保安」一組裏的「開發者模式」（右邊寫「開啟」）。台灣繁體中文叫「隱私權與安全性」，還沒有那邊的截圖。
+2. 「開發者模式」頁：開關下面有「配對的裝置」（這支 iPhone 列出 iloader）和「其他裝置」（旁邊一直轉圈）。GFlyer 在「其他裝置」顯示成藍色的「Pair with GFlyer」，是英文，沒有翻譯；名稱來自 TXT 的 `name`。
+3. 按下去跳出「要與「GFlyer」配對嗎？」，說明是「配對後，你將可以從此電腦透過乙太網絡或Wi-Fi連接取用你的設定及資料。」，按鈕「取消」和「配對」。
+4. 按「配對」後是「輸入密碼」頁，6 個圓圈，下面寫「請輸入「GFlyer」上顯示的六位數字代碼來配對。」。GFlyer 的 PIN 通知（「GFlyer 配對」／「在「設定」輸入 PIN：……」）會蓋在這一頁上面，看得到數字。
+5. 輸入後，系統的背景工作進度（標題「在這支 iPhone 上配對」、副標「PIN：……」、打勾）和「GFlyer 配對完成」通知一起出現；回到 GFlyer，設定頁顯示「配對完成，Pairing File 已更新。」。剛配對完的那一刻，「配對的裝置」還是只有 iloader。
 
 ## 第二階段：分成兩個版本
 
@@ -111,7 +120,7 @@
 - **沒有 Wi-Fi 時能不能配對**還不知道。LL Pair 和 StikPair 都要求本機網路權限。
 - **iOS 更新。** Apple 以後可能改變配對或 DDI 的做法。Apple 的 Device Hub 文件說升級 iOS 之後要重新配對，要實測對 GFlyer 的配對檔有沒有影響。
 - **iOS 26 以下仍然要電腦。**
-- **在手機上配對要實機確認的事**（第 4 項）：「設定」找不找得到同一支 iPhone 上廣播的 GFlyer、用哪種位址連進來；`BGContinuedProcessingTask` 能不能讓 GFlyer 在「設定」裏一直等到配對完成。SideStore 重簽時如果改了 bundle id，背景工作的識別碼可能不被接受，那時只剩 `beginBackgroundTask` 大約 30 秒的背景時間。
+- **在手機上配對**（第 4 項）：2026-10-20 實機確認「設定」找得到同一支 iPhone 上廣播的 GFlyer；`BGContinuedProcessingTask` 在 SideStore 簽的 App 上也被接受（系統顯示「在這支 iPhone 上配對」的進度），GFlyer 在「設定」裏一直等到配對完成。還不知道「設定」用哪種位址連進來（GFlyer 沒有記錄），也還沒試過台灣繁體中文或其他語言的「設定」。
 - **Liquid Glass 外觀。** 用 iOS 26 SDK 建置的 App 在 iOS 26 以上會自動換成新外觀。第 1 項在 `Info.plist` 加了 `UIDesignRequiresCompatibility`，暫時保留舊外觀，讓第 1 項只換 toolchain。Apple 在 WWDC25 說這個選項會在下一個主要版本拿掉；用 iOS 27 SDK 建置時系統不理會這個鍵。所以 CI 升到 Xcode 27 之前，要先改用新外觀，並且逐頁看過 CI 截圖和實機。App Store 甚麼時候開始只收 Xcode 27 建置的版本，Apple 還沒有公布。
 
 ## 已做
@@ -119,6 +128,7 @@
 - **第 1 項：CI 從 Xcode 16.4 升到 Xcode 26**（2026-10-19，`754e800`、`d6905e7`；實機 2026-10-20）：兩個 job 改在 `macos-26` 用 Xcode 26.6（Swift 6.3.3、iOS 26.5 SDK）建置。CI run `39272157905` 兩個 job 綠燈，294 個測試通過，編譯警告和 Xcode 16.4 時同樣 5 個。拆開 IPA：檔案和 Xcode 16.4 時相同，有 `Assets.car` 和 `AppIcon60x60@2x.png`；版本 0.6.13 (26)，`MinimumOSVersion` 17.4，`DTSDKName` iphoneos26.5。`Info.plist` 加了 `UIDesignRequiresCompatibility`，CI 截圖和 Xcode 16.4 時一樣。iOS 26 的模擬器第一次啟動要 50 秒左右才畫出畫面，原本固定等 8 秒，截到的是空白畫面，截圖步驟已改成等畫面出現。實機：用 Xcode 26 建置的 0.6.14 (27)（`ec4feb6`）2026-10-19 發佈，使用者 2026-10-20 經 SideStore 更新後回報沒有問題，沒有逐項回報。
 - **第 2 項：升級 idevice 的釘選版本**（2026-10-20，`0944cb4`；實機 2026-10-20）：從 `37ee77c` 升到上游 2026-10-08 的 `3854a5d`，包含配對主機的取消（`393b438`）、OPACK 解碼（`6fb49ae`）和 10 月 8 日的四個擁有權修正。Swift 用到的 19 個 idevice 函式，簽名和擁有權都沒有變，七個 features 都還在。GFlyer-Suite `native/idevice/` 升到同一個 revision（Suite `40386f4`），Windows 的 DLL 還沒有重建。用它建置的 0.6.15 (28)（`3bd4fb2`）2026-10-20 發佈，使用者經 SideStore 更新後回報沒有問題，沒有逐項回報。
 - **第 3 項：配對主機的 FFI**（2026-10-20，`0c73596`、`dd09d31`）：不用自己寫。第 2 項升到的 `3854a5d` 已經包含上游 2026-09-12 加入的 `ffi/src/pairing_host.rs`（`6fb49ae`，上游註明參考 AltStore 的 FFI），分工正是原先打算自己寫的那樣：`pairable_host_prepare` 產生主機身分，交回 service identifier 和 TXT（XML plist，含 `authTag`），不綁 port、不廣播；`pairable_host_accept_fd` 接手 Swift 已經 accept 的連線，跑完配對，交回配對檔；`pairable_host_free` 釋放。三個函式由 `build_idevice.sh` 現有的 `tunnel_tcp_stack` 帶進來的 `remote_pairing` feature 編入，features 不用改。CI 的「Verify the idevice library is complete」現在檢查它們在 `idevice.h` 和 `libidevice_ffi.a` 的符號索引裏都有，少了就失敗；CI run `39305795528` 檢查通過，archive 成功。檢查要看符號索引（`nm --print-armap`），不能用 `nm` 逐個 `.o` 列：Rust 1.99 用 LLVM 23，Xcode 26.6 的 `nm` 是 LLVM 21，讀 Rust `.o` 裏附帶的 bitcode 會報錯，一個 Rust 函式都列不出來。連結器靠的也是符號索引，所以 App 照樣連結得到。不要用旁邊 `ffi/src/pairable_host.rs` 的 `pairable_host_accept`：它用 Rust 的 `mdns_sd` 自己送 multicast，iOS 上要 Apple 個別核准的權限。這三個函式只有 iOS 用得到，GFlyer-Suite 的 `native/idevice/` 不用改。
+- **第 4 項：Swift 的配對流程**（2026-10-20，`983f3ae`；實機 2026-10-20，`0.6.16 (29)`）：CI run `39311965583` 綠燈，新加 14 個測試。網路全由 Swift 做（`GFlyerIOS/Services/PairingHost.swift`）：開一個 IPv4、IPv6 都收得到的 TCP socket，port 由系統挑；呼叫 `pairable_host_prepare` 取得 service identifier 和 TXT，用 dns_sd 以 service identifier 作名稱廣播 `_remotepairing-pairable-host._tcp`。不用 `NetService`，它已經 deprecated，dns_sd 就是它底下的 API。「設定」連進來之後，把連線的 fd 交給 `pairable_host_accept_fd`；一次沒有成功（例如 PIN 打錯）就繼續等下一次。取消和 5 分鐘逾時要對連線呼叫 `shutdown`，因為上游會 `dup` 這個 fd，只 `close` 不會讓它返回。連線要設 `SO_NOSIGPIPE`，否則對方先斷線時，SIGPIPE 會結束整個 App。`Info.plist` 加了 `NSBonjourServices` 和 `BGTaskSchedulerPermittedIdentifiers`（`<bundle id>.pairing.*`），本機網路的說明也改了。使用者切去「設定」時，`BGContinuedProcessingTask`（iOS 26 起）讓 App 繼續等，不用無聲音訊之類的做法（審查指南 2.5.4）；它的進度用經過的秒數。PIN 用本機通知和這個背景工作的標題顯示，使用者在「設定」裏就看得到。入口只在 iOS 27 以上的 idevice 版出現，模擬進行中不能按。配對成功就寫進 `PairingFileStore`，第 5 項的存檔部分因此已經做了。實機（iOS 27，香港繁體中文）：「設定」>「私隱與保安」>「開發者模式」的「其他裝置」列出「Pair with GFlyer」，按「配對」、輸入 GFlyer 的 6 位數字後配對成功，GFlyer 存好新的 Pairing File；畫面見第一階段的「iOS 27 實機畫面」。用新檔建立通道算在第 5 項。
 
 2026-10-09 和 2026-10-19 的研究結果寫在上面，來源見下一節。
 

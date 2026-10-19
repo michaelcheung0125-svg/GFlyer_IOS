@@ -116,13 +116,16 @@ C:\Project\GFlyer
   `NSBonjourServices` 有 `_remotepairing-pairable-host._tcp`；從公開網址下載回來的雜湊相同。CI 執行 308 個單元測試：307 個通過、
   1 個依條件略過、0 失敗。第一次執行時測試已經全部通過，但模擬器卡在「Waiting on Data Migration」，截圖那一步停住，
   取消後只重跑測試 job（attempt 2）就綠燈，兩張 CI 截圖都畫出完整畫面；打包 job 沒有重跑。使用者已升到 iOS 27，要求發佈來實機測試。
-  App 介紹先不改：「需要匯入本機的 Pairing File」等實機驗證過再改。內容：
+  App 介紹先不改：「需要匯入本機的 Pairing File」等第 5 項也驗證過再改。2026-10-20 使用者回報**配對成功**並附上每一步的截圖
+  （記在 `docs/APP_STORE_PLAN.md` 的「iOS 27 實機畫面」）；「請順便測」的後兩條（重開後傳送、完整清除）還沒有回報。
+  這一版的設定頁說明和更新說明都寫「「設定」的「開發者模式」」，漏了中間的「私隱與保安」，使用者一開始照著找不到；
+  說明已在 `02c741c` 照截圖重寫，下一版才會有。內容：
   - **在這支 iPhone 上配對**（`983f3ae`，`docs/APP_STORE_PLAN.md` 第 4 項）：iOS 27 以上，「裝置設定」的「首次設定」多一個
     「在這支 iPhone 上配對」按鈕。GFlyer 當配對主機，到「設定」的「開發者模式」選 GFlyer、輸入 GFlyer 顯示的 PIN
     （PIN 也用通知顯示），成功就取代現有的 Pairing File，沒有成功保留原來的。第一次按會問本機網路和通知權限。
     `Info.plist` 加了 `BGTaskSchedulerPermittedIdentifiers`、`NSBonjourServices`，`NSLocalNetworkUsageDescription` 改了文字。
-    **還沒經過實機驗證**；要實機確認的事列在 `docs/APP_STORE_PLAN.md` 的「風險和還沒確認的事」。設定頁的說明文字是暫時的，
-    第 6 項照實機截圖重寫。
+    2026-10-20 實機配對成功：「設定」>「私隱與保安」>「開發者模式」的「其他裝置」列出「Pair with GFlyer」，
+    `BGContinuedProcessingTask` 在 SideStore 簽的 App 上也被接受。設定頁的說明文字是暫時的，第 6 項已照實機截圖重寫（`02c741c`）。
 - `0.6.15 (28)`：2026-10-20 發佈到 `GFlyer-updates`（UTC 2026-10-19T16:58:31Z；release `ios-v0.6.15`，來源檔 commit
   `6f6a8a5`）；IPA 是 CI run `39288053727`（`3bd4fb2`，升版 commit「Version 0.6.15 (28)」，在 `main`）的產物，
   SHA-256 `a91634731a8cd1a8e94e9e5dd38300fbf6b75e079626c0d68a5aa026e6f4a1ed`，10,408,635 bytes，`MinimumOSVersion` 17.4，
@@ -824,12 +827,12 @@ GFlyerIOS/UI/LibraryViews.swift
 
 新對話開始時，先讀取本檔案、`AGENTS.md`、`README.md` 及 `docs/IMPLEMENTATION_PLAN.md`。
 
-2026-10-19 起的開發方向：照 `docs/APP_STORE_PLAN.md` 的次序做 iOS 公開版（App Store）。第 1 項（CI 升到 Xcode 26）已做，0.6.14 實機沒有問題。第 2 項（idevice 從 `37ee77c` 升到 `3854a5d`，`0944cb4`，GFlyer-Suite `native/idevice/` 同一個 revision）已做，0.6.15 實機沒有問題。第 3 項（配對主機的 FFI）已做：`3854a5d` 已經有上游的 `ffi/src/pairing_host.rs`，不用自己寫，CI 會檢查要用的三個函式還在（`dd09d31`）。第 4 項（Swift 的配對流程，設定頁的「在這支 iPhone 上配對」）程式已寫好（`983f3ae`），CI run `39311965583` 綠燈、新加 14 個測試，已發佈為 `0.6.16 (29)`（2026-10-20），還沒有在 iOS 27 的 iPhone 上驗證；要實機確認的事列在該文件的「風險和還沒確認的事」。第一階段（在手機上配對）兩個版本都用得到，先在親友版做。開始之前先看該文件的「要使用者決定的事」，U1–U7 都還沒有決定。
+2026-10-19 起的開發方向：照 `docs/APP_STORE_PLAN.md` 的次序做 iOS 公開版（App Store）。第 1 項（CI 升到 Xcode 26）已做，0.6.14 實機沒有問題。第 2 項（idevice 從 `37ee77c` 升到 `3854a5d`，`0944cb4`，GFlyer-Suite `native/idevice/` 同一個 revision）已做，0.6.15 實機沒有問題。第 3 項（配對主機的 FFI）已做：`3854a5d` 已經有上游的 `ffi/src/pairing_host.rs`，不用自己寫，CI 會檢查要用的三個函式還在（`dd09d31`）。第 4 項（Swift 的配對流程，設定頁的「在這支 iPhone 上配對」，`983f3ae`）已做，發佈為 `0.6.16 (29)`，2026-10-20 在 iOS 27 的 iPhone 上配對成功。第 6 項（App 內的配對說明）已照使用者的實機截圖重寫（`02c741c`），還沒有發佈。第 5 項還要做匯出到「檔案」，並確認用新的 Pairing File 建立通道、傳送一次。第一階段（在手機上配對）兩個版本都用得到，先在親友版做。開始之前先看該文件的「要使用者決定的事」，U1–U7 都還沒有決定。
 
 目前狀態（2026-10-20）：
 
-- iOS 最新發佈是 `0.6.16 (29)`（release `ios-v0.6.16`，2026-10-20，見上方「目前已完成」的 0.6.16 段），加了「在這支 iPhone 上配對」，
-  **還沒有經過實機驗證**；使用者已升到 iOS 27，等使用者回報「請順便測」四條和「設定」畫面的截圖。
+- iOS 最新發佈是 `0.6.16 (29)`（release `ios-v0.6.16`，2026-10-20，見上方「目前已完成」的 0.6.16 段），加了「在這支 iPhone 上配對」。
+  使用者 2026-10-20 在 iOS 27 上配對成功並附上截圖；「請順便測」的後兩條（重開後傳送、完整清除）還沒有回報。
   上一版 `0.6.15 (28)`（2026-10-20）把 idevice 升到 `3854a5d`。
   使用者 2026-10-20 回報實機沒有問題，但沒有逐項回報，所以 0.6.15 的「請順便測」三條不能當成已逐項驗證。
   再上一版 `0.6.14 (27)`（2026-10-19）是第一個用 Xcode 26 建置的版本。
