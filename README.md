@@ -405,7 +405,7 @@ These generated files are ignored by Git.
 ## First-time device setup
 
 1. Install the app from Xcode or your preferred sideloading tool.
-2. Generate a pairing file for this iPhone using a trusted computer workflow such as iLoader/StikDebug's pairing guide.
+2. Generate a pairing file for this iPhone using a trusted computer workflow such as iLoader/StikDebug's pairing guide. On iOS 27 and later, the idevice build can instead pair on the iPhone itself: in GFlyer Settings, tap **在這支 iPhone 上配對**, then pick GFlyer on the Developer Mode page in the iOS Settings app and type the PIN that GFlyer shows. GFlyer saves the new pairing file and skips steps 3 and 4. This path has not been verified on an iOS 27 device yet (`docs/APP_STORE_PLAN.md` item 4).
 3. Send the file directly to the iPhone Files app. Avoid workflows that remove the extension.
 4. In GFlyer, open Settings and import the pairing file.
 5. Install LocalDevVPN. Keep its default device address `10.7.0.1` unless your setup uses another address. Start switches to LocalDevVPN and back by itself when the VPN is off; the Settings screen shows the VPN state, has a manual on/off button, and can still **Test LocalDevVPN tunnel**. The current raw RPPairing path connects on port `49152`.

@@ -810,7 +810,7 @@ GFlyerIOS/UI/LibraryViews.swift
 
 新對話開始時，先讀取本檔案、`AGENTS.md`、`README.md` 及 `docs/IMPLEMENTATION_PLAN.md`。
 
-2026-10-19 起的開發方向：照 `docs/APP_STORE_PLAN.md` 的次序做 iOS 公開版（App Store）。第 1 項（CI 升到 Xcode 26）已做，0.6.14 實機沒有問題。第 2 項（idevice 從 `37ee77c` 升到 `3854a5d`，`0944cb4`，GFlyer-Suite `native/idevice/` 同一個 revision）已做，0.6.15 實機沒有問題。第 3 項（配對主機的 FFI）已做：`3854a5d` 已經有上游的 `ffi/src/pairing_host.rs`，不用自己寫，CI 會檢查要用的三個函式還在（`dd09d31`）。下一項是第 4 項：Swift 的配對流程，要 iOS 27 的 iPhone 實機驗證。第一階段（在手機上配對）兩個版本都用得到，先在親友版做。開始之前先看該文件的「要使用者決定的事」，U1–U7 都還沒有決定。
+2026-10-19 起的開發方向：照 `docs/APP_STORE_PLAN.md` 的次序做 iOS 公開版（App Store）。第 1 項（CI 升到 Xcode 26）已做，0.6.14 實機沒有問題。第 2 項（idevice 從 `37ee77c` 升到 `3854a5d`，`0944cb4`，GFlyer-Suite `native/idevice/` 同一個 revision）已做，0.6.15 實機沒有問題。第 3 項（配對主機的 FFI）已做：`3854a5d` 已經有上游的 `ffi/src/pairing_host.rs`，不用自己寫，CI 會檢查要用的三個函式還在（`dd09d31`）。第 4 項（Swift 的配對流程，設定頁的「在這支 iPhone 上配對」）程式已寫好（`983f3ae`），CI run `39311965583` 綠燈、新加 14 個測試，還沒有發佈，也還沒有在 iOS 27 的 iPhone 上驗證；要實機確認的事列在該文件的「風險和還沒確認的事」。第一階段（在手機上配對）兩個版本都用得到，先在親友版做。開始之前先看該文件的「要使用者決定的事」，U1–U7 都還沒有決定。
 
 目前狀態（2026-10-20）：
 

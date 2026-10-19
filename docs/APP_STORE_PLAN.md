@@ -50,8 +50,8 @@
 
 | # | 待辦 | 為甚麼和怎樣做 | 做完的標準 |
 |---|---|---|---|
-| 4 | Swift 的配對流程 | 用第 3 項的三個函式，網路的部分全由 Swift 做。Swift 開一個 TCP socket（port 0，由系統挑），呼叫 `pairable_host_prepare` 取得 service identifier 和 TXT；`model` 傳 NULL 時上游預設 `Mac17,7`，`out_host_alt_irk` 先傳 NULL，因為配對後 GFlyer 不再廣播。再用 `NetService` 以 service identifier 作名稱、在這個 port 廣播 `_remotepairing-pairable-host._tcp`，TXT 照那份 XML plist 的每一對 key 和 value 填。裝置連入後，在背景執行緒把連線的 fd 交給 `pairable_host_accept_fd`，它會一直等到配對成功或失敗；它自己 `dup` 了 fd，所以取消和逾時要對原本的 socket 呼叫 `shutdown`，不能只 `close`。結束時停止廣播、關掉 socket、呼叫 `pairable_host_free`。`Info.plist` 加 `NSBonjourServices`，並改寫本機網路的說明（現在只提 LocalDevVPN）。PIN 經 `pin_cb` 傳回，用本機通知顯示，使用者在「設定」裏就看得到，不用切回 App。使用者切去「設定」時，用 `BGContinuedProcessingTask`（iOS 26 起）讓 App 繼續等待，不用無聲音訊之類的做法（審查指南 2.5.4）。入口只在 iOS 27 以上出現 | iOS 27 實機上，「設定」的開發者模式頁列出 GFlyer，輸入 PIN 後配對成功 |
-| 5 | 存檔和匯出 | 配對成功後用 `rp_pairing_file_to_bytes` 取得內容，寫進 `PairingFileStore` 的同一個位置，檔案保護和手動匯入相同；新的配對成功才取代舊檔。可以匯出到「檔案」，給 SideStore 等其他工具用 | 重開 App 後用新檔建立通道並傳送一次；SideStore 收得下匯出的檔 |
+| 4 | Swift 的配對流程 | 程式已寫好（`983f3ae`，CI run `39311965583` 綠燈），等 iOS 27 實機。網路全由 Swift 做（`GFlyerIOS/Services/PairingHost.swift`）：開一個 IPv4、IPv6 都收得到的 TCP socket，port 由系統挑；呼叫 `pairable_host_prepare` 取得 service identifier 和 TXT，用 dns_sd 以 service identifier 作名稱廣播 `_remotepairing-pairable-host._tcp`。不用 `NetService`，它已經 deprecated，dns_sd 就是它底下的 API。「設定」連進來之後，把連線的 fd 交給 `pairable_host_accept_fd`；一次沒有成功（例如 PIN 打錯）就繼續等下一次。取消和 5 分鐘逾時要對連線呼叫 `shutdown`，因為上游會 `dup` 這個 fd，只 `close` 不會讓它返回。連線要設 `SO_NOSIGPIPE`，否則對方先斷線時，SIGPIPE 會結束整個 App。`Info.plist` 加了 `NSBonjourServices` 和 `BGTaskSchedulerPermittedIdentifiers`（`<bundle id>.pairing.*`），本機網路的說明也改了。使用者切去「設定」時，`BGContinuedProcessingTask`（iOS 26 起）讓 App 繼續等，不用無聲音訊之類的做法（審查指南 2.5.4）；它的進度用經過的秒數。PIN 用本機通知和這個背景工作的標題顯示，使用者在「設定」裏就看得到。入口只在 iOS 27 以上的 idevice 版出現，模擬進行中不能按。配對成功就寫進 `PairingFileStore`，第 5 項的存檔部分因此已經做了。設定頁上的說明是暫時的，第 6 項照實機畫面改寫 | iOS 27 實機上，「設定」的開發者模式頁列出 GFlyer，輸入 PIN 後配對成功 |
+| 5 | 存檔和匯出 | 存檔已在第 4 項做好：配對成功後寫進 `PairingFileStore` 的同一個位置（`save(_:)`，和手動匯入共用），檔案保護相同；新的配對成功才取代舊檔。剩下的是匯出到「檔案」，給 SideStore 等其他工具用 | 重開 App 後用新檔建立通道並傳送一次；SideStore 收得下匯出的檔 |
 | 6 | App 內的配對說明 | 每一步的文字要和 iOS 27 實機畫面一字不差，先拿到使用者的截圖再寫 | 沒看過說明的人照畫面能完成配對 |
 | 7 | 發佈有「在這支 iPhone 上配對」的親友版 | 照 `docs/RELEASE_PROCESS.md` | 實機驗證並記進 `HANDOFF.md`；PARITY「在手機上配對」的 iOS 格子改成 ✅ |
 
@@ -111,6 +111,7 @@
 - **沒有 Wi-Fi 時能不能配對**還不知道。LL Pair 和 StikPair 都要求本機網路權限。
 - **iOS 更新。** Apple 以後可能改變配對或 DDI 的做法。Apple 的 Device Hub 文件說升級 iOS 之後要重新配對，要實測對 GFlyer 的配對檔有沒有影響。
 - **iOS 26 以下仍然要電腦。**
+- **在手機上配對要實機確認的事**（第 4 項）：「設定」找不找得到同一支 iPhone 上廣播的 GFlyer、用哪種位址連進來；`BGContinuedProcessingTask` 能不能讓 GFlyer 在「設定」裏一直等到配對完成。SideStore 重簽時如果改了 bundle id，背景工作的識別碼可能不被接受，那時只剩 `beginBackgroundTask` 大約 30 秒的背景時間。
 - **Liquid Glass 外觀。** 用 iOS 26 SDK 建置的 App 在 iOS 26 以上會自動換成新外觀。第 1 項在 `Info.plist` 加了 `UIDesignRequiresCompatibility`，暫時保留舊外觀，讓第 1 項只換 toolchain。Apple 在 WWDC25 說這個選項會在下一個主要版本拿掉；用 iOS 27 SDK 建置時系統不理會這個鍵。所以 CI 升到 Xcode 27 之前，要先改用新外觀，並且逐頁看過 CI 截圖和實機。App Store 甚麼時候開始只收 Xcode 27 建置的版本，Apple 還沒有公布。
 
 ## 已做

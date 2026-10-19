@@ -7,7 +7,7 @@ Build a personal, sideloaded iOS version of GFlyer that can control device-wide 
 The accepted operating model is:
 
 1. A computer may be used for the initial build, install, signing, Developer Mode setup, and pairing-file generation.
-2. The iPhone imports and stores its pairing file locally.
+2. The iPhone imports and stores its pairing file locally. On iOS 27 and later the idevice build can also pair on the iPhone itself, acting as the pairing host that the iOS Settings app connects to (`docs/APP_STORE_PLAN.md` item 4; not yet verified on a device).
 3. LocalDevVPN exposes the same iPhone through a local loopback path.
 4. GFlyer verifies and mounts a pinned Personalized Developer Disk Image when required.
 5. GFlyer connects to Apple developer services through `idevice` and sends location updates.
