@@ -12,7 +12,7 @@ final class PairingFileStore: ObservableObject {
     ]
 
     /// 匯出到「檔案」時的預設檔名。和 idevice_pair 產生的 RP Pairing File 一樣是 XML plist。
-    static let exportFilename = "gflyer-pairing-file.plist"
+    nonisolated static let exportFilename = "gflyer-pairing-file.plist"
 
     @Published private(set) var isImported = false
     @Published private(set) var revision = UUID()
