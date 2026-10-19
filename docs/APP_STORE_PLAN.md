@@ -50,7 +50,7 @@
 
 | # | 待辦 | 為甚麼和怎樣做 | 做完的標準 |
 |---|---|---|---|
-| 5 | 存檔和匯出 | 存檔已在第 4 項做好：配對成功後寫進 `PairingFileStore` 的同一個位置（`save(_:)`，和手動匯入共用），檔案保護相同；新的配對成功才取代舊檔。剩下的是匯出到「檔案」，給 SideStore 等其他工具用 | 重開 App 後用新檔建立通道並傳送一次；SideStore 收得下匯出的檔 |
+| 5 | 存檔和匯出 | 存檔已在第 4 項做好：配對成功後寫進 `PairingFileStore` 的同一個位置（`save(_:)`，和手動匯入共用），檔案保護相同；新的配對成功才取代舊檔。2026-10-20 實機：重開 App 後用在手機上配對得到的檔建立通道、傳送成功，「完整清除模擬定位」也正常。匯出已寫好（`b92b36e`），還沒有發佈：設定頁「首次設定」有 Pairing File 時多一個「匯出 Pairing File」，用 `.fileExporter` 原樣存成 `gflyer-pairing-file.plist`（XML plist，和 idevice_pair 產生的 RP Pairing File 同一種格式）。SideStore 的 nightly（0.7.0）在「Settings › Pairing File Management › Remote Pairing File」收 RP Pairing File（`.plist`），但那要先「Reset Pairing Files」，失敗時 SideStore 不能重簽，所以不叫使用者試 | 匯出的檔用「匯入 Pairing File」匯回 GFlyer 之後能傳送 |
 | 6 | App 內的配對說明 | 已照 2026-10-20 的實機截圖重寫（`02c741c`，見下面「iOS 27 實機畫面」），還沒有發佈。0.6.16 的說明和更新說明都漏了「私隱與保安」，使用者照著找不到。步驟用香港繁體中文的名稱，因為截圖是這樣；配對進行中步驟也留在畫面上 | 沒看過說明的人照畫面能完成配對 |
 | 7 | 發佈有「在這支 iPhone 上配對」的親友版 | 照 `docs/RELEASE_PROCESS.md` | 實機驗證並記進 `HANDOFF.md`；PARITY「在手機上配對」的 iOS 格子改成 ✅ |
 
@@ -62,7 +62,7 @@
 2. 「開發者模式」頁：開關下面有「配對的裝置」（這支 iPhone 列出 iloader）和「其他裝置」（旁邊一直轉圈）。GFlyer 在「其他裝置」顯示成藍色的「Pair with GFlyer」，是英文，沒有翻譯；名稱來自 TXT 的 `name`。
 3. 按下去跳出「要與「GFlyer」配對嗎？」，說明是「配對後，你將可以從此電腦透過乙太網絡或Wi-Fi連接取用你的設定及資料。」，按鈕「取消」和「配對」。
 4. 按「配對」後是「輸入密碼」頁，6 個圓圈，下面寫「請輸入「GFlyer」上顯示的六位數字代碼來配對。」。GFlyer 的 PIN 通知（「GFlyer 配對」／「在「設定」輸入 PIN：……」）會蓋在這一頁上面，看得到數字。
-5. 輸入後，系統的背景工作進度（標題「在這支 iPhone 上配對」、副標「PIN：……」、打勾）和「GFlyer 配對完成」通知一起出現；回到 GFlyer，設定頁顯示「配對完成，Pairing File 已更新。」。剛配對完的那一刻，「配對的裝置」還是只有 iloader。
+5. 輸入後，系統的背景工作進度（標題「在這支 iPhone 上配對」、副標「PIN：……」、打勾）和「GFlyer 配對完成」通知一起出現；回到 GFlyer，設定頁顯示「配對完成，Pairing File 已更新。」。「配對的裝置」只有 iloader：剛配對完和之後再進這一頁都沒有 GFlyer，所以「設定」裏沒有取消 GFlyer 配對的地方。
 
 ## 第二階段：分成兩個版本
 
