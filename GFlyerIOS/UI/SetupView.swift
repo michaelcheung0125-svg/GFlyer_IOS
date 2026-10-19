@@ -292,8 +292,8 @@ struct SetupView: View {
         }
     }
 
-    /// iOS 27 起才有（docs/APP_STORE_PLAN.md 第 4 項）。這裏的說明是暫時的：
-    /// 每一步的文字要等看過 iOS 27 實機畫面，照畫面一字不差地寫（第 6 項）。
+    /// iOS 27 起才有（docs/APP_STORE_PLAN.md 第 4、6 項）。步驟照 2026-10-20 iOS 27 實機（香港繁體中文）
+    /// 的畫面一字不差地寫：「Pair with GFlyer」在實機上就是英文。配對進行中也顯示，切回來時還看得到下一步。
     @ViewBuilder
     private var onDevicePairingRows: some View {
         if onDevicePairing.phase.isActive {
@@ -306,12 +306,12 @@ struct SetupView: View {
             }
             .disabled(controller.isMotionActive)
             pairingResultText
-            Text(controller.isMotionActive
-                 ? "模擬進行中不能配對，請先按停止。"
-                 : "iOS 27 起不用電腦：按下之後到「設定」的「開發者模式」選 GFlyer，再輸入 GFlyer 給的 PIN。配對成功後會取代現有的 Pairing File。")
-                .font(.caption)
-                .foregroundStyle(.secondary)
         }
+        Text(controller.isMotionActive && !onDevicePairing.phase.isActive
+             ? "模擬進行中不能配對，請先按停止。"
+             : "iOS 27 起不用電腦。按「\(OnDevicePairingController.continuedTaskTitle)」之後：\n1. 打開 iPhone 的「設定」>「私隱與保安」>「開發者模式」。\n2. 在「其他裝置」按「Pair with GFlyer」，再按「配對」。\n3. 在「輸入密碼」輸入 GFlyer 顯示的 6 位數字，通知也會顯示這組數字。\n配對成功後會取代現有的 Pairing File。")
+            .font(.caption)
+            .foregroundStyle(.secondary)
     }
 
     @ViewBuilder
@@ -333,7 +333,7 @@ struct SetupView: View {
                 .foregroundStyle(Color.statusAttention)
         }
         if let message = onDevicePairing.lastAttemptMessage {
-            Text("上一次沒有成功，可以在「設定」再選一次 GFlyer。\n\(message)")
+            Text("上一次沒有成功，可以在「設定」再按一次「Pair with GFlyer」。\n\(message)")
                 .font(.caption)
                 .foregroundStyle(Color.statusAttention)
         }
@@ -351,7 +351,7 @@ struct SetupView: View {
         case .starting: return "正在準備"
         case .waitingForDevice: return "等待「設定」連線"
         case .deviceConnected: return "「設定」已連線"
-        case .enterPIN: return "請在「設定」輸入這組 PIN"
+        case .enterPIN: return "在「設定」的「輸入密碼」輸入這組數字"
         case .idle, .succeeded, .failed: return ""
         }
     }
