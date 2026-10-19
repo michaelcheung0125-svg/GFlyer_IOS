@@ -810,7 +810,7 @@ GFlyerIOS/UI/LibraryViews.swift
 
 新對話開始時，先讀取本檔案、`AGENTS.md`、`README.md` 及 `docs/IMPLEMENTATION_PLAN.md`。
 
-2026-10-19 起的開發方向：照 `docs/APP_STORE_PLAN.md` 的次序做 iOS 公開版（App Store）。第 1 項（CI 升到 Xcode 26）已做，0.6.14 實機沒有問題。第 2 項（idevice 從 `37ee77c` 升到 `3854a5d`，`0944cb4`，GFlyer-Suite `native/idevice/` 同一個 revision）已做，0.6.15 實機沒有問題。第 3 項進行中：配對主機的 FFI。第一階段（在手機上配對）兩個版本都用得到，先在親友版做。開始之前先看該文件的「要使用者決定的事」，U1–U7 都還沒有決定。
+2026-10-19 起的開發方向：照 `docs/APP_STORE_PLAN.md` 的次序做 iOS 公開版（App Store）。第 1 項（CI 升到 Xcode 26）已做，0.6.14 實機沒有問題。第 2 項（idevice 從 `37ee77c` 升到 `3854a5d`，`0944cb4`，GFlyer-Suite `native/idevice/` 同一個 revision）已做，0.6.15 實機沒有問題。第 3 項（配對主機的 FFI）已做：`3854a5d` 已經有上游的 `ffi/src/pairing_host.rs`，不用自己寫，CI 會檢查要用的三個函式還在（`dd09d31`）。下一項是第 4 項：Swift 的配對流程，要 iOS 27 的 iPhone 實機驗證。第一階段（在手機上配對）兩個版本都用得到，先在親友版做。開始之前先看該文件的「要使用者決定的事」，U1–U7 都還沒有決定。
 
 目前狀態（2026-10-20）：
 
@@ -932,6 +932,8 @@ GFlyerIOS/Vendor/idevice/include/idevice.h
 GFlyerIOS/Vendor/idevice/include/module.modulemap
 GFlyerIOS/Vendor/idevice/lib/libidevice_ffi.a
 ```
+
+要確認 `libidevice_ffi.a` 有沒有某個函式，用 `nm --print-armap` 看符號索引。不要用 `nm -g` 逐個 `.o` 列：Rust 的 LLVM 比 Xcode 的新，Xcode 的 `nm` 讀 Rust `.o` 裏附帶的 bitcode 會報錯，列不出任何 Rust 函式（2026-10-20，Xcode 26.6 對 Rust 1.99）。Rust 的 `rustup component add llvm-tools` 帶的 `llvm-nm` 讀得到。
 
 DDI 會在 App 第一次需要時下載到 iOS Application Support，並以 pinned SHA-256 驗證。不要把 DDI binary 放進 Git。
 

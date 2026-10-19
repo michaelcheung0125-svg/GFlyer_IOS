@@ -50,9 +50,8 @@
 
 | # | 待辦 | 為甚麼和怎樣做 | 做完的標準 |
 |---|---|---|---|
-| 3 | 配對主機的 FFI：Rust 只管配對，廣播交給 Swift | 上游的 `pairable_host_accept()` 用 Rust 的 `mdns_sd` 自己送 multicast 封包。iOS App 送 multicast 要 Apple 個別核准的 multicast 權限，免費 Apple ID 也拿不到。StikPair 為了同一個原因把廣播改到 Swift，但它的授權禁止商業用途，不抄它的程式。做法：在 `scripts/build_idevice.sh` 建置時加入 GFlyer 自己的 FFI 函式，不改上游的檔案。它綁好 TCP port、產生 service identifier 和 TXT（含 `authTag`），用 callback 交給 Swift，再等裝置連入，可以取消。只有 iOS 用得到，所以放在這個 repo，不放 GFlyer-Suite 的 `native/idevice/` | CI 建出的 `libidevice_ffi.a` 有新函式，App 連結成功 |
-| 4 | Swift 的配對流程 | 用 `NetService` 廣播 `_remotepairing-pairable-host._tcp`；`Info.plist` 加 `NSBonjourServices`，並改寫本機網路的說明（現在只提 LocalDevVPN）。PIN 用本機通知顯示，使用者在「設定」裏就看得到，不用切回 App。使用者切去「設定」時，用 `BGContinuedProcessingTask`（iOS 26 起）讓 App 繼續等待，不用無聲音訊之類的做法（審查指南 2.5.4）。有逾時和取消；入口只在 iOS 27 以上出現 | iOS 27 實機上，「設定」的開發者模式頁列出 GFlyer，輸入 PIN 後配對成功 |
-| 5 | 存檔和匯出 | 配對成功後寫進 `PairingFileStore` 的同一個位置，檔案保護和手動匯入相同；新的配對成功才取代舊檔。可以匯出到「檔案」，給 SideStore 等其他工具用 | 重開 App 後用新檔建立通道並傳送一次；SideStore 收得下匯出的檔 |
+| 4 | Swift 的配對流程 | 用第 3 項的三個函式，網路的部分全由 Swift 做。Swift 開一個 TCP socket（port 0，由系統挑），呼叫 `pairable_host_prepare` 取得 service identifier 和 TXT；`model` 傳 NULL 時上游預設 `Mac17,7`，`out_host_alt_irk` 先傳 NULL，因為配對後 GFlyer 不再廣播。再用 `NetService` 以 service identifier 作名稱、在這個 port 廣播 `_remotepairing-pairable-host._tcp`，TXT 照那份 XML plist 的每一對 key 和 value 填。裝置連入後，在背景執行緒把連線的 fd 交給 `pairable_host_accept_fd`，它會一直等到配對成功或失敗；它自己 `dup` 了 fd，所以取消和逾時要對原本的 socket 呼叫 `shutdown`，不能只 `close`。結束時停止廣播、關掉 socket、呼叫 `pairable_host_free`。`Info.plist` 加 `NSBonjourServices`，並改寫本機網路的說明（現在只提 LocalDevVPN）。PIN 經 `pin_cb` 傳回，用本機通知顯示，使用者在「設定」裏就看得到，不用切回 App。使用者切去「設定」時，用 `BGContinuedProcessingTask`（iOS 26 起）讓 App 繼續等待，不用無聲音訊之類的做法（審查指南 2.5.4）。入口只在 iOS 27 以上出現 | iOS 27 實機上，「設定」的開發者模式頁列出 GFlyer，輸入 PIN 後配對成功 |
+| 5 | 存檔和匯出 | 配對成功後用 `rp_pairing_file_to_bytes` 取得內容，寫進 `PairingFileStore` 的同一個位置，檔案保護和手動匯入相同；新的配對成功才取代舊檔。可以匯出到「檔案」，給 SideStore 等其他工具用 | 重開 App 後用新檔建立通道並傳送一次；SideStore 收得下匯出的檔 |
 | 6 | App 內的配對說明 | 每一步的文字要和 iOS 27 實機畫面一字不差，先拿到使用者的截圖再寫 | 沒看過說明的人照畫面能完成配對 |
 | 7 | 發佈有「在這支 iPhone 上配對」的親友版 | 照 `docs/RELEASE_PROCESS.md` | 實機驗證並記進 `HANDOFF.md`；PARITY「在手機上配對」的 iOS 格子改成 ✅ |
 
@@ -118,6 +117,7 @@
 
 - **第 1 項：CI 從 Xcode 16.4 升到 Xcode 26**（2026-10-19，`754e800`、`d6905e7`；實機 2026-10-20）：兩個 job 改在 `macos-26` 用 Xcode 26.6（Swift 6.3.3、iOS 26.5 SDK）建置。CI run `39272157905` 兩個 job 綠燈，294 個測試通過，編譯警告和 Xcode 16.4 時同樣 5 個。拆開 IPA：檔案和 Xcode 16.4 時相同，有 `Assets.car` 和 `AppIcon60x60@2x.png`；版本 0.6.13 (26)，`MinimumOSVersion` 17.4，`DTSDKName` iphoneos26.5。`Info.plist` 加了 `UIDesignRequiresCompatibility`，CI 截圖和 Xcode 16.4 時一樣。iOS 26 的模擬器第一次啟動要 50 秒左右才畫出畫面，原本固定等 8 秒，截到的是空白畫面，截圖步驟已改成等畫面出現。實機：用 Xcode 26 建置的 0.6.14 (27)（`ec4feb6`）2026-10-19 發佈，使用者 2026-10-20 經 SideStore 更新後回報沒有問題，沒有逐項回報。
 - **第 2 項：升級 idevice 的釘選版本**（2026-10-20，`0944cb4`；實機 2026-10-20）：從 `37ee77c` 升到上游 2026-10-08 的 `3854a5d`，包含配對主機的取消（`393b438`）、OPACK 解碼（`6fb49ae`）和 10 月 8 日的四個擁有權修正。Swift 用到的 19 個 idevice 函式，簽名和擁有權都沒有變，七個 features 都還在。GFlyer-Suite `native/idevice/` 升到同一個 revision（Suite `40386f4`），Windows 的 DLL 還沒有重建。用它建置的 0.6.15 (28)（`3bd4fb2`）2026-10-20 發佈，使用者經 SideStore 更新後回報沒有問題，沒有逐項回報。
+- **第 3 項：配對主機的 FFI**（2026-10-20，`0c73596`、`dd09d31`）：不用自己寫。第 2 項升到的 `3854a5d` 已經包含上游 2026-09-12 加入的 `ffi/src/pairing_host.rs`（`6fb49ae`，上游註明參考 AltStore 的 FFI），分工正是原先打算自己寫的那樣：`pairable_host_prepare` 產生主機身分，交回 service identifier 和 TXT（XML plist，含 `authTag`），不綁 port、不廣播；`pairable_host_accept_fd` 接手 Swift 已經 accept 的連線，跑完配對，交回配對檔；`pairable_host_free` 釋放。三個函式由 `build_idevice.sh` 現有的 `tunnel_tcp_stack` 帶進來的 `remote_pairing` feature 編入，features 不用改。CI 的「Verify the idevice library is complete」現在檢查它們在 `idevice.h` 和 `libidevice_ffi.a` 的符號索引裏都有，少了就失敗；CI run `39305795528` 檢查通過，archive 成功。檢查要看符號索引（`nm --print-armap`），不能用 `nm` 逐個 `.o` 列：Rust 1.99 用 LLVM 23，Xcode 26.6 的 `nm` 是 LLVM 21，讀 Rust `.o` 裏附帶的 bitcode 會報錯，一個 Rust 函式都列不出來。連結器靠的也是符號索引，所以 App 照樣連結得到。不要用旁邊 `ffi/src/pairable_host.rs` 的 `pairable_host_accept`：它用 Rust 的 `mdns_sd` 自己送 multicast，iOS 上要 Apple 個別核准的權限。這三個函式只有 iOS 用得到，GFlyer-Suite 的 `native/idevice/` 不用改。
 
 2026-10-09 和 2026-10-19 的研究結果寫在上面，來源見下一節。
 
@@ -128,5 +128,5 @@
 - Apple：[Managing your simulated and physical devices in Device Hub](https://developer.apple.com/documentation/xcode/managing-your-simulated-and-physical-devices-in-device-hub)、[Enabling Developer Mode on a device](https://developer.apple.com/documentation/xcode/enabling-developer-mode-on-a-device)
 - [App Review Guidelines](https://developer.apple.com/app-store/review/guidelines/)
 - [SDK 最低要求](https://developer.apple.com/news/upcoming-requirements/)
-- idevice：<https://github.com/jkcoxson/idevice>（MIT；配對主機的 FFI 在 `ffi/src/pairable_host.rs`）
+- idevice：<https://github.com/jkcoxson/idevice>（MIT；GFlyer 用的配對主機 FFI 在 `ffi/src/pairing_host.rs`。同一層的 `ffi/src/pairable_host.rs` 用 Rust 自己廣播，iOS 上不能用）
 - StikPair：<https://github.com/StikDebug/StikPair>（只參考做法；授權禁止商業用途）
