@@ -5,7 +5,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 VENDOR_DIR="$PROJECT_DIR/GFlyerIOS/Vendor/idevice"
 SOURCE_DIR="${1:-$PROJECT_DIR/.build/idevice}"
-IDEVICE_REVISION="37ee77cf713f483551f3cf33ea8b2087a40058ca"
+IDEVICE_REVISION="3854a5df4a5a6dee71ffce4d8befc2ea356a8065"
 
 if ! command -v cargo >/dev/null 2>&1; then
   echo "cargo is required. Install Rust with rustup first." >&2

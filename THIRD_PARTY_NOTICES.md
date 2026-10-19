@@ -3,7 +3,7 @@
 ## idevice
 
 The optional device-location backend links to `idevice` at revision
-`37ee77cf713f483551f3cf33ea8b2087a40058ca`.
+`3854a5df4a5a6dee71ffce4d8befc2ea356a8065`.
 
 Copyright 2026 Jackson Coxson
 

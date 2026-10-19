@@ -13,7 +13,7 @@ downloaded DDI files to this document or the repository.
 | iOS version | |
 | Xcode version | |
 | GFlyer commit | |
-| `idevice` revision | `37ee77cf713f483551f3cf33ea8b2087a40058ca` |
+| `idevice` revision | `3854a5df4a5a6dee71ffce4d8befc2ea356a8065` |
 | LocalDevVPN version | |
 | LocalDevVPN target IP | `10.7.0.1` |
 | Pairing-file generation method | |
