@@ -152,7 +152,8 @@ This is a separate SwiftUI prototype for personal sideloading. It does not modif
   the reported location, telling the user whether it is real, still simulated,
   or unavailable
 
-The prototype deliberately excludes anti-detection, modified third-party clients, and App Store distribution.
+The prototype deliberately excludes anti-detection and modified third-party clients. The current app is
+sideload-only; an App Store edition is planned in [docs/APP_STORE_PLAN.md](docs/APP_STORE_PLAN.md).
 
 The feature UI, current-location flow, background activity, message-board unit
 tests, and native archive pass the repository's macOS/Xcode CI. Two-way
@@ -428,7 +429,9 @@ Record the hard-gate result in
 
 ## Important limitations
 
-- This is a research/personal-use path, not an App Store-compatible capability.
+- The current app is a personal sideload build. The planned App Store edition replaces LocalDevVPN with a
+  built-in tunnel and pairs on the device on iOS 27; none of that exists yet (see
+  [docs/APP_STORE_PLAN.md](docs/APP_STORE_PLAN.md)).
 - Background route playback uses the documented iOS 17 `CLBackgroundActivitySession` and `location` background mode. iOS displays its background-location indicator; this consumes additional battery and is not a guarantee against force quit, resource termination, VPN loss, or every future iOS behavior change.
 - A stale CoreDevice channel is discarded and rebuilt once after transient transport errors such as `BrokenPipe` or `Channel closed`.
 - Clearing the simulation does not guarantee an immediate return to real GPS.

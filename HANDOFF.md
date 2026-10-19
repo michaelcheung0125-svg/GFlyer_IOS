@@ -24,7 +24,9 @@ C:\Project\GFlyer
 
 ## 使用者目標
 
-使用者想要一個與 GFlyer Android 主要功能相近的 iOS App，供自己側載使用，不上架 App Store。第一次可以連接電腦完成安裝、配對與準備；之後正常傳送位置及執行路線時，不需要一直連接電腦。
+使用者想要一個與 GFlyer Android 主要功能相近的 iOS App，供自己側載使用（現在的親友版）。第一次可以連接電腦完成安裝、配對與準備；之後正常傳送位置及執行路線時，不需要一直連接電腦。
+
+2026-10-19 起另有新目標：照 Android 分出上架 App Store 的公開版，在 iOS 27 以上全程不用電腦（`docs/APP_STORE_PLAN.md`）。上面的目標照舊適用於親友版。
 
 ## 目前已完成
 
@@ -776,6 +778,8 @@ GFlyerIOS/UI/LibraryViews.swift
 ## 下一個對話應先做什麼
 
 新對話開始時，先讀取本檔案、`AGENTS.md`、`README.md` 及 `docs/IMPLEMENTATION_PLAN.md`。
+
+2026-10-19 起的開發方向：照 `docs/APP_STORE_PLAN.md` 的次序做 iOS 公開版（App Store）。第一項是 CI 升到 Xcode 26；第一階段（在手機上配對）兩個版本都用得到，先在親友版做。開始之前先看該文件的「要使用者決定的事」，U1–U7 都還沒有決定。
 
 目前狀態（2026-10-10）：
 

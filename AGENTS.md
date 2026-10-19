@@ -2,7 +2,7 @@
 
 ## 專案範圍
 
-- 這是一個獨立的個人側載 iOS 專案，與 Android 專案 `C:\Project\GFlyer` 分開維護。
+- 這是一個獨立的 iOS 專案，與 Android 專案 `C:\Project\GFlyer` 分開維護。目前發佈的是個人側載的親友版；上架 App Store 的公開版在規劃中（見「目前目標」）。
 - 原始碼位於 `GFlyerIOS/`；XcodeGen 設定位於 `project.yml`。
 - 不要把 Android Kotlin 檔案、Android build output 或 Android backend 搬回本專案。
 
@@ -20,7 +20,9 @@
 
 - 先完成「裝置級 GPS 模擬」硬性可行性測試，再擴充完整 GFlyer 功能。
 - 使用者可第一次連接電腦，但正常使用期間不需要持續連接電腦。
-- 目前只做個人側載，不做 App Store 發佈。
+- 親友版（現在的 App）照舊個人側載，經 SideStore 安裝。
+- 2026-10-19 使用者決定：iOS 照 Android 分成親友版和公開版，公開版以上架 App Store 為目標，在 iOS 27 以上做到全程不用電腦。計劃、次序和要使用者決定的事在 `docs/APP_STORE_PLAN.md`；跨平台的紀錄是 GFlyer-Suite DRIFT D35 與 PARITY「iOS 的兩個版本」。
+- 分版本之前（`docs/APP_STORE_PLAN.md` 第 8 項），新功能照舊只有一個 target；分版本之後，做新功能之前先決定它給不給公開版，拿不準就只給親友版並問使用者。
 
 ## 開發規則
 
