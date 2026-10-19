@@ -50,7 +50,7 @@
 
 | # | 待辦 | 為甚麼和怎樣做 | 做完的標準 |
 |---|---|---|---|
-| 2 | 升級 idevice 的釘選版本（2026-10-20 升到 `3854a5d`，`0944cb4`，CI 已過；還差發佈新版和實機） | 現在釘的 `37ee77c`（2026-08-07）之後，上游加了配對的取消（`393b438`），也修了配對資料的解碼（`6fb49ae`） | `scripts/build_idevice.sh` 和 `THIRD_PARTY_NOTICES.md` 的 revision 一起更新；現有的定位模擬在實機照常 |
+| 2 | 升級 idevice 的釘選版本（2026-10-20 升到 `3854a5d`，`0944cb4`，CI 已過；0.6.15 已發佈，等實機） | 現在釘的 `37ee77c`（2026-08-07）之後，上游加了配對的取消（`393b438`），也修了配對資料的解碼（`6fb49ae`） | `scripts/build_idevice.sh` 和 `THIRD_PARTY_NOTICES.md` 的 revision 一起更新；現有的定位模擬在實機照常 |
 | 3 | 配對主機的 FFI：Rust 只管配對，廣播交給 Swift | 上游的 `pairable_host_accept()` 用 Rust 的 `mdns_sd` 自己送 multicast 封包。iOS App 送 multicast 要 Apple 個別核准的 multicast 權限，免費 Apple ID 也拿不到。StikPair 為了同一個原因把廣播改到 Swift，但它的授權禁止商業用途，不抄它的程式。做法：在 `scripts/build_idevice.sh` 建置時加入 GFlyer 自己的 FFI 函式，不改上游的檔案。它綁好 TCP port、產生 service identifier 和 TXT（含 `authTag`），用 callback 交給 Swift，再等裝置連入，可以取消。只有 iOS 用得到，所以放在這個 repo，不放 GFlyer-Suite 的 `native/idevice/` | CI 建出的 `libidevice_ffi.a` 有新函式，App 連結成功 |
 | 4 | Swift 的配對流程 | 用 `NetService` 廣播 `_remotepairing-pairable-host._tcp`；`Info.plist` 加 `NSBonjourServices`，並改寫本機網路的說明（現在只提 LocalDevVPN）。PIN 用本機通知顯示，使用者在「設定」裏就看得到，不用切回 App。使用者切去「設定」時，用 `BGContinuedProcessingTask`（iOS 26 起）讓 App 繼續等待，不用無聲音訊之類的做法（審查指南 2.5.4）。有逾時和取消；入口只在 iOS 27 以上出現 | iOS 27 實機上，「設定」的開發者模式頁列出 GFlyer，輸入 PIN 後配對成功 |
 | 5 | 存檔和匯出 | 配對成功後寫進 `PairingFileStore` 的同一個位置，檔案保護和手動匯入相同；新的配對成功才取代舊檔。可以匯出到「檔案」，給 SideStore 等其他工具用 | 重開 App 後用新檔建立通道並傳送一次；SideStore 收得下匯出的檔 |
