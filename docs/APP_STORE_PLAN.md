@@ -118,7 +118,7 @@
 
 ## 已做
 
-- **第 1 項的 CI 部分**（2026-10-19，`754e800`、`d6905e7`）：兩個 job 改在 `macos-26` 用 Xcode 26.6（Swift 6.3.3、iOS 26.5 SDK）建置。CI run `39272157905` 兩個 job 綠燈，294 個測試通過，編譯警告和 Xcode 16.4 時同樣 5 個。拆開 IPA：檔案和 Xcode 16.4 時相同，有 `Assets.car` 和 `AppIcon60x60@2x.png`；版本 0.6.13 (26)，`MinimumOSVersion` 17.4，`DTSDKName` iphoneos26.5。`Info.plist` 加了 `UIDesignRequiresCompatibility`，CI 截圖和 Xcode 16.4 時一樣。iOS 26 的模擬器第一次啟動要 50 秒左右才畫出畫面，原本固定等 8 秒，截到的是空白畫面，截圖步驟已改成等畫面出現。**還差實機**：用 SideStore 裝 Xcode 26 建置的版本，開啟並傳送一次。實機驗證之前，第 1 項留在第一階段的表裏。
+- **第 1 項的 CI 部分**（2026-10-19，`754e800`、`d6905e7`）：兩個 job 改在 `macos-26` 用 Xcode 26.6（Swift 6.3.3、iOS 26.5 SDK）建置。CI run `39272157905` 兩個 job 綠燈，294 個測試通過，編譯警告和 Xcode 16.4 時同樣 5 個。拆開 IPA：檔案和 Xcode 16.4 時相同，有 `Assets.car` 和 `AppIcon60x60@2x.png`；版本 0.6.13 (26)，`MinimumOSVersion` 17.4，`DTSDKName` iphoneos26.5。`Info.plist` 加了 `UIDesignRequiresCompatibility`，CI 截圖和 Xcode 16.4 時一樣。iOS 26 的模擬器第一次啟動要 50 秒左右才畫出畫面，原本固定等 8 秒，截到的是空白畫面，截圖步驟已改成等畫面出現。**還差實機**：用 SideStore 裝 Xcode 26 建置的版本，開啟並傳送一次。這個版本是 2026-10-19 發佈的 0.6.14 (27)（`ec4feb6`）。實機驗證之前，第 1 項留在第一階段的表裏。
 
 2026-10-09 和 2026-10-19 的研究結果寫在上面，來源見下一節。
 

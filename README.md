@@ -348,6 +348,11 @@ macOS runner it:
 - archives the `GFlyerIOS-Idevice` scheme without code signing; and
 - uploads an unsigned IPA and `.xcarchive` as a short-lived workflow artifact.
 
+Since `0.6.14` (2026-10-19) the workflow builds with Xcode 26.6 and the iOS 26.5
+SDK on the `macos-26` runner, because App Store Connect only accepts Xcode 26
+builds. `Info.plist` sets `UIDesignRequiresCompatibility`, so the app keeps its
+earlier look instead of Liquid Glass. Earlier versions were built with Xcode 16.4.
+
 The unsigned artifact proves that the device target can be compiled and linked.
 It cannot be installed on an iPhone until it is signed with the owner's Apple
 development identity and provisioning profile. No Apple signing secret is

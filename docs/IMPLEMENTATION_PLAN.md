@@ -61,7 +61,8 @@ signing, CoreDevice, or location-transport secrets.
 
 ### M0: Device-location spike
 
-Status: implementation and macOS CI passed on Xcode 16.4. Since `0.4.0` the
+Status: implementation and macOS CI passed on Xcode 16.4; CI has used Xcode
+26.6 since `0.6.14` (2026-10-19, device check pending). Since `0.4.0` the
 app has been installed and updated on the target iPhone through the SideStore
 source (re-signed with the owner's Apple ID), the `0.4.x` clear-simulation
 behaviour was device-confirmed, and on 2026-10-01 the owner reported that
