@@ -745,6 +745,18 @@ SHA-256 1771316CC5026DBF3B837352DEB73DE79EF528F224C630E90D0BA07EAAB08D32
 成功並產出 unsigned IPA artifact。實機回歸、個人簽署與 Android 備份／
 座標圖鑑互通仍待驗證。
 
+2026-10-19 起 CI 改用 Xcode 26.6（Swift 6.3.3、iOS 26.5 SDK），跑在 `macos-26`
+（`docs/APP_STORE_PLAN.md` 第 1 項；commit `754e800`、`d6905e7`）。App Store Connect
+從 2026-04-28 起只收 Xcode 26 建置的版本，不要釘回 16.x。run
+[`39272157905`](https://github.com/michaelcheung0125-svg/GFlyer_IOS/actions/runs/39272157905)
+兩個 job 綠燈，294 個測試通過；IPA 的檔案和 Xcode 16.4 時相同，`MinimumOSVersion` 仍是
+17.4。`Info.plist` 的 `UIDesignRequiresCompatibility` 讓 App 在 iOS 26 以上保留舊外觀，
+不換成 Liquid Glass；用 iOS 27 SDK 建置時這個鍵無效，CI 升到 Xcode 27 之前要先改用新外觀。
+iOS 26 的模擬器第一次啟動 App 要 50 秒左右才畫出畫面，截圖步驟會等畫面出現；過了 120 秒還是
+空白，就在 CI 留下 warning。**下一個發佈的版本是第一個用 Xcode 26 建置的版本**：發佈後
+實機要確認可以開啟、傳送一次，外觀和以前相同。在那之前，也可以把 CI artifact 的 IPA
+用 SideStore 裝到實機先試。
+
 ## 重要檔案
 
 ```text
@@ -779,7 +791,7 @@ GFlyerIOS/UI/LibraryViews.swift
 
 新對話開始時，先讀取本檔案、`AGENTS.md`、`README.md` 及 `docs/IMPLEMENTATION_PLAN.md`。
 
-2026-10-19 起的開發方向：照 `docs/APP_STORE_PLAN.md` 的次序做 iOS 公開版（App Store）。第一項是 CI 升到 Xcode 26；第一階段（在手機上配對）兩個版本都用得到，先在親友版做。開始之前先看該文件的「要使用者決定的事」，U1–U7 都還沒有決定。
+2026-10-19 起的開發方向：照 `docs/APP_STORE_PLAN.md` 的次序做 iOS 公開版（App Store）。第 1 項（CI 升到 Xcode 26）的 CI 部分 2026-10-19 已做，只差實機（見上方「目前已完成」最後一段）；下一項是第 2 項，升級 idevice 的釘選版本。第一階段（在手機上配對）兩個版本都用得到，先在親友版做。開始之前先看該文件的「要使用者決定的事」，U1–U7 都還沒有決定。
 
 目前狀態（2026-10-10）：
 

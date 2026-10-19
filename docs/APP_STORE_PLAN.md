@@ -50,7 +50,7 @@
 
 | # | 待辦 | 為甚麼和怎樣做 | 做完的標準 |
 |---|---|---|---|
-| 1 | CI 從 Xcode 16.4 升到 Xcode 26 | App Store Connect 從 2026-04-28 起只收 Xcode 26（iOS 26 SDK）建置的版本，舊 SDK 在上傳時就被擋下；第 4 項也要用 iOS 26 的 API。照 `.github/workflows/macos-xcode.yml` 開頭的說明：改 `DEVELOPER_DIR`，同步更新 `.claude/skills/write-swift/SKILL.md` 的 toolchain 表和 `AGENTS.md`。語言模式維持 Swift 5，approachable concurrency 的遷移不在這一項 | CI 兩個 job 綠燈；拆開 IPA 確認 `Assets.car`、App 圖示和版本號（`docs/RELEASE_PROCESS.md`）；`MinimumOSVersion` 仍是 17.4；用 SideStore 裝到實機可以開啟並傳送一次 |
+| 1 | CI 從 Xcode 16.4 升到 Xcode 26（CI 部分已做，只差實機，見「已做」） | App Store Connect 從 2026-04-28 起只收 Xcode 26（iOS 26 SDK）建置的版本，舊 SDK 在上傳時就被擋下；第 4 項也要用 iOS 26 的 API。照 `.github/workflows/macos-xcode.yml` 開頭的說明：改 `DEVELOPER_DIR`，同步更新 `.claude/skills/write-swift/SKILL.md` 的 toolchain 表和 `AGENTS.md`。語言模式維持 Swift 5，approachable concurrency 的遷移不在這一項 | CI 兩個 job 綠燈；拆開 IPA 確認 `Assets.car`、App 圖示和版本號（`docs/RELEASE_PROCESS.md`）；`MinimumOSVersion` 仍是 17.4；用 SideStore 裝到實機可以開啟並傳送一次 |
 | 2 | 升級 idevice 的釘選版本 | 現在釘的 `37ee77c`（2026-08-07）之後，上游加了配對的取消（`393b438`），也修了配對資料的解碼（`6fb49ae`） | `scripts/build_idevice.sh` 和 `THIRD_PARTY_NOTICES.md` 的 revision 一起更新；現有的定位模擬在實機照常 |
 | 3 | 配對主機的 FFI：Rust 只管配對，廣播交給 Swift | 上游的 `pairable_host_accept()` 用 Rust 的 `mdns_sd` 自己送 multicast 封包。iOS App 送 multicast 要 Apple 個別核准的 multicast 權限，免費 Apple ID 也拿不到。StikPair 為了同一個原因把廣播改到 Swift，但它的授權禁止商業用途，不抄它的程式。做法：在 `scripts/build_idevice.sh` 建置時加入 GFlyer 自己的 FFI 函式，不改上游的檔案。它綁好 TCP port、產生 service identifier 和 TXT（含 `authTag`），用 callback 交給 Swift，再等裝置連入，可以取消。只有 iOS 用得到，所以放在這個 repo，不放 GFlyer-Suite 的 `native/idevice/` | CI 建出的 `libidevice_ffi.a` 有新函式，App 連結成功 |
 | 4 | Swift 的配對流程 | 用 `NetService` 廣播 `_remotepairing-pairable-host._tcp`；`Info.plist` 加 `NSBonjourServices`，並改寫本機網路的說明（現在只提 LocalDevVPN）。PIN 用本機通知顯示，使用者在「設定」裏就看得到，不用切回 App。使用者切去「設定」時，用 `BGContinuedProcessingTask`（iOS 26 起）讓 App 繼續等待，不用無聲音訊之類的做法（審查指南 2.5.4）。有逾時和取消；入口只在 iOS 27 以上出現 | iOS 27 實機上，「設定」的開發者模式頁列出 GFlyer，輸入 PIN 後配對成功 |
@@ -118,7 +118,9 @@
 
 ## 已做
 
-還沒有。2026-10-09 和 2026-10-19 的研究結果寫在上面，來源見下一節。
+- **第 1 項的 CI 部分**（2026-10-19，`754e800`、`d6905e7`）：兩個 job 改在 `macos-26` 用 Xcode 26.6（Swift 6.3.3、iOS 26.5 SDK）建置。CI run `39272157905` 兩個 job 綠燈，294 個測試通過，編譯警告和 Xcode 16.4 時同樣 5 個。拆開 IPA：檔案和 Xcode 16.4 時相同，有 `Assets.car` 和 `AppIcon60x60@2x.png`；版本 0.6.13 (26)，`MinimumOSVersion` 17.4，`DTSDKName` iphoneos26.5。`Info.plist` 加了 `UIDesignRequiresCompatibility`，CI 截圖和 Xcode 16.4 時一樣。iOS 26 的模擬器第一次啟動要 50 秒左右才畫出畫面，原本固定等 8 秒，截到的是空白畫面，截圖步驟已改成等畫面出現。**還差實機**：用 SideStore 裝 Xcode 26 建置的版本，開啟並傳送一次。實機驗證之前，第 1 項留在第一階段的表裏。
+
+2026-10-09 和 2026-10-19 的研究結果寫在上面，來源見下一節。
 
 ## 參考
 
