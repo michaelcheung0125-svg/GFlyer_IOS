@@ -141,9 +141,23 @@ jobs:
             # -GFlyerScreenshotMode 讓 App 跳過更新檢查與留言板刷新。少了它，
             # 截圖會隨著線上有沒有新版本、留言板有沒有未讀而變，看起來像版面動了。
             xcrun simctl launch "$sim" com.geopilot.gflyer.ios -GFlyerScreenshotMode
-            # 沒有可以等的訊號，只能給地圖與工具列固定時間畫完。
+            # 沒有可以等的訊號，所以先等畫面出現，再給地圖圖磚固定時間載入。
+            # iOS 26 的模擬器剛開機時，第一次啟動要 20–45 秒才畫出東西
+            # （2026-10-19 實測；iOS 18.5 時 8 秒內就畫好），之前截到的是空白的
+            # 啟動畫面，CI 照樣綠燈。用檔案大小判斷：空白畫面約 70 KB，地圖畫好
+            # 約 2 MB。
+            shot="$shots/main-$appearance.png"
+            start=$SECONDS
+            until xcrun simctl io "$sim" screenshot "$shot" && [ "$(stat -f%z "$shot")" -gt 400000 ]; do
+              if [ $((SECONDS - start)) -ge 120 ]; then
+                echo "::warning::main-$appearance.png still looks blank or unfinished after 120 seconds."
+                break
+              fi
+              sleep 5
+            done
+            echo "main-$appearance: first frame after $((SECONDS - start)) seconds"
             sleep 8
-            xcrun simctl io "$sim" screenshot "$shots/main-$appearance.png"
+            xcrun simctl io "$sim" screenshot "$shot"
           done
           ls -l "$shots"
 

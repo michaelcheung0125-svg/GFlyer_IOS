@@ -114,6 +114,7 @@
 - **沒有 Wi-Fi 時能不能配對**還不知道。LL Pair 和 StikPair 都要求本機網路權限。
 - **iOS 更新。** Apple 以後可能改變配對或 DDI 的做法。Apple 的 Device Hub 文件說升級 iOS 之後要重新配對，要實測對 GFlyer 的配對檔有沒有影響。
 - **iOS 26 以下仍然要電腦。**
+- **Liquid Glass 外觀。** 用 iOS 26 SDK 建置的 App 在 iOS 26 以上會自動換成新外觀。第 1 項在 `Info.plist` 加了 `UIDesignRequiresCompatibility`，暫時保留舊外觀，讓第 1 項只換 toolchain。Apple 在 WWDC25 說這個選項會在下一個主要版本拿掉；用 iOS 27 SDK 建置時系統不理會這個鍵。所以 CI 升到 Xcode 27 之前，要先改用新外觀，並且逐頁看過 CI 截圖和實機。App Store 甚麼時候開始只收 Xcode 27 建置的版本，Apple 還沒有公布。
 
 ## 已做
 

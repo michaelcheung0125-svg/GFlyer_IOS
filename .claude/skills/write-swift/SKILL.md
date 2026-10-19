@@ -1,6 +1,6 @@
 ---
 name: write-swift
-description: 在本專案寫、審或修改任何 Swift / SwiftUI 程式碼時使用：value type 建模、結構化併發與 actor 隔離、protocol 與泛型（some vs any）、API 設計、ARC 與效能、Swift Testing、日誌。也用於排查併發錯誤、hang、data race、retain cycle 或效能問題。開頭含本專案的 toolchain 版本護欄（Swift 5 語言模式、CI Xcode 16.4、最低 iOS 17.4），動手前務必先讀第一節。
+description: 在本專案寫、審或修改任何 Swift / SwiftUI 程式碼時使用：value type 建模、結構化併發與 actor 隔離、protocol 與泛型（some vs any）、API 設計、ARC 與效能、Swift Testing、日誌。也用於排查併發錯誤、hang、data race、retain cycle 或效能問題。開頭含本專案的 toolchain 版本護欄（Swift 5 語言模式、CI Xcode 26.6、最低 iOS 17.4），動手前務必先讀第一節。
 ---
 
 # 本專案版本護欄（先讀這一節）
@@ -13,20 +13,21 @@ description: 在本專案寫、審或修改任何 Swift / SwiftUI 程式碼時�
 | 項目 | 本專案的值 | 來源 |
 | --- | --- | --- |
 | 語言模式 | **Swift 5** | `project.yml` 的 `SWIFT_VERSION: "5.0"` |
-| CI 編譯器 | **Xcode 16.4（Swift 6.1）** | `.github/workflows/macos-xcode.yml` 用 workflow 層級的 `DEVELOPER_DIR` 釘死；版本不在 runner image 上時 CI 直接失敗 |
+| CI 編譯器 | **Xcode 26.6（Swift 6.3.3，iOS 26.5 SDK）** | `.github/workflows/macos-xcode.yml` 用 workflow 層級的 `DEVELOPER_DIR` 釘死；版本不在 runner image 上時 CI 直接失敗。Swift 版本是 CI log 裡 `swift --version` 印出的（2026-10-19 起；之前是 Xcode 16.4 / Swift 6.1） |
 | 最低 iOS | **17.4** | `project.yml` 的 `deploymentTarget` |
 
-CI 是交付的閘門（見 `docs/RELEASE_PROCESS.md`）。**即使本機 Xcode 比較新，「能不能用」的判準是 CI 的 Xcode 16.4。**
+CI 是交付的閘門（見 `docs/RELEASE_PROCESS.md`）。**即使本機 Xcode 比較新，「能不能用」的判準是 CI 的 Xcode 26.6。** 編譯器是 6.3，但語言模式是 Swift 5、最低 iOS 是 17.4，所以「編得過」不等於「可以用」，以下面兩張清單為準。
 
-## 禁止使用（會編不過，或在 iOS 17.4 上根本不存在）
+## 禁止使用（遷移還沒做、在 iOS 17.4 上不存在，或會編不過）
 
-- **§3 整節的 approachable concurrency 模型** — `@concurrent`、`nonisolated(nonsending)`，以及「標成 `async` 不會切換 actor」這個前提。這些是 Swift **6.2** 的行為。上游自己在 §3 開頭就寫了：若專案在 6.1 或更早，§3 關於 `async` 和 `@concurrent` 的規則不適用。本專案正是 6.1。要把工作移到背景，沿用專案既有的 `Task.detached` / actor 寫法，不要改成 `@concurrent`。
-- **Swift 6.2 之後才進標準函式庫的型別**：`InlineArray`、`Span` / `RawSpan` / `OutputSpan`、`Observations`、型別化的 `NotificationCenter`（`MainActorMessage` / `AsyncMessage`）、Swift Binary Parsing。Apple 平台的標準函式庫跟著 OS 走，這些需要 iOS 26 runtime，本專案最低 17.4。
-- **Swift 6.3 才有的**：`@specialized`、module selector（`Rocket::SaturnV`）、`@c` / `@implementation`。
+- **§3 整節的 approachable concurrency 模型** — `@concurrent`、`nonisolated(nonsending)`，以及「標成 `async` 不會切換 actor」這個前提。這些是 Swift **6.2** 的行為。Xcode 26 的編譯器認得這兩個屬性，但 `project.yml` 沒有開 approachable concurrency（`NonisolatedNonsendingByDefault`），所以在本專案 `nonisolated` 的 `async` 函式照舊跑到背景執行，§3 的前提不成立。上游自己在 §3 開頭就寫了：照舊規則的專案，§3 關於 `async` 和 `@concurrent` 的規則不適用。要把工作移到背景，沿用專案既有的 `Task.detached` / actor 寫法，不要改成 `@concurrent`。開 approachable concurrency 是一次獨立的遷移，不要夾帶在功能修改裡。
+- **Swift 6.2 之後才進標準函式庫的型別**：`InlineArray`、`Span` / `RawSpan` / `OutputSpan`、`Observations`、型別化的 `NotificationCenter`（`MainActorMessage` / `AsyncMessage`）、Swift Binary Parsing。Apple 平台的標準函式庫跟著 OS 走，這些需要 iOS 26 runtime，本專案最低 17.4。iOS 26 SDK 的其他新 API 也一樣，要用就加 `if #available(iOS 26, *)` 並保留 iOS 17.4 的做法。
 - **上游表格中任何標 ⚠ 的項目**（Swift 6.4，尚未發行）：task cancellation shield、`mapKeyedValues`、`@available(anyAppleOS:)`、`@diagnose`、`~Sendable`、`weak let`、`borrow` / `mutate` accessor、`UniqueArray` / `UniqueBox` / `Ref`。
 - **不要為了「開 Swift 6 嚴格併發」而去動 `project.yml` 的 `SWIFT_VERSION`。** 那是一次獨立的遷移，不能夾帶在功能修改裡。
 
-## 可以使用（已確認在 Xcode 16.4 + iOS 17.4 成立）
+## 可以使用（Xcode 26.6 + iOS 17.4 成立）
+
+- **Swift 6.3 的編譯期功能**：`@specialized`、module selector（`Rocket::SaturnV`）、`@c`。它們不需要新的 runtime，Xcode 16.4 時代編不過，現在可以用；但不要為了用它們去改已經通過實機驗證的程式。
 
 - **`@Observable`**（Swift 5.9 / iOS 17）。本專案目前有 9 處 `ObservableObject`、69 處 `@Published`、0 處 `@Observable` — 這是上游建議裡最值得採用的一條。
 - **Swift Testing**（`@Test`、`#expect`、`@Test(arguments:)`）。隨 Xcode 16 附帶，且可與現有 XCTest 在同一個 test target 共存。本專案目前 24 處 XCTest、0 處 Swift Testing。

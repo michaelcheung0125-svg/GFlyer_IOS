@@ -66,7 +66,7 @@ CI 是唯一的編譯驗證。兩個 job：`Preview scheme tests`（Simulator �
 
 #### CI 成本（改任何觸發條件前先讀）
 
-本 repo 是**公開**的：GitHub 的標準 runner（包括這兩個 job 用的 `macos-15`）在
+本 repo 是**公開**的：GitHub 的標準 runner（包括這兩個 job 用的 `macos-26`）在
 公開 repo 不計費，不扣 included 額度。repo 還是私有的時候，macOS runner 以 10 倍
 計費：實測每次 push 約 8.6 分鐘實際執行時間，會扣掉 60–80 分鐘的額度，2026-09
 那個週期 21 次 push 就用掉 1,810 / 2,000 分鐘。下面的優化是那時做的，現在它們
