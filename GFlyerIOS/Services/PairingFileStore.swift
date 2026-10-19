@@ -11,17 +11,23 @@ final class PairingFileStore: ObservableObject {
         .propertyList,
     ]
 
+    /// 匯出到「檔案」時的預設檔名。和 idevice_pair 產生的 RP Pairing File 一樣是 XML plist。
+    static let exportFilename = "gflyer-pairing-file.plist"
+
     @Published private(set) var isImported = false
     @Published private(set) var revision = UUID()
 
-    init() {
+    private let directory: URL
+
+    /// `directory` 只給測試用；App 一律存在 Application Support/Pairing。
+    init(directory: URL? = nil) {
+        self.directory = directory ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("Pairing", isDirectory: true)
         refresh()
     }
 
     var url: URL {
-        let directory = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("Pairing", isDirectory: true)
-        return directory.appendingPathComponent(Self.fileName)
+        directory.appendingPathComponent(Self.fileName)
     }
 
     func refresh() {
@@ -53,6 +59,11 @@ final class PairingFileStore: ObservableObject {
             ofItemAtPath: url.path
         )
         refresh()
+    }
+
+    /// 「匯出 Pairing File」：原樣交出存著的檔案，匯入或在這支 iPhone 上配對得到的都一樣。
+    func exportData() throws -> Data {
+        try Data(contentsOf: url)
     }
 
     func remove() throws {

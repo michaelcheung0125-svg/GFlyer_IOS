@@ -8,7 +8,7 @@ extension UTType {
 }
 
 struct ExportedDataDocument: FileDocument {
-    static var readableContentTypes: [UTType] { [.data, .json, .xml, .gpx] }
+    static var readableContentTypes: [UTType] { [.data, .json, .xml, .gpx, .propertyList] }
     var data: Data
 
     init(data: Data = Data()) { self.data = data }
@@ -48,11 +48,13 @@ struct SetupView: View {
 
     /// .fileExporter 有同樣的限制，同樣併成一個。
     private enum ExportTarget {
+        case pairingFile
         case gpxRoutes
         case backup
 
         var contentType: UTType {
             switch self {
+            case .pairingFile: return .propertyList
             case .gpxRoutes: return .gpx
             case .backup: return .json
             }
@@ -60,6 +62,7 @@ struct SetupView: View {
 
         var defaultFilename: String {
             switch self {
+            case .pairingFile: return PairingFileStore.exportFilename
             case .gpxRoutes: return "gflyer-routes.gpx"
             case .backup: return "gflyer-backup.json"
             }
@@ -110,7 +113,8 @@ struct SetupView: View {
     var body: some View {
         NavigationStack {
             formWithTransfers
-                .alert("匯入失敗", isPresented: binding(for: $importError)) {
+                // 匯入、匯出和移除共用這個提示，所以標題不寫「匯入」。
+                .alert("沒有成功", isPresented: binding(for: $importError)) {
                     Button("確定", role: .cancel) { importError = nil }
                 } message: {
                     Text(importError ?? "未知錯誤")
@@ -281,6 +285,21 @@ struct SetupView: View {
                 Label("匯入 Pairing File", systemImage: "doc.badge.plus")
             }
             if pairingStore.isImported {
+                // docs/APP_STORE_PLAN.md 第 5 項。
+                Button {
+                    do {
+                        exportDocument = ExportedDataDocument(data: try pairingStore.exportData())
+                        pendingExport = .pairingFile
+                        showExporter = true
+                    } catch {
+                        importError = describe(error)
+                    }
+                } label: {
+                    Label("匯出 Pairing File", systemImage: "square.and.arrow.up")
+                }
+                Text("存一份到「檔案」：重裝 GFlyer 之後，用「匯入 Pairing File」選這個檔就不用重新配對。檔案裏有配對這支 iPhone 的鑰匙，不要傳給別人。")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
                 Button("移除 Pairing File", role: .destructive) {
                     do {
                         try pairingStore.remove()
