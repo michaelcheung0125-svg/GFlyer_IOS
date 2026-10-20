@@ -7,7 +7,7 @@
 		<string>$(PRODUCT_BUNDLE_IDENTIFIER).pairing.*</string>
 	</array>
 	<key>CFBundleDisplayName</key>
-	<string>GFlyer</string>
+	<string>GFlyer - 飛豬人</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -19,15 +19,9 @@
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
-	<string>0.6.17</string>
+	<string>$(MARKETING_VERSION)</string>
 	<key>CFBundleVersion</key>
-	<string>30</string>
-	<key>GFlyerCoordinateLibraryURL</key>
-	<string>https://michaelcheung0125-svg.github.io/GFlyer-updates/coordinates/coordinates.json</string>
-	<key>GFlyerMessageBoardAPIURL</key>
-	<string>https://gflyer-message-board.gflyer-michaelcheung0125.workers.dev</string>
-	<key>GFlyerUpdateSourceURL</key>
-	<string>https://michaelcheung0125-svg.github.io/GFlyer-updates/altstore.json</string>
+	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
 	<key>CFBundleURLTypes</key>
@@ -36,17 +30,15 @@
 			<key>CFBundleTypeRole</key>
 			<string>Editor</string>
 			<key>CFBundleURLName</key>
-			<string>com.geopilot.gflyer.ios.callback</string>
+			<string>$(PRODUCT_BUNDLE_IDENTIFIER).callback</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
-				<string>gflyer</string>
+				<string>jetpiggy-gflyer</string>
 			</array>
 		</dict>
 	</array>
 	<key>LSApplicationQueriesSchemes</key>
 	<array>
-		<string>sidestore</string>
-		<string>altstore</string>
 		<string>shortcuts</string>
 		<string>localdevvpn</string>
 	</array>

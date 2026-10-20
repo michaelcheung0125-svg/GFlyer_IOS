@@ -8,7 +8,7 @@
 
 ```text
 改程式碼
-  → 升版本號（Info.plist，兩個欄位都要）
+  → 升版本號（project.yml，兩個設定都要）
   → commit + push（公開 GFlyer_IOS）
   → GitHub Actions macOS CI（唯一的編譯驗證；Windows 不能編譯 Swift）
   → 下載 unsigned IPA artifact
@@ -41,10 +41,14 @@ Android 的 tag 是 `v<版本>`，iOS 一律用 **`ios-v<版本>`** 避免衝突
 
 ### 1. 升版本號
 
-改 `GFlyerIOS/Info.plist` 的**兩個**欄位：
+改 `project.yml` 開頭 `settings.base` 的**兩個**設定：
 
-- `CFBundleShortVersionString`：`0.4.5`
-- `CFBundleVersion`：`11`（每次發佈 +1；必須是整數字串）
+- `MARKETING_VERSION`：`0.4.5`
+- `CURRENT_PROJECT_VERSION`：`11`（每次發佈 +1；必須是整數字串）
+
+兩個版本（親友版和公開版）共用這兩個設定，建置時填進 IPA 的 `CFBundleShortVersionString`
+和 `CFBundleVersion`。不要在 `GFlyerIOS/Family/Info.plist` 或 `GFlyerIOS/Public/Info.plist`
+寫死版本號：那裏寫的是 `$(MARKETING_VERSION)` 和 `$(CURRENT_PROJECT_VERSION)`。
 
 沒有升版，App 內更新檢查不會提示（版本比較：先比行銷版本、再比 build）。
 第 5 步的產生器另外強制先後規則：`CFBundleVersion` 必須比已發布的**嚴格變大**，

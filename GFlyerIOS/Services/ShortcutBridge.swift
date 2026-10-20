@@ -6,8 +6,8 @@ import Foundation
 /// entitlement，免費 Apple ID 拿不到），以及切換飛行模式（iOS 完全沒有公開
 /// API）。兩者的呼叫方式一樣，所以組網址的規則集中在這裡。
 enum ShortcutBridge {
-    /// 回呼用的自訂 scheme，需與 Info.plist 的 CFBundleURLTypes 一致。
-    static let callbackScheme = "gflyer"
+    /// 回呼用的自訂 scheme。兩個版本不同，親友版是 `gflyer`，見 `EditionFeatures`。
+    static let callbackScheme = Edition.callbackScheme
 
     /// 組出 `shortcuts://x-callback-url/run-shortcut` 網址。
     ///

@@ -228,7 +228,7 @@ then `project`), which also maintains the cross-platform `releases.json` next to
 
 Every code change reaches users through the runbook in
 [docs/RELEASE_PROCESS.md](docs/RELEASE_PROCESS.md): bump the version in
-`Info.plist`, push and wait for CI, download the unsigned IPA artifact,
+`project.yml` (`MARKETING_VERSION` and `CURRENT_PROJECT_VERSION`), push and wait for CI, download the unsigned IPA artifact,
 **inspect the IPA payload** (a green CI run does not prove the payload is
 complete — an early build shipped without the entire asset catalog), publish
 it as an `ios-v<version>` release in the public `GFlyer-updates` repository,
@@ -311,7 +311,7 @@ de-duplication is case-sensitive and the local messages use Android's wording.
 This HTTPS service is independent from the device-location transport. The
 message-board client never reads or uploads the Pairing File, DDI, Apple signing
 material, CoreDevice socket data, or simulated-location state. The configured
-endpoint is `GFlyerMessageBoardAPIURL` in `GFlyerIOS/Info.plist` and must remain
+endpoint is `GFlyerMessageBoardAPIURL` in `GFlyerIOS/Family/Info.plist` and must remain
 a public HTTPS URL.
 
 ## Privacy

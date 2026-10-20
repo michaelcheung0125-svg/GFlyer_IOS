@@ -2,6 +2,9 @@ import UIKit
 import XCTest
 @testable import GFlyerIOS
 
+/// 回呼的 scheme 每個版本不同（`EditionFeatures`），兩個版本的 test target 都跑這些測試。
+private let scheme = Edition.callbackScheme
+
 @MainActor
 final class LocalDevVPNBridgeTests: XCTestCase {
     /// 路由查詢與 App 切換都換成可控制的假物件，測試不碰真正的網卡或 LocalDevVPN。
@@ -58,9 +61,9 @@ final class LocalDevVPNBridgeTests: XCTestCase {
 
     func testURLsAskLocalDevVPNToReturnToGFlyer() throws {
         let enable = try XCTUnwrap(LocalDevVPNBridge.url(for: .connect))
-        XCTAssertEqual(enable.absoluteString, "localdevvpn://enable?scheme=gflyer")
+        XCTAssertEqual(enable.absoluteString, "localdevvpn://enable?scheme=\(scheme)")
         let disable = try XCTUnwrap(LocalDevVPNBridge.url(for: .disconnect))
-        XCTAssertEqual(disable.absoluteString, "localdevvpn://disable?scheme=gflyer")
+        XCTAssertEqual(disable.absoluteString, "localdevvpn://disable?scheme=\(scheme)")
     }
 
     // MARK: - 路由檢查
@@ -123,7 +126,7 @@ final class LocalDevVPNBridgeTests: XCTestCase {
         let bridge = makeBridge(harness)
         let result = Task { await bridge.perform(.connect) }
         await waitUntilSwitching(bridge, harness)
-        XCTAssertEqual(harness.openedURLs.last?.absoluteString, "localdevvpn://enable?scheme=gflyer")
+        XCTAssertEqual(harness.openedURLs.last?.absoluteString, "localdevvpn://enable?scheme=\(scheme)")
 
         harness.tunnelUp = true
         harness.leaveAndReturn()
@@ -141,7 +144,7 @@ final class LocalDevVPNBridgeTests: XCTestCase {
         let bridge = makeBridge(harness)
         let result = Task { await bridge.perform(.disconnect) }
         await waitUntilSwitching(bridge, harness)
-        XCTAssertEqual(harness.openedURLs.last?.absoluteString, "localdevvpn://disable?scheme=gflyer")
+        XCTAssertEqual(harness.openedURLs.last?.absoluteString, "localdevvpn://disable?scheme=\(scheme)")
 
         harness.tunnelUp = false
         harness.leaveAndReturn()

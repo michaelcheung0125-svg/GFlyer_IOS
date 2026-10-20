@@ -1,6 +1,9 @@
 import XCTest
 @testable import GFlyerIOS
 
+/// 回呼的 scheme 每個版本不同（`EditionFeatures`），兩個版本的 test target 都跑這些測試。
+private let scheme = Edition.callbackScheme
+
 @MainActor
 final class StepRecorderTests: XCTestCase {
     private func makeDefaults() -> (UserDefaults, String) {
@@ -27,8 +30,8 @@ final class StepRecorderTests: XCTestCase {
 
         // 巢狀回呼網址必須完整保留：解析後仍要看得到 id 這個查詢參數
         let success = try XCTUnwrap(value("x-success"))
-        XCTAssertEqual(success, "gflyer://steps/done?id=\(id.uuidString)")
-        XCTAssertEqual(try XCTUnwrap(value("x-error")), "gflyer://steps/failed?id=\(id.uuidString)")
+        XCTAssertEqual(success, "\(scheme)://steps/done?id=\(id.uuidString)")
+        XCTAssertEqual(try XCTUnwrap(value("x-error")), "\(scheme)://steps/failed?id=\(id.uuidString)")
 
         // 未編碼的 & 或 ? 會讓外層網址被截斷，這裡確認沒有洩漏出去
         let raw = url.absoluteString
@@ -47,13 +50,13 @@ final class StepRecorderTests: XCTestCase {
         let entry = try XCTUnwrap(recorder.prepareRecord(steps: 1_000)).entry
         XCTAssertEqual(recorder.todaySteps, 0, "未確認的項目不應計入合計")
 
-        let done = try XCTUnwrap(URL(string: "gflyer://steps/done?id=\(entry.id.uuidString)"))
+        let done = try XCTUnwrap(URL(string: "\(scheme)://steps/done?id=\(entry.id.uuidString)"))
         XCTAssertTrue(recorder.handleCallback(done))
         XCTAssertEqual(recorder.entries.first?.status, .confirmed)
         XCTAssertEqual(recorder.todaySteps, 1_000)
 
         let failedEntry = try XCTUnwrap(recorder.prepareRecord(steps: 500)).entry
-        let failed = try XCTUnwrap(URL(string: "gflyer://steps/failed?id=\(failedEntry.id.uuidString)"))
+        let failed = try XCTUnwrap(URL(string: "\(scheme)://steps/failed?id=\(failedEntry.id.uuidString)"))
         XCTAssertTrue(recorder.handleCallback(failed))
         XCTAssertEqual(recorder.entries.first?.status, .failed)
         XCTAssertEqual(recorder.todaySteps, 1_000, "失敗的 500 步不計入，先前確認的 1000 步仍保留")
@@ -65,8 +68,8 @@ final class StepRecorderTests: XCTestCase {
         let recorder = StepRecorderController(defaults: defaults)
         for text in [
             "https://example.com/steps/done",
-            "gflyer://other/done",
-            "gflyer://steps/unknown",
+            "\(scheme)://other/done",
+            "\(scheme)://steps/unknown",
         ] {
             let url = try XCTUnwrap(URL(string: text))
             XCTAssertFalse(recorder.handleCallback(url), text)
@@ -128,12 +131,12 @@ final class StepRecorderTests: XCTestCase {
         XCTAssertFalse(recorder.isShortcutVerified, "還沒跑過捷徑時工具列不該直接送出")
 
         let failedEntry = try XCTUnwrap(recorder.prepareRecord(steps: 1_000)).entry
-        let failed = try XCTUnwrap(URL(string: "gflyer://steps/failed?id=\(failedEntry.id.uuidString)"))
+        let failed = try XCTUnwrap(URL(string: "\(scheme)://steps/failed?id=\(failedEntry.id.uuidString)"))
         recorder.handleCallback(failed)
         XCTAssertFalse(recorder.isShortcutVerified, "捷徑回報失敗不算設定完成")
 
         let entry = try XCTUnwrap(recorder.prepareRecord(steps: 1_000)).entry
-        let done = try XCTUnwrap(URL(string: "gflyer://steps/done?id=\(entry.id.uuidString)"))
+        let done = try XCTUnwrap(URL(string: "\(scheme)://steps/done?id=\(entry.id.uuidString)"))
         recorder.handleCallback(done)
         XCTAssertTrue(recorder.isShortcutVerified)
 
@@ -163,7 +166,7 @@ final class StepRecorderTests: XCTestCase {
         let recorder = StepRecorderController(defaults: defaults)
         recorder.shortcutName = "我的補步數"
         let entry = try XCTUnwrap(recorder.prepareRecord(steps: 5_000)).entry
-        let done = try XCTUnwrap(URL(string: "gflyer://steps/done?id=\(entry.id.uuidString)"))
+        let done = try XCTUnwrap(URL(string: "\(scheme)://steps/done?id=\(entry.id.uuidString)"))
         recorder.handleCallback(done)
 
         let restored = StepRecorderController(defaults: defaults)

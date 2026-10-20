@@ -130,5 +130,7 @@ GFlyer 是用名稱呼叫捷徑的，所以**名稱必須完全一致，包含�
 - `GFlyerIOS/Services/ShortcutBridge.swift`——組 x-callback-url，兩個功能共用
 - `GFlyerIOS/Services/StepRecorderController.swift`——補錄步數與七天紀錄
 - `GFlyerIOS/Services/AirplaneAssistController.swift`——網絡偵測與步驟推導
-- 回呼 scheme `gflyer://` 宣告在 `Info.plist` 的 `CFBundleURLTypes`，
-  `canOpenURL` 需要的 `shortcuts` 宣告在 `LSApplicationQueriesSchemes`
+- 回呼 scheme 是 `Edition.callbackScheme`，親友版是 `gflyer://`，宣告在
+  `GFlyerIOS/Family/Info.plist` 的 `CFBundleURLTypes`；公開版是 `jetpiggy-gflyer://`，
+  在 `GFlyerIOS/Public/Info.plist`。`canOpenURL` 需要的 `shortcuts` 宣告在
+  `LSApplicationQueriesSchemes`

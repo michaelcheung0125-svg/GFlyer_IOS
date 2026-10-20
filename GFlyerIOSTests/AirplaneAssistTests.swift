@@ -1,6 +1,9 @@
 import XCTest
 @testable import GFlyerIOS
 
+/// 回呼的 scheme 每個版本不同（`EditionFeatures`），兩個版本的 test target 都跑這些測試。
+private let scheme = Edition.callbackScheme
+
 @MainActor
 final class AirplaneAssistTests: XCTestCase {
     private func makeDefaults() -> (UserDefaults, String) {
@@ -62,15 +65,15 @@ final class AirplaneAssistTests: XCTestCase {
         XCTAssertEqual(value("name"), "GFlyer 飛航切換")
         XCTAssertEqual(value("input"), "text")
         XCTAssertEqual(value("text"), "on")
-        XCTAssertEqual(value("x-success"), "gflyer://airplane/on")
-        XCTAssertEqual(value("x-error"), "gflyer://airplane/failed")
+        XCTAssertEqual(value("x-success"), "\(scheme)://airplane/on")
+        XCTAssertEqual(value("x-error"), "\(scheme)://airplane/failed")
 
         let off = try XCTUnwrap(
             AirplaneAssistController.airplaneShortcutURL(name: "GFlyer 飛航切換", turnOn: false)
         )
         let offItems = try XCTUnwrap(URLComponents(url: off, resolvingAgainstBaseURL: false)?.queryItems)
         XCTAssertEqual(offItems.first(where: { $0.name == "text" })?.value, "off")
-        XCTAssertEqual(offItems.first(where: { $0.name == "x-success" })?.value, "gflyer://airplane/off")
+        XCTAssertEqual(offItems.first(where: { $0.name == "x-success" })?.value, "\(scheme)://airplane/off")
     }
 
     // MARK: - 回呼
@@ -80,13 +83,13 @@ final class AirplaneAssistTests: XCTestCase {
         defer { defaults.removePersistentDomain(forName: suite) }
         let assist = makeController(defaults)
 
-        XCTAssertTrue(assist.handleCallback(try XCTUnwrap(URL(string: "gflyer://airplane/on"))))
+        XCTAssertTrue(assist.handleCallback(try XCTUnwrap(URL(string: "\(scheme)://airplane/on"))))
         XCTAssertNotNil(assist.lastMessage)
-        XCTAssertTrue(assist.handleCallback(try XCTUnwrap(URL(string: "gflyer://airplane/off"))))
+        XCTAssertTrue(assist.handleCallback(try XCTUnwrap(URL(string: "\(scheme)://airplane/off"))))
 
         for text in [
-            "gflyer://steps/done",
-            "gflyer://airplane/unknown",
+            "\(scheme)://steps/done",
+            "\(scheme)://airplane/unknown",
             "https://example.com/airplane/on",
         ] {
             let url = try XCTUnwrap(URL(string: text))
@@ -100,7 +103,7 @@ final class AirplaneAssistTests: XCTestCase {
         let assist = makeController(defaults)
         assist.armAutoDisable()
 
-        XCTAssertTrue(assist.handleCallback(try XCTUnwrap(URL(string: "gflyer://airplane/failed"))))
+        XCTAssertTrue(assist.handleCallback(try XCTUnwrap(URL(string: "\(scheme)://airplane/failed"))))
         XCTAssertNotNil(assist.lastError)
 
         // 切換失敗後就不該還等著自動關閉，否則之後會莫名其妙跳去捷徑

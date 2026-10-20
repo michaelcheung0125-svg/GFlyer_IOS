@@ -41,7 +41,8 @@ permissions:
 # Xcode 26 的 Swift 編得過 write-swift 第 3 節的 approachable concurrency
 # （@concurrent、nonisolated(nonsending)），但那是一次獨立的遷移，還沒有做，
 # 不要順手做。用 iOS 26 SDK 建置會讓 App 在 iOS 26 以上自動換成 Liquid Glass
-# 外觀；GFlyerIOS/Info.plist 的 UIDesignRequiresCompatibility 暫時保留舊外觀，
+# 外觀；兩個版本的 Info.plist（GFlyerIOS/Family/、GFlyerIOS/Public/）的
+# UIDesignRequiresCompatibility 暫時保留舊外觀，
 # 改用新外觀是另一件事（docs/APP_STORE_PLAN.md 的「風險和還沒確認的事」）。
 #
 # 這個變數也決定下面 idevice-archive 讀到的 iOS SDK 版本，而 SDK 版本是
@@ -55,10 +56,16 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # 親友版（GFlyerIOS）和公開版（GFlyerPublic）各跑一次同一份共用測試，兩個 job 同時跑
+  # （docs/APP_STORE_PLAN.md 第 8 項）。截圖只截親友版。
   simulator-tests:
-    name: Preview scheme tests
+    name: Preview scheme tests (${{ matrix.scheme }})
     runs-on: macos-26
     timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        scheme: [GFlyerIOS, GFlyerPublic]
     steps:
       # 釘死的版本萬一從 runner image 上消失，要在這裡紅燈，而不是讓後面的
       # xcodebuild 吐一段看不懂的錯。順便把版本印進 log，出問題時不必猜；
@@ -110,7 +117,7 @@ jobs:
         run: |
           xcodebuild test \
             -project GFlyerIOS.xcodeproj \
-            -scheme GFlyerIOS \
+            -scheme "${{ matrix.scheme }}" \
             -destination "platform=iOS Simulator,id=${{ steps.simulator.outputs.id }}" \
             -derivedDataPath "$RUNNER_TEMP/GFlyerIOS-DerivedData" \
             CODE_SIGNING_ALLOWED=NO \
@@ -127,6 +134,7 @@ jobs:
       # 沒有另開 UI test target：simctl 從外面截圖就夠了，代價是只看得到啟動
       # 畫面。要截「工具列收起」那種需要互動的狀態才需要 XCUITest。
       - name: Capture simulator screenshots
+        if: matrix.scheme == 'GFlyerIOS'
         run: |
           app="$RUNNER_TEMP/GFlyerIOS-DerivedData/Build/Products/Debug-iphonesimulator/GFlyer.app"
           test -d "$app"
@@ -162,6 +170,7 @@ jobs:
           ls -l "$shots"
 
       - name: Upload simulator screenshots
+        if: matrix.scheme == 'GFlyerIOS'
         uses: actions/upload-artifact@v4
         with:
           name: simulator-screenshots
@@ -317,7 +326,8 @@ jobs:
       # 版本），拿改之前和之後的兩份 diff，就知道 IPA 的內容有沒有變。
       - name: Summarize the IPA
         run: |
-          python3 scripts/ipa_summary.py "$RUNNER_TEMP/GFlyerIOS-Idevice-unsigned.ipa"             > "$RUNNER_TEMP/GFlyerIOS-Idevice-summary.txt"
+          python3 scripts/ipa_summary.py "$RUNNER_TEMP/GFlyerIOS-Idevice-unsigned.ipa" \
+            > "$RUNNER_TEMP/GFlyerIOS-Idevice-summary.txt"
           grep -c . "$RUNNER_TEMP/GFlyerIOS-Idevice-summary.txt"
 
       - name: Upload unsigned IPA and archive
@@ -328,5 +338,48 @@ jobs:
             ${{ runner.temp }}/GFlyerIOS-Idevice-unsigned.ipa
             ${{ runner.temp }}/GFlyerIOS-Idevice-summary.txt
             ${{ runner.temp }}/GFlyerIOS-Idevice.xcarchive
+          if-no-files-found: error
+          retention-days: 14
+
+      # 公開版只檢查建得出來、內容對，不發佈，所以 artifact 只放摘要，不放 IPA。
+      # 放在親友版上傳之後：公開版失敗時，親友版的 IPA 照樣拿得到。
+      - name: Create unsigned public archive
+        run: |
+          xcodebuild archive \
+            -project GFlyerIOS.xcodeproj \
+            -scheme GFlyerPublic-Idevice \
+            -destination "generic/platform=iOS" \
+            -archivePath "$RUNNER_TEMP/GFlyerPublic-Idevice.xcarchive" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            COMPILER_INDEX_STORE_ENABLE=NO
+
+      - name: Check and summarize the public app
+        run: |
+          app_path="$RUNNER_TEMP/GFlyerPublic-Idevice.xcarchive/Products/Applications/GFlyerPublic.app"
+          test -d "$app_path"
+          test -f "$app_path/Assets.car"
+          test -f "$app_path/AppIcon60x60@2x.png"
+          plist="$app_path/Info.plist"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$plist")" = com.jetpiggy.gflyer
+          # 親友版的私人網址只放在親友版的 Info.plist（docs/APP_STORE_PLAN.md 第二階段的做法）
+          for key in GFlyerMessageBoardAPIURL GFlyerCoordinateLibraryURL GFlyerUpdateSourceURL; do
+            if /usr/libexec/PlistBuddy -c "Print :$key" "$plist" >/dev/null 2>&1; then
+              echo "The public app's Info.plist has $key." >&2
+              exit 1
+            fi
+          done
+          mkdir -p "$RUNNER_TEMP/public-ipa/Payload"
+          ditto "$app_path" "$RUNNER_TEMP/public-ipa/Payload/GFlyerPublic.app"
+          (cd "$RUNNER_TEMP/public-ipa" && zip -qry "$RUNNER_TEMP/GFlyerPublic-Idevice-unsigned.ipa" Payload)
+          python3 scripts/ipa_summary.py "$RUNNER_TEMP/GFlyerPublic-Idevice-unsigned.ipa" \
+            > "$RUNNER_TEMP/GFlyerPublic-Idevice-summary.txt"
+          grep -c . "$RUNNER_TEMP/GFlyerPublic-Idevice-summary.txt"
+
+      - name: Upload the public app summary
+        uses: actions/upload-artifact@v4
+        with:
+          name: GFlyerPublic-Idevice-summary
+          path: ${{ runner.temp }}/GFlyerPublic-Idevice-summary.txt
           if-no-files-found: error
           retention-days: 14

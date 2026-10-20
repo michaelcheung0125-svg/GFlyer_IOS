@@ -11,6 +11,19 @@ settings:
     DEVELOPMENT_TEAM: ""
     CODE_SIGN_STYLE: Automatic
     ENABLE_USER_SCRIPT_SANDBOXING: YES
+    # 兩個版本用同一個版本號（和 Android 相同）。兩個版本的 Info.plist 都寫
+    # $(MARKETING_VERSION) 和 $(CURRENT_PROJECT_VERSION)，發佈時只改這裏
+    # （docs/RELEASE_PROCESS.md 第 1 步）。
+    MARKETING_VERSION: "0.6.17"
+    CURRENT_PROJECT_VERSION: "30"
+# 兩個 App target（docs/APP_STORE_PLAN.md 第 8 項）：GFlyerIOS 是親友版，經 SideStore
+# 安裝；GFlyerPublic 是要上 App Store 的公開版。GFlyerIOS/ 兩個版本共用，
+# GFlyerIOS/Family/ 只給親友版，GFlyerIOS/Public/ 只給公開版；每個版本的 Info.plist、
+# entitlements、App 圖示和品牌圖都在自己的資料夾。共用的程式只經 Edition 碰版本專屬的
+# 東西（GFlyerIOS/Edition/EditionFeatures.swift）。
+#
+# 兩個 target 的 PRODUCT_MODULE_NAME 都是 GFlyerIOS，共用測試的 @testable import
+# GFlyerIOS 兩邊都能用。所以兩個 App 不可以在同一次建置裏一起編：scheme 各自只建一個。
 targets:
   GFlyerIOS:
     type: application
@@ -23,6 +36,9 @@ targets:
       - path: GFlyerIOS
         excludes:
           - Vendor
+          - Family
+          - Public
+      - path: GFlyerIOS/Family
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.geopilot.gflyer.ios
@@ -30,8 +46,36 @@ targets:
         PRODUCT_MODULE_NAME: GFlyerIOS
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         GENERATE_INFOPLIST_FILE: NO
-        INFOPLIST_FILE: GFlyerIOS/Info.plist
-        CODE_SIGN_ENTITLEMENTS: GFlyerIOS/GFlyerIOS.entitlements
+        INFOPLIST_FILE: GFlyerIOS/Family/Info.plist
+        CODE_SIGN_ENTITLEMENTS: GFlyerIOS/Family/GFlyerIOS.entitlements
+        OTHER_SWIFT_FLAGS: "$(inherited)"
+      configs:
+        Idevice:
+          SWIFT_ACTIVE_COMPILATION_CONDITIONS: "$(inherited) GFLYER_IDEVICE"
+          HEADER_SEARCH_PATHS: "$(inherited) $(PROJECT_DIR)/GFlyerIOS/Vendor/idevice/include"
+          LIBRARY_SEARCH_PATHS: "$(inherited) $(PROJECT_DIR)/GFlyerIOS/Vendor/idevice/lib"
+          OTHER_LDFLAGS: "$(inherited) -lidevice_ffi"
+  # 公開版。除了 bundle id、名稱和版本資料夾，設定和親友版相同；改其中一個時兩個一起改。
+  # 第 11 項之前，App 圖示和品牌圖是沒有品牌的暫時圖。
+  GFlyerPublic:
+    type: application
+    platform: iOS
+    sources:
+      - path: GFlyerIOS
+        excludes:
+          - Vendor
+          - Family
+          - Public
+      - path: GFlyerIOS/Public
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.jetpiggy.gflyer
+        PRODUCT_NAME: GFlyerPublic
+        PRODUCT_MODULE_NAME: GFlyerIOS
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        GENERATE_INFOPLIST_FILE: NO
+        INFOPLIST_FILE: GFlyerIOS/Public/Info.plist
+        CODE_SIGN_ENTITLEMENTS: GFlyerIOS/Public/GFlyerPublic.entitlements
         OTHER_SWIFT_FLAGS: "$(inherited)"
       configs:
         Idevice:
@@ -51,6 +95,20 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.geopilot.gflyer.ios.tests
         GENERATE_INFOPLIST_FILE: YES
         TEST_HOST: "$(BUILT_PRODUCTS_DIR)/GFlyer.app/GFlyer"
+        BUNDLE_LOADER: "$(TEST_HOST)"
+  # 同一份共用測試，在公開版的 App 裏跑。
+  GFlyerPublicTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: GFlyerIOSTests
+    dependencies:
+      - target: GFlyerPublic
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.jetpiggy.gflyer.tests
+        GENERATE_INFOPLIST_FILE: YES
+        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/GFlyerPublic.app/GFlyerPublic"
         BUNDLE_LOADER: "$(TEST_HOST)"
 configs:
   Debug: debug
@@ -75,6 +133,28 @@ schemes:
     build:
       targets:
         GFlyerIOS: all
+    run:
+      config: Idevice
+    archive:
+      config: Idevice
+  GFlyerPublic:
+    build:
+      targets:
+        GFlyerPublic: all
+        GFlyerPublicTests: [test]
+    run:
+      config: Debug
+    test:
+      config: Debug
+      gatherCoverageData: false
+      targets:
+        - GFlyerPublicTests
+    archive:
+      config: Release
+  GFlyerPublic-Idevice:
+    build:
+      targets:
+        GFlyerPublic: all
     run:
       config: Idevice
     archive:

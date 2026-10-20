@@ -76,7 +76,7 @@ SideStore 的 `sidestore://install?url=` 連結。App 自己不會、也無法�
 - **設定 → 軟體更新**可以手動檢查，也有一鍵把來源加入 SideStore 的按鈕
 - 提示可以選「今日不再顯示」
 
-更新來源網址存在 `Info.plist` 的 `GFlyerUpdateSourceURL`；`canOpenURL` 需要
+更新來源網址存在 `GFlyerIOS/Family/Info.plist` 的 `GFlyerUpdateSourceURL`（只有親友版有）；`canOpenURL` 需要
 `LSApplicationQueriesSchemes` 宣告 `sidestore` 與 `altstore`，兩者都已設定。
 
 ## 自動更新來源
