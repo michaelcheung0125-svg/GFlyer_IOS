@@ -33,9 +33,10 @@ final class StepRecorderTests: XCTestCase {
         XCTAssertEqual(success, "\(scheme)://steps/done?id=\(id.uuidString)")
         XCTAssertEqual(try XCTUnwrap(value("x-error")), "\(scheme)://steps/failed?id=\(id.uuidString)")
 
-        // 未編碼的 & 或 ? 會讓外層網址被截斷，這裡確認沒有洩漏出去
+        // 未編碼的 & 或 ? 會讓外層網址被截斷，這裡確認沒有洩漏出去。
+        // 兩個版本的 scheme 都只有英文字母和 -，不用編碼。
         let raw = url.absoluteString
-        XCTAssertTrue(raw.contains("x-success=gflyer%3A%2F%2Fsteps%2Fdone%3Fid%3D"))
+        XCTAssertTrue(raw.contains("x-success=\(scheme)%3A%2F%2Fsteps%2Fdone%3Fid%3D"))
         XCTAssertEqual(raw.components(separatedBy: "&").count, 5)
     }
 
