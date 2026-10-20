@@ -95,6 +95,7 @@ struct SetupView: View {
     @State private var showStepRecorder = false
     @State private var isForceClearing = false
     @State private var contactMessage: String?
+    @State private var confirmingPairingRemoval = false
 
     init(
         controller: SimulationController,
@@ -206,6 +207,14 @@ struct SetupView: View {
             } message: { _ in
                 Text("還原會以備份內容取代現有的收藏、歷史、資料夾、路線與速度預設。留言板登入與 Pairing File 不受影響。")
             }
+            .alert("移除 Pairing File？", isPresented: $confirmingPairingRemoval) {
+                Button("移除", role: .destructive) { removePairingFile() }
+                Button("取消", role: .cancel) {}
+            } message: {
+                Text(onDevicePairing.isAvailable
+                     ? "移除之後，要再按「匯入 Pairing File」或「\(OnDevicePairingController.continuedTaskTitle)」才能傳送位置。想留一份的話，先按「匯出 Pairing File」。"
+                     : "移除之後，要再按「匯入 Pairing File」才能傳送位置。想留一份的話，先按「匯出 Pairing File」。")
+            }
     }
 
     private var formContent: some View {
@@ -300,12 +309,9 @@ struct SetupView: View {
                 Text("存一份到「檔案」：重裝 GFlyer 之後，用「匯入 Pairing File」選這個檔就不用重新配對。檔案裏有配對這支 iPhone 的鑰匙，不要傳給別人。")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                // 一按就刪太容易誤觸（使用者 2026-10-21 回報），先問一次。
                 Button("移除 Pairing File", role: .destructive) {
-                    do {
-                        try pairingStore.remove()
-                    } catch {
-                        importError = describe(error)
-                    }
+                    confirmingPairingRemoval = true
                 }
             }
         }
@@ -774,6 +780,14 @@ struct SetupView: View {
         do {
             guard let url = try result.get().first else { return }
             try pairingStore.importFile(from: url)
+        } catch {
+            importError = describe(error)
+        }
+    }
+
+    private func removePairingFile() {
+        do {
+            try pairingStore.remove()
         } catch {
             importError = describe(error)
         }
