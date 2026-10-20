@@ -45,6 +45,8 @@
 | U7 | 地名反查改用系統服務時，要不要先取得同意 | 照 Android 公開版先問（GFlyer-Suite `docs/features/region-labels.md` 3.10），文字一字不差 | 兩個平台的公開版一致 |
 | U8 | 公開版的原始碼放在哪裏 | 照 Android：GFlyer_IOS 照舊是開發 repo，兩個版本都在這裏開發；送審之前用匯出工具把公開版匯出到 JetPiggy 名下的新 repo（例如 `JetPiggy/GFlyer-iOS`），歷史全新（第 28 項） | 品牌規則第 8 節要求品牌產品的 repo 在 JetPiggy organization 名下、內容清理過，第 5 節不准連去個人帳戶。GFlyer_IOS 是個人帳戶下的公開 repo，有親友版的功能、遊戲用語和私人網址，不能直接當公開版的來源。把 GFlyer_IOS 改成私人的話，macOS 的 CI 要收費（私人 repo 的 macOS 分鐘按 10 倍計），所以不改。不阻擋第二、三階段 |
 
+**已決定（2026-10-21）**：U2、U3、U6、U8 照建議。U2：公開版的 bundle id 是 `com.jetpiggy.gflyer`，名稱「GFlyer - 飛豬人」（和 Android 公開版的 App 名稱相同），圖示是 JetPiggy 的飛豬；App Store 上的名稱在第 11 項查過才定。U3：最低 iOS 17.4。U6：和 Android 公開版拿走的相同，再加檢查新版和 SideStore 的連結、LocalDevVPN 的交接（第 9 項）。U8：在 GFlyer_IOS 開發，送審之前匯出到 JetPiggy 名下的新 repo（第 28 項）。
+
 ## 第一階段：Xcode 26 與在手機上配對
 
 兩個版本都用得到。先在親友版做完，用 SideStore 裝到 iOS 27 的 iPhone 驗證；現在的使用者升級之後也不用再開 idevice_pair。

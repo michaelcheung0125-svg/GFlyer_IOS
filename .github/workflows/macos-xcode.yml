@@ -312,12 +312,21 @@ jobs:
           cd "$RUNNER_TEMP/ipa"
           zip -qry "$RUNNER_TEMP/GFlyerIOS-Idevice-unsigned.ipa" Payload
 
+      # 檔案清單、Info.plist、Assets.car 的圖名和執行檔裏的中文字串，存成文字檔放進
+      # artifact。改建置設定時（例如 docs/APP_STORE_PLAN.md 第 8 項把 project.yml 分成兩個
+      # 版本），拿改之前和之後的兩份 diff，就知道 IPA 的內容有沒有變。
+      - name: Summarize the IPA
+        run: |
+          python3 scripts/ipa_summary.py "$RUNNER_TEMP/GFlyerIOS-Idevice-unsigned.ipa"             > "$RUNNER_TEMP/GFlyerIOS-Idevice-summary.txt"
+          grep -c . "$RUNNER_TEMP/GFlyerIOS-Idevice-summary.txt"
+
       - name: Upload unsigned IPA and archive
         uses: actions/upload-artifact@v4
         with:
           name: GFlyerIOS-Idevice-unsigned
           path: |
             ${{ runner.temp }}/GFlyerIOS-Idevice-unsigned.ipa
+            ${{ runner.temp }}/GFlyerIOS-Idevice-summary.txt
             ${{ runner.temp }}/GFlyerIOS-Idevice.xcarchive
           if-no-files-found: error
           retention-days: 14
