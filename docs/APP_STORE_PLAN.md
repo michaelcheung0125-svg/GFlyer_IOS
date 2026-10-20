@@ -65,7 +65,7 @@
 
 ## 第二階段：分成兩個版本
 
-照 Android 的做法（GFlyer `AGENTS.md` 的「兩個版本」）。U2、U3、U6 和 U8 2026-10-21 照建議決定。第 8 項和第 11 項已做，見「已做」。做法的細節在表下面。
+照 Android 的做法（GFlyer `AGENTS.md` 的「兩個版本」）。U2、U3、U6 和 U8 2026-10-21 照建議決定。第 8 項和第 11 項已做，見「已做」；第 9 項做完第 1 步。做法的細節在表下面。
 
 | # | 待辦 | 為甚麼和怎樣做 | 做完的標準 |
 |---|---|---|---|
@@ -80,14 +80,14 @@
 - 版本號寫在 `project.yml` 的 `MARKETING_VERSION` 和 `CURRENT_PROJECT_VERSION`，兩個版本共用（和 Android 相同），兩個 `Info.plist` 都寫 `$(MARKETING_VERSION)`、`$(CURRENT_PROJECT_VERSION)`。`docs/RELEASE_PROCESS.md` 第 1 步跟着改了。
 - 原始碼：共用的是 `GFlyerIOS/`，排除 `Vendor`、`Family`、`Public`；親友版另加 `GFlyerIOS/Family/`，公開版另加 `GFlyerIOS/Public/`。
 - 每個版本自己的 `Info.plist` 和 entitlements 放在版本的資料夾。圖放在兩個版本共用的 `GFlyerIOS/Resources/Assets.xcassets`：App 圖示、導覽列的 `GFlyerIcon` 和地圖上選取位置的 `GFlyerMarker` 兩個版本都用 JetPiggy 飛豬（第 11 項）。只有一個版本用的圖才放版本的資料夾，而且不可以和共用的 catalog 同名；兩個版本各放一份一模一樣的圖也不可以（和 Android「同名資源只放在版本資料夾」相同，Android 的匯出工具遇到會停下）。
-- 版本介面：共用的 `protocol EditionFeatures`，每個版本的資料夾提供 `enum Edition: EditionFeatures`（照 Android 每個版本的 `object Edition`）。共用程式只經 `Edition` 碰版本專屬的東西：啟動時建立哪些 controller、地圖工具列多的按鈕、設定頁多的 section、回到前景時做的事、`onOpenURL`、備份要保留的外來鍵。公開版的實作是空的。現在這些都直接寫在 `GFlyerIOSApp`、`MainView`、`SetupView` 和 `SimulationController` 四個檔裏，第 9 項每搬一樣就加一個成員。第 8 項加的第一個成員是捷徑和 LocalDevVPN 的回呼 scheme `callbackScheme`：親友版 `gflyer`，公開版 `jetpiggy-gflyer`。兩個 App 都裝了的話，同一個 scheme 會令 iOS 不知道要打開哪一個。
+- 版本介面：共用的 `protocol EditionFeatures`，每個版本的資料夾提供 `enum Edition: EditionFeatures`（照 Android 每個版本的 `object Edition`）。共用程式只經 `Edition` 碰版本專屬的東西：啟動時建立哪些 controller、地圖工具列多的按鈕、設定頁多的 section、回到前景時做的事、`onOpenURL`、備份要保留的外來鍵。公開版的實作是空的。現在這些都直接寫在 `GFlyerIOSApp`、`MainView`、`SetupView` 和 `SimulationController` 四個檔裏，第 9 項每搬一樣就加一個成員。第 8 項加的第一個成員是捷徑和 LocalDevVPN 的回呼 scheme `callbackScheme`：親友版 `gflyer`，公開版 `jetpiggy-gflyer`。兩個 App 都裝了的話，同一個 scheme 會令 iOS 不知道要打開哪一個。第 9 項第 1 步加了 `EditionModelFeatures`：每個版本一個 `EditionModel`（`GFlyerIOSApp` 用 `@StateObject` 建立），提供地圖和設定頁的提示、設定頁多的 section 和回到前景時做的事；公開版的全是空的（照 Android 的 `NoScreenFeatures`）。之後每搬一樣，用得到的就加在這裏。
 - 測試：`GFlyerIOSTests/` 兩個版本共用，兩個 test target 都跑；只測親友版功能的測試搬到 `GFlyerIOSTests/Family/`，只在親友版的 test target（第 9 項搬第一個時才在 `project.yml` 加這個資料夾）。測試裏的回呼網址用 `Edition.callbackScheme`，不寫死 `gflyer://`。
 - CI：Preview 的測試 job 用 matrix 同時跑兩個 scheme，截圖只截親友版；打包 job 照舊產生親友版的 IPA，之後另外建公開版的 Idevice 未簽署 archive，檢查 bundle id、圖示和沒有私人網址，只上傳內容摘要（artifact `GFlyerPublic-Idevice-summary`），不發佈。
 - 「親友版的 IPA 和拆開之前相同」：比對拆開後的檔案清單、`Info.plist`、`Assets.car` 裏的圖名，以及執行檔裏的使用者看得到的字串。`scripts/ipa_summary.py` 產生這份摘要，CI 每次都放進親友版的 artifact（`GFlyerIOS-Idevice-summary.txt`），拿拆開前後兩份 diff。
 
 **搬功能的次序（第 9 項）**：從最獨立的開始，每搬一樣都確認親友版照舊、兩個版本的測試都過，並更新 PARITY 的「iOS 的兩個版本」：
 
-1. 檢查新版和 SideStore 的連結（`AppUpdate`、`AppUpdateChecker`、地圖上的更新提示、設定頁的「軟體更新」）。最獨立，先用它驗證版本介面
+1. 檢查新版和 SideStore 的連結（`AppUpdate`、`AppUpdateChecker`、地圖上的更新提示、設定頁的「軟體更新」）。最獨立，先用它驗證版本介面。**已做**（2026-10-21，`27072b8`；CI run `39514298680` 三個 job 綠燈，親友版 316 個測試、公開版 304 個，各有 1 個依條件略過，編譯警告和之前相同）：`AppUpdate`、`AppUpdateChecker` 和 `AppUpdateTests` 搬到 `Family/`；地圖上的「有新版本」、設定頁的「更新」錯誤提示和「軟體更新」section 搬到 `Family/UI/AppUpdateViews.swift`。設定頁「關於」的版本、Bundle ID 和「聯絡我們」電郵裏的版本改由共用的 `AppVersionInfo` 讀。拆開比對：親友版和 `e713a01` 比只有執行檔不同，`Info.plist`、`Assets.car` 和字串相同；公開版的字串比親友版少 24 條，全是檢查新版和 SideStore 的字（例如「有新版本」「用 SideStore 更新」「軟體更新」），沒有多出的
 2. 步數補錄（`StepRecord*`、捷徑回呼 `gflyer://steps/…`）
 3. 種花提示（`MainView` 和 `SimulationModels` 裏超過 20 km/h 的提示）
 4. 留言板（`MessageBoard*`、地圖工具列的分享、未讀數）
