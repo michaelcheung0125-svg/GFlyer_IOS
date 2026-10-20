@@ -6,7 +6,7 @@ struct MainView: View {
     @ObservedObject var controller: SimulationController
     @ObservedObject var messageBoard: MessageBoardController
     @ObservedObject var coordinateLibrary: CoordinateLibraryController
-    @ObservedObject var updateChecker: AppUpdateChecker
+    @ObservedObject var edition: EditionModel
     @ObservedObject var stepRecorder: StepRecorderController
     @ObservedObject var airplaneAssist: AirplaneAssistController
     @State private var position: MapCameraPosition = .region(
@@ -79,17 +79,7 @@ struct MainView: View {
                 } message: { warning in
                     Text(CrossDateWarningText.message(for: warning))
                 }
-                .alert(
-                    "有新版本",
-                    isPresented: $updateChecker.showsPrompt,
-                    presenting: updateChecker.availableUpdate
-                ) { update in
-                    Button("用 SideStore 更新") { updateChecker.openInstaller(for: update) }
-                    Button("今日不再顯示") { updateChecker.snoozeForToday() }
-                    Button("稍後", role: .cancel) { updateChecker.dismissPrompt() }
-                } message: { update in
-                    Text(updateMessage(for: update))
-                }
+                .modifier(edition.mainScreenAlerts)
                 .alert(
                     "恢復上次模擬？",
                     isPresented: resumeAlertBinding,
@@ -126,7 +116,7 @@ struct MainView: View {
             .sheet(isPresented: $showSetup) {
                 SetupView(
                     controller: controller,
-                    updateChecker: updateChecker,
+                    edition: edition,
                     stepRecorder: stepRecorder
                 )
             }
@@ -158,7 +148,7 @@ struct MainView: View {
             .onChange(of: scenePhase) { _, phase in
                 guard phase == .active, !Self.isCapturingScreenshots else { return }
                 messageBoard.refreshInBackground()
-                updateChecker.checkIfDue()
+                edition.appDidBecomeActive()
                 coordinateLibrary.refreshIfStale()
             }
             .onChange(of: controller.selectedCoordinate) { _, coordinate in
@@ -401,19 +391,10 @@ struct MainView: View {
                     && controller.pendingResumeSession == nil
                     && controller.pendingCrossDateWarning == nil
                     && controller.lastError == nil
-                    && !updateChecker.showsPrompt
+                    && !edition.isPresentingAlert
             },
             set: { if !$0 { controller.dismissArrivalRulesNotice() } }
         )
-    }
-
-    private func updateMessage(for update: AvailableUpdate) -> String {
-        var text = "GFlyer \(update.displayVersion) 已發佈（目前為 \(updateChecker.displayVersion)）。"
-        if !update.releaseNotes.isEmpty {
-            text += "\n\n\(update.releaseNotes)"
-        }
-        text += "\n\n更新會交給 SideStore 下載並用你的 Apple ID 重新簽名。"
-        return text
     }
 
     private static func resumeMessage(for snapshot: ActiveSessionSnapshot) -> String {

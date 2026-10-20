@@ -72,7 +72,7 @@ struct SetupView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.openURL) private var openURL
     @ObservedObject var controller: SimulationController
-    @ObservedObject var updateChecker: AppUpdateChecker
+    @ObservedObject var edition: EditionModel
     @ObservedObject var stepRecorder: StepRecorderController
     @ObservedObject private var pairingStore: PairingFileStore
     @ObservedObject private var deviceLocation: DeviceLocationService
@@ -96,14 +96,15 @@ struct SetupView: View {
     @State private var isForceClearing = false
     @State private var contactMessage: String?
     @State private var confirmingPairingRemoval = false
+    private let appVersion = AppVersionInfo()
 
     init(
         controller: SimulationController,
-        updateChecker: AppUpdateChecker,
+        edition: EditionModel,
         stepRecorder: StepRecorderController
     ) {
         self.controller = controller
-        self.updateChecker = updateChecker
+        self.edition = edition
         self.stepRecorder = stepRecorder
         _pairingStore = ObservedObject(wrappedValue: controller.pairingStore)
         _deviceLocation = ObservedObject(wrappedValue: controller.deviceLocation)
@@ -131,17 +132,7 @@ struct SetupView: View {
                 } message: {
                     Text(controller.lastError ?? "未知錯誤")
                 }
-                .alert(
-                    "更新",
-                    isPresented: Binding(
-                        get: { updateChecker.lastError != nil },
-                        set: { if !$0 { updateChecker.lastError = nil } }
-                    )
-                ) {
-                    Button("確定", role: .cancel) { updateChecker.lastError = nil }
-                } message: {
-                    Text(updateChecker.lastError ?? "未知錯誤")
-                }
+                .modifier(edition.settingsAlerts)
                 .alert("完成", isPresented: binding(for: $transferSummary)) {
                     Button("確定", role: .cancel) { transferSummary = nil }
                 } message: {
@@ -228,7 +219,7 @@ struct SetupView: View {
             speedPresetSection
             playbackSection
             orbitRadiusSection
-            softwareUpdateSection
+            edition.settingsSections
             stepRecorderSection
             transferSection
             instructionsSection
@@ -243,8 +234,8 @@ struct SetupView: View {
     // 版本放在設定頁第一列：使用者要確認裝到哪一版時，第一眼就看得到。
     private var backendSection: some View {
         Section("關於") {
-            LabeledContent("App 版本", value: updateChecker.displayVersion)
-            LabeledContent("Bundle ID", value: updateChecker.bundleIdentifier)
+            LabeledContent("App 版本", value: appVersion.displayVersion)
+            LabeledContent("Bundle ID", value: appVersion.bundleIdentifier)
                 .font(.caption.monospaced())
             LabeledContent("定位後端", value: controller.backendName)
             LabeledContent(
@@ -616,42 +607,6 @@ struct SetupView: View {
         .buttonStyle(.borderless)
     }
 
-    private var softwareUpdateSection: some View {
-        Section("軟體更新") {
-            LabeledContent("更新狀態", value: updateChecker.statusMessage)
-            Button {
-                updateChecker.checkNow()
-            } label: {
-                if updateChecker.isChecking {
-                    HStack {
-                        ProgressView()
-                        Text("正在檢查更新")
-                    }
-                } else {
-                    Label("檢查更新", systemImage: "arrow.triangle.2.circlepath")
-                }
-            }
-            .disabled(updateChecker.isChecking)
-            if let update = updateChecker.availableUpdate {
-                Button {
-                    updateChecker.openInstaller(for: update)
-                } label: {
-                    Label("用 SideStore 更新到 \(update.displayVersion)", systemImage: "square.and.arrow.down")
-                }
-            }
-            if let sourceURL = updateChecker.addSourceURL(using: .sideStore) {
-                Button {
-                    openURL(sourceURL)
-                } label: {
-                    Label("把更新來源加入 SideStore", systemImage: "plus.rectangle.on.folder")
-                }
-            }
-            Text("GFlyer 不能自行安裝 IPA，更新一律交給 SideStore 或 AltStore 下載並用你的 Apple ID 重新簽名。免費 Apple ID 的簽名仍然每 7 天到期。")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-        }
-    }
-
     private var stepRecorderSection: some View {
         Section("補錄步數") {
             Button {
@@ -835,12 +790,12 @@ struct SetupView: View {
     /// 「聯絡我們」：收件人、標題與內文都已填好（GFlyer-Suite docs/features/contact-us.md）。
     /// 沒有電郵 App 接手時把地址複製到剪貼簿，訊息和 Android 一字不差。
     private func openContactEmail() {
-        let version = updateChecker.currentVersion
+        let version = appVersion.version
         let subject = ContactEmail.subject(platform: "iOS", version: version)
         let body = ContactEmail.body(
             platform: "iOS",
             version: version,
-            build: updateChecker.currentBuild,
+            build: appVersion.build,
             system: "iOS \(UIDevice.current.systemVersion)",
             device: ContactEmail.hardwareIdentifier()
         )

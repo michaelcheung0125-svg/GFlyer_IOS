@@ -5,7 +5,8 @@ struct GFlyerIOSApp: App {
     @StateObject private var controller = SimulationController()
     @StateObject private var messageBoard = MessageBoardController()
     @StateObject private var coordinateLibrary = CoordinateLibraryController()
-    @StateObject private var updateChecker = AppUpdateChecker()
+    /// 版本專屬功能（親友版的檢查新版等），見 `EditionModelFeatures`
+    @StateObject private var edition = EditionModel()
     @StateObject private var stepRecorder = StepRecorderController()
     @StateObject private var airplaneAssist = AirplaneAssistController()
     /// 深淺色偏好。設在這一層而不是 MainView 上，sheet 才會跟著一起換——
@@ -18,7 +19,7 @@ struct GFlyerIOSApp: App {
                 controller: controller,
                 messageBoard: messageBoard,
                 coordinateLibrary: coordinateLibrary,
-                updateChecker: updateChecker,
+                edition: edition,
                 stepRecorder: stepRecorder,
                 airplaneAssist: airplaneAssist
             )

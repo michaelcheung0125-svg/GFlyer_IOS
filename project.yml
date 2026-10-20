@@ -96,12 +96,14 @@ targets:
         GENERATE_INFOPLIST_FILE: YES
         TEST_HOST: "$(BUILT_PRODUCTS_DIR)/GFlyer.app/GFlyer"
         BUNDLE_LOADER: "$(TEST_HOST)"
-  # 同一份共用測試，在公開版的 App 裏跑。
+  # 同一份共用測試，在公開版的 App 裏跑。GFlyerIOSTests/Family/ 測的是親友版才有的功能，只在親友版跑。
   GFlyerPublicTests:
     type: bundle.unit-test
     platform: iOS
     sources:
       - path: GFlyerIOSTests
+        excludes:
+          - Family
     dependencies:
       - target: GFlyerPublic
     settings:

@@ -17,4 +17,13 @@ final class EditionTests: XCTestCase {
         XCTAssertNotNil(version.range(of: #"^\d+\.\d+\.\d+$"#, options: .regularExpression), version)
         XCTAssertNotNil(Int(build), build)
     }
+
+    /// 設定頁「關於」和「聯絡我們」讀的版本，兩個版本都要讀到執行中的 App。
+    func testAppVersionInfoReadsTheRunningApp() {
+        let info = AppVersionInfo()
+        XCTAssertEqual(info.version, Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String)
+        XCTAssertEqual(info.build, Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String)
+        XCTAssertEqual(info.bundleIdentifier, Bundle.main.bundleIdentifier)
+        XCTAssertEqual(info.displayVersion, "\(info.version) (\(info.build))")
+    }
 }
