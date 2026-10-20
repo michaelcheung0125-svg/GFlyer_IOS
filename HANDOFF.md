@@ -841,12 +841,14 @@ GFlyerIOS/UI/LibraryViews.swift
 
 新對話開始時，先讀取本檔案、`AGENTS.md`、`README.md` 及 `docs/IMPLEMENTATION_PLAN.md`。
 
-2026-10-19 起的開發方向：照 `docs/APP_STORE_PLAN.md` 的次序做 iOS 公開版（App Store）。第 1 項（CI 升到 Xcode 26）已做，0.6.14 實機沒有問題。第 2 項（idevice 從 `37ee77c` 升到 `3854a5d`，`0944cb4`，GFlyer-Suite `native/idevice/` 同一個 revision）已做，0.6.15 實機沒有問題。第 3 項（配對主機的 FFI）已做：`3854a5d` 已經有上游的 `ffi/src/pairing_host.rs`，不用自己寫，CI 會檢查要用的三個函式還在（`dd09d31`）。第一階段（第 4–7 項，在手機上配對）2026-10-21 全部做完：第 4 項 `983f3ae`（0.6.16），第 5 項的匯出 `b92b36e` 和第 6 項照截圖重寫的說明 `02c741c`（0.6.17），兩版都經使用者在 iOS 27 實機驗證。下一步是第二階段（第 8–11 項，分成兩個版本），做法寫在該文件的「第二階段的做法」。開始之前要使用者先決定 U2、U3、U6；U8（公開版的原始碼放在哪裏）不擋第二、三階段。U1–U8 都還沒有決定。
+2026-10-19 起的開發方向：照 `docs/APP_STORE_PLAN.md` 的次序做 iOS 公開版（App Store）。第 1 項（CI 升到 Xcode 26）已做，0.6.14 實機沒有問題。第 2 項（idevice 從 `37ee77c` 升到 `3854a5d`，`0944cb4`，GFlyer-Suite `native/idevice/` 同一個 revision）已做，0.6.15 實機沒有問題。第 3 項（配對主機的 FFI）已做：`3854a5d` 已經有上游的 `ffi/src/pairing_host.rs`，不用自己寫，CI 會檢查要用的三個函式還在（`dd09d31`）。第一階段（第 4–7 項，在手機上配對）2026-10-21 全部做完：第 4 項 `983f3ae`（0.6.16），第 5 項的匯出 `b92b36e` 和第 6 項照截圖重寫的說明 `02c741c`（0.6.17），兩版都經使用者在 iOS 27 實機驗證。第二階段（第 8–11 項，分成兩個版本）的做法寫在該文件的「第二階段的做法」。使用者 2026-10-21 決定 U2、U3、U6、U8 照建議（公開版 `com.jetpiggy.gflyer`、「GFlyer - 飛豬人」、最低 iOS 17.4、拿走的功能和 Android 公開版相同再加兩項 iOS 專屬的、送審前匯出到 JetPiggy 的 repo）；U1、U4、U5、U7 還沒有決定。第 8 項（分成兩個 App target）2026-10-21 做完（`32bc48a`、`be8da0d`）：親友版的 IPA 拆開比對和之前相同，所以沒有發佈。下一步是第 9 項，把親友版專屬的功能一樣一樣搬進 `GFlyerIOS/Family/`，次序見「第二階段的做法」。
 
 目前狀態（2026-10-20）：
 
 - iOS 最新發佈是 `0.6.17 (30)`（release `ios-v0.6.17`，2026-10-20，見上方「目前已完成」的 0.6.17 段）：照實機畫面重寫的配對說明和「匯出 Pairing File」，
   使用者 2026-10-21 回報「請順便測」三條全部通過。之後的 `63258ea`（移除 Pairing File 前先問一次）還沒有發佈。
+  2026-10-21 起 `project.yml` 有兩個 App target（`docs/APP_STORE_PLAN.md` 第 8 項）：親友版 `GFlyerIOS` 照舊，公開版 `GFlyerPublic` 只在 CI 建置、不發佈。
+  **發佈時版本號改在 `project.yml` 的 `MARKETING_VERSION` 和 `CURRENT_PROJECT_VERSION`**，不再改 `Info.plist`（`docs/RELEASE_PROCESS.md` 第 1 步）。
   上一版 `0.6.16 (29)`（2026-10-20）加了「在這支 iPhone 上配對」。
   使用者 2026-10-20 在 iOS 27 上配對成功並附上截圖，「請順便測」四條全部通過。使用者要求第 5 項（匯出）做完再和第 6 項的說明一起發新版。
   再上一版 `0.6.15 (28)`（2026-10-20）把 idevice 升到 `3854a5d`。
