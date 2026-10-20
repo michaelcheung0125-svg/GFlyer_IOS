@@ -849,6 +849,8 @@ GFlyerIOS/UI/LibraryViews.swift
   使用者 2026-10-21 回報「請順便測」三條全部通過。之後的 `63258ea`（移除 Pairing File 前先問一次）還沒有發佈。
   2026-10-21 起 `project.yml` 有兩個 App target（`docs/APP_STORE_PLAN.md` 第 8 項）：親友版 `GFlyerIOS` 照舊，公開版 `GFlyerPublic` 只在 CI 建置、不發佈。
   **發佈時版本號改在 `project.yml` 的 `MARKETING_VERSION` 和 `CURRENT_PROJECT_VERSION`**，不再改 `Info.plist`（`docs/RELEASE_PROCESS.md` 第 1 步）。
+  2026-10-21 照使用者要求，兩個版本的 App 圖示、導覽列小圖和地圖上的選取標記都換成 JetPiggy 飛豬（`docs/APP_STORE_PLAN.md` 第 11 項），
+  和 Android 相同。**親友版看得到的改動，還沒有發佈**；下一次發佈要在實機看 App 圖示、導覽列和選取標記（針尖要對準點下去的位置）。
   上一版 `0.6.16 (29)`（2026-10-20）加了「在這支 iPhone 上配對」。
   使用者 2026-10-20 在 iOS 27 上配對成功並附上截圖，「請順便測」四條全部通過。使用者要求第 5 項（匯出）做完再和第 6 項的說明一起發新版。
   再上一版 `0.6.15 (28)`（2026-10-20）把 idevice 升到 `3854a5d`。

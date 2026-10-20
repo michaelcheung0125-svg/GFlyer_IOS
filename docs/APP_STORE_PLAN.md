@@ -45,7 +45,7 @@
 | U7 | 地名反查改用系統服務時，要不要先取得同意 | 照 Android 公開版先問（GFlyer-Suite `docs/features/region-labels.md` 3.10），文字一字不差 | 兩個平台的公開版一致 |
 | U8 | 公開版的原始碼放在哪裏 | 照 Android：GFlyer_IOS 照舊是開發 repo，兩個版本都在這裏開發；送審之前用匯出工具把公開版匯出到 JetPiggy 名下的新 repo（例如 `JetPiggy/GFlyer-iOS`），歷史全新（第 28 項） | 品牌規則第 8 節要求品牌產品的 repo 在 JetPiggy organization 名下、內容清理過，第 5 節不准連去個人帳戶。GFlyer_IOS 是個人帳戶下的公開 repo，有親友版的功能、遊戲用語和私人網址，不能直接當公開版的來源。把 GFlyer_IOS 改成私人的話，macOS 的 CI 要收費（私人 repo 的 macOS 分鐘按 10 倍計），所以不改。不阻擋第二、三階段 |
 
-**已決定（2026-10-21）**：U2、U3、U6、U8 照建議。U2：公開版的 bundle id 是 `com.jetpiggy.gflyer`，名稱「GFlyer - 飛豬人」（和 Android 公開版的 App 名稱相同），圖示是 JetPiggy 的飛豬；App Store 上的名稱在第 11 項查過才定。U3：最低 iOS 17.4。U6：和 Android 公開版拿走的相同，再加檢查新版和 SideStore 的連結、LocalDevVPN 的交接（第 9 項）。U8：在 GFlyer_IOS 開發，送審之前匯出到 JetPiggy 名下的新 repo（第 28 項）。
+**已決定（2026-10-21）**：U2、U3、U6、U8 照建議。U2：公開版的 bundle id 是 `com.jetpiggy.gflyer`，名稱「GFlyer - 飛豬人」（和 Android 公開版的 App 名稱相同），圖示是 JetPiggy 的飛豬；App Store 上的名稱在第 22 項建 App 時查過才定。U3：最低 iOS 17.4。U6：和 Android 公開版拿走的相同，再加檢查新版和 SideStore 的連結、LocalDevVPN 的交接（第 9 項）。U8：在 GFlyer_IOS 開發，送審之前匯出到 JetPiggy 名下的新 repo（第 28 項）。
 
 ## 第一階段：Xcode 26 與在手機上配對
 
@@ -65,13 +65,12 @@
 
 ## 第二階段：分成兩個版本
 
-照 Android 的做法（GFlyer `AGENTS.md` 的「兩個版本」）。U2、U3、U6 和 U8 2026-10-21 照建議決定。第 8 項已做，見「已做」。做法的細節在表下面。
+照 Android 的做法（GFlyer `AGENTS.md` 的「兩個版本」）。U2、U3、U6 和 U8 2026-10-21 照建議決定。第 8 項和第 11 項已做，見「已做」。做法的細節在表下面。
 
 | # | 待辦 | 為甚麼和怎樣做 | 做完的標準 |
 |---|---|---|---|
 | 9 | 把親友版專屬的功能搬進 `Family/` | 和 Android 公開版拿走的相同：留言板（連同地圖工具列的分享）、座標圖鑑（連同前往紀錄、到訪標記、NEW 和資料過時回報）、步數補錄（審查指南 5.1.3 不准寫入不實的健康資料，經使用者的捷徑寫也一樣）、超過 20 km/h 的種花提示。iOS 專屬的兩項：檢查新版和 SideStore 的連結（公開版經 App Store 更新），以及 LocalDevVPN 的交接（公開版改用第 12 項）。飛航模式輔助和它用的捷徑橋接留在共用。一次搬一樣、一個 commit，次序見下面 | 公開版的 App 裏沒有這些畫面和程式；親友版照舊；備份格式不變，公開版把沒有的功能的設定鍵當外來鍵保留、匯出時寫回（DRIFT D1 的做法） |
 | 10 | CI 掃描公開版的原始碼 | 照 Android 匯出工具的禁用字檢查：公開版 target 會編譯的檔案（連註解）不可以有遊戲用語（例如種花、明信片、皮克敏、Pikmin、找菇、圖鑑）、私人網址（留言板的 Worker、GFlyer-updates 的 Pages）、個人帳戶名、本機路徑，以及 SideStore、AltStore 和 LocalDevVPN。第 9 項做完之後，共用的檔案大約還有 100 行提到這些字，多數是註解和 LocalDevVPN，要先改寫或搬走 | 故意加一個禁用字會讓 CI 失敗 |
-| 11 | 公開版的名稱和圖示 | U2。圖檔從 JetPiggy 品牌中心的飛豬正本轉出，照品牌規則第 6 節：產品 repo 只放用到的輸出檔並寫明來源，不手改；正本換了就重轉（照 Android 的 `tools/make_oss_brand_art.py`）。放了品牌圖像就加 `NOTICE` | 公開版 IPA 的名稱和圖示正確，親友版不變 |
 
 ### 第二階段的做法
 
@@ -80,7 +79,7 @@
 - `project.yml` 有兩個 App target：`GFlyerIOS`（親友版，target、scheme 和 IPA 的名稱照舊，所以 SideStore 來源和發佈用的 artifact 都不用改）和 `GFlyerPublic`（公開版，bundle id `com.jetpiggy.gflyer`，App 名稱「GFlyer - 飛豬人」）。兩個的 `PRODUCT_MODULE_NAME` 都是 `GFlyerIOS`，共用測試的 `@testable import GFlyerIOS` 兩邊都能用；所以兩個 App 不可以在同一次建置裏一起編，每個 scheme 只建一個。兩個都有 `Idevice` 設定。
 - 版本號寫在 `project.yml` 的 `MARKETING_VERSION` 和 `CURRENT_PROJECT_VERSION`，兩個版本共用（和 Android 相同），兩個 `Info.plist` 都寫 `$(MARKETING_VERSION)`、`$(CURRENT_PROJECT_VERSION)`。`docs/RELEASE_PROCESS.md` 第 1 步跟着改了。
 - 原始碼：共用的是 `GFlyerIOS/`，排除 `Vendor`、`Family`、`Public`；親友版另加 `GFlyerIOS/Family/`，公開版另加 `GFlyerIOS/Public/`。
-- 每個版本自己的 `Info.plist`、entitlements 和放 App 圖示、品牌圖的 asset catalog，都放在版本的資料夾。現在三張圖（App 圖示、導覽列的 `GFlyerIcon`、地圖上選取位置的 `GFlyerMarker`）都是親友版的飛豬，所以沒有共用的 catalog；以後有共用的圖就放 `GFlyerIOS/Assets.xcassets`，和版本的 catalog 不可以有同名的圖（和 Android「同名資源只放在版本資料夾」相同）。第 11 項之前，公開版用沒有品牌的暫時圖：灰底白色地圖圖釘的 App 圖示和導覽列圖、紅色圖釘的 `GFlyerMarker`，不可以用親友版的飛豬。
+- 每個版本自己的 `Info.plist` 和 entitlements 放在版本的資料夾。圖放在兩個版本共用的 `GFlyerIOS/Resources/Assets.xcassets`：App 圖示、導覽列的 `GFlyerIcon` 和地圖上選取位置的 `GFlyerMarker` 兩個版本都用 JetPiggy 飛豬（第 11 項）。只有一個版本用的圖才放版本的資料夾，而且不可以和共用的 catalog 同名；兩個版本各放一份一模一樣的圖也不可以（和 Android「同名資源只放在版本資料夾」相同，Android 的匯出工具遇到會停下）。
 - 版本介面：共用的 `protocol EditionFeatures`，每個版本的資料夾提供 `enum Edition: EditionFeatures`（照 Android 每個版本的 `object Edition`）。共用程式只經 `Edition` 碰版本專屬的東西：啟動時建立哪些 controller、地圖工具列多的按鈕、設定頁多的 section、回到前景時做的事、`onOpenURL`、備份要保留的外來鍵。公開版的實作是空的。現在這些都直接寫在 `GFlyerIOSApp`、`MainView`、`SetupView` 和 `SimulationController` 四個檔裏，第 9 項每搬一樣就加一個成員。第 8 項加的第一個成員是捷徑和 LocalDevVPN 的回呼 scheme `callbackScheme`：親友版 `gflyer`，公開版 `jetpiggy-gflyer`。兩個 App 都裝了的話，同一個 scheme 會令 iOS 不知道要打開哪一個。
 - 測試：`GFlyerIOSTests/` 兩個版本共用，兩個 test target 都跑；只測親友版功能的測試搬到 `GFlyerIOSTests/Family/`，只在親友版的 test target（第 9 項搬第一個時才在 `project.yml` 加這個資料夾）。測試裏的回呼網址用 `Edition.callbackScheme`，不寫死 `gflyer://`。
 - CI：Preview 的測試 job 用 matrix 同時跑兩個 scheme，截圖只截親友版；打包 job 照舊產生親友版的 IPA，之後另外建公開版的 Idevice 未簽署 archive，檢查 bundle id、圖示和沒有私人網址，只上傳內容摘要（artifact `GFlyerPublic-Idevice-summary`），不發佈。
@@ -156,6 +155,7 @@
 - **第 4 項：Swift 的配對流程**（2026-10-20，`983f3ae`；實機 2026-10-20，`0.6.16 (29)`）：CI run `39311965583` 綠燈，新加 14 個測試。網路全由 Swift 做（`GFlyerIOS/Services/PairingHost.swift`）：開一個 IPv4、IPv6 都收得到的 TCP socket，port 由系統挑；呼叫 `pairable_host_prepare` 取得 service identifier 和 TXT，用 dns_sd 以 service identifier 作名稱廣播 `_remotepairing-pairable-host._tcp`。不用 `NetService`，它已經 deprecated，dns_sd 就是它底下的 API。「設定」連進來之後，把連線的 fd 交給 `pairable_host_accept_fd`；一次沒有成功（例如 PIN 打錯）就繼續等下一次。取消和 5 分鐘逾時要對連線呼叫 `shutdown`，因為上游會 `dup` 這個 fd，只 `close` 不會讓它返回。連線要設 `SO_NOSIGPIPE`，否則對方先斷線時，SIGPIPE 會結束整個 App。`Info.plist` 加了 `NSBonjourServices` 和 `BGTaskSchedulerPermittedIdentifiers`（`<bundle id>.pairing.*`），本機網路的說明也改了。使用者切去「設定」時，`BGContinuedProcessingTask`（iOS 26 起）讓 App 繼續等，不用無聲音訊之類的做法（審查指南 2.5.4）；它的進度用經過的秒數。PIN 用本機通知和這個背景工作的標題顯示，使用者在「設定」裏就看得到。入口只在 iOS 27 以上的 idevice 版出現，模擬進行中不能按。配對成功就寫進 `PairingFileStore`，第 5 項的存檔部分因此已經做了。實機（iOS 27，香港繁體中文）：「設定」>「私隱與保安」>「開發者模式」的「其他裝置」列出「Pair with GFlyer」，按「配對」、輸入 GFlyer 的 6 位數字後配對成功，GFlyer 存好新的 Pairing File；畫面見第一階段的「iOS 27 實機畫面」。用新檔建立通道算在第 5 項。
 - **第 5 項：存檔和匯出**（2026-10-20，`b92b36e`、`c168834`；實機 2026-10-21，`0.6.17 (30)`）：存檔在第 4 項已經做好：配對成功後寫進 `PairingFileStore` 的同一個位置（`save(_:)`，和手動匯入共用），檔案保護相同；新的配對成功才取代舊檔。匯出：設定頁「首次設定」有 Pairing File 時多一個「匯出 Pairing File」，用 `.fileExporter` 原樣存成 `gflyer-pairing-file.plist`（XML plist，和 idevice_pair 產生的 RP Pairing File 同一種格式），新加 4 個 `PairingFileStoreTests`。實機：0.6.16 重開 App 後用在手機上配對得到的檔傳送成功；0.6.17 匯出到「檔案」、移除後匯入匯出的檔、傳送、「完整清除模擬定位」都通過。SideStore 的 nightly（0.7.0）在「Settings › Pairing File Management › Remote Pairing File」收 RP Pairing File，但要先「Reset Pairing Files」，失敗時 SideStore 不能重簽，所以沒有叫使用者試；做完的標準因此改成「匯出的檔匯回 GFlyer 能傳送」。2026-10-21 使用者回報「移除 Pairing File」一按就刪，`63258ea` 改成先跳「移除 Pairing File？」問一次，還沒有發佈。
 - **第 6 項：App 內的配對說明**（2026-10-20，`02c741c`；`0.6.17 (30)`）：0.6.16 的說明和更新說明都寫「「設定」的「開發者模式」」，漏了「私隱與保安」，使用者照着找不到。照使用者的實機截圖重寫（見第一階段的「iOS 27 實機畫面」），名稱用香港繁體中文；配對進行中步驟也留在畫面上。文字和截圖一字不差，但沒有另外找沒看過說明的人照着試。
+- **第 11 項：公開版的名稱和圖示**（2026-10-21）：名稱「GFlyer - 飛豬人」在第 8 項已經設好。圖示照使用者 2026-10-21 的要求，親友版和公開版都換成 JetPiggy 飛豬，和 Android 兩個版本相同（GFlyer-Suite DRIFT D36）：`scripts/make_brand_art.py` 從品牌中心的正本轉出三張圖到兩個版本共用的 `GFlyerIOS/Resources/Assets.xcassets`。App 圖示和導覽列的 `GFlyerIcon` 是坐着的飛豬（`sit`），構圖和 Android 桌面上看得到的圖示相同；地圖上選取位置的 `GFlyerMarker` 是風鏡藍的定位針（`head_small`），和 Android 的逐個像素相同，`MainView` 的錨點改成針尖的 (0.5, 0.96)。第 8 項的暫時圖刪掉，親友版的舊超人飛豬也換掉。`NOTICE` 跟匯出的 repo 一起加（第 28 項）；App Store 上的名稱在第 22 項建 App 時查有沒有被用。
 - **第 8 項：`project.yml` 分成兩個 App target**（2026-10-21，`32bc48a`、`be8da0d`）：`GFlyerIOS`（親友版）照舊，新加 `GFlyerPublic`（公開版，`com.jetpiggy.gflyer`，「GFlyer - 飛豬人」）和 `GFlyerPublicTests`。親友版的 `Info.plist`、entitlements 和三張飛豬圖搬到 `GFlyerIOS/Family/`；公開版在 `GFlyerIOS/Public/`，`Info.plist` 沒有三個私人網址和 sidestore、altstore，圖是沒有品牌的暫時圖。版本號改寫在 `project.yml`，兩個版本共用。版本介面 `EditionFeatures` 的第一個成員是回呼 scheme（親友版 `gflyer`，公開版 `jetpiggy-gflyer`），三個測試檔的回呼網址改用它。CI run `39509700101` 三個 job 綠燈：兩個版本各跑 314 個測試（新加 2 個 `EditionTests`），313 個通過、1 個依條件略過；編譯警告和之前相同，公開版只多了親友版本來就有的方向警告。`32bc48a` 的 run `39508327960` 公開版有一個測試失敗：`StepRecorderTests` 寫死了編碼後的 `gflyer%3A%2F%2F`，`be8da0d` 改掉。拆開前後比對（`scripts/ipa_summary.py`，拆開前是 `2f6ae06` 的 run `39507099264`）：親友版 IPA 只有執行檔不同（大 2,608 bytes，是新加的 `Edition`），`Info.plist`、`Assets.car`、兩個 App 圖示和677 條中文字串完全相同。公開版的 `Assets.car` 只有三張暫時圖，字串和親友版相同。這一項沒有發佈，也不用實機驗證：親友版的 IPA 內容沒有變。
 - **第 7 項：發佈有「在這支 iPhone 上配對」的親友版**（`0.6.16 (29)`、`0.6.17 (30)`，2026-10-20）：兩版的實機結果記在 `HANDOFF.md`；GFlyer-Suite PARITY「在手機上配對」的 iOS 格子改成 ✅。
 

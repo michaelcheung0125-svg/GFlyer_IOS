@@ -3,7 +3,7 @@
 ## 專案範圍
 
 - 這是一個獨立的 iOS 專案，與 Android 專案 `C:\Project\GFlyer` 分開維護。目前發佈的是個人側載的親友版；上架 App Store 的公開版在規劃中（見「目前目標」）。
-- 原始碼位於 `GFlyerIOS/`；XcodeGen 設定位於 `project.yml`。有兩個 App target：`GFlyerIOS`（親友版）和 `GFlyerPublic`（公開版）。`GFlyerIOS/` 兩個版本共用，`GFlyerIOS/Family/` 只給親友版，`GFlyerIOS/Public/` 只給公開版；共用的程式只經 `Edition`（`GFlyerIOS/Edition/EditionFeatures.swift`）碰版本專屬的東西。
+- 原始碼位於 `GFlyerIOS/`；XcodeGen 設定位於 `project.yml`。有兩個 App target：`GFlyerIOS`（親友版）和 `GFlyerPublic`（公開版）。`GFlyerIOS/` 兩個版本共用，`GFlyerIOS/Family/` 只給親友版，`GFlyerIOS/Public/` 只給公開版；共用的程式只經 `Edition`（`GFlyerIOS/Edition/EditionFeatures.swift`）碰版本專屬的東西。App 圖示和飛豬圖兩個版本相同，由 `scripts/make_brand_art.py` 從 JetPiggy 品牌中心的正本轉出，不要手改；正本換了就重跑。
 - 不要把 Android Kotlin 檔案、Android build output 或 Android backend 搬回本專案。
 
 ## 跨平台功能（改功能前先判斷）

@@ -218,7 +218,12 @@ struct MainView: View {
                 // 多點模式的點都畫成路線點；再畫選取位置只會多一個看似
                 // 屬於路線、其實不在路線上的標記
                 if controller.mode != .multiRoute {
-                    Annotation("選取位置", coordinate: controller.selectedCoordinate.clLocationCoordinate) {
+                    // 定位針的針尖在圖的 96% 高度（scripts/make_brand_art.py），對準選取的座標
+                    Annotation(
+                        "選取位置",
+                        coordinate: controller.selectedCoordinate.clLocationCoordinate,
+                        anchor: UnitPoint(x: 0.5, y: 0.96)
+                    ) {
                         Image("GFlyerMarker")
                             .resizable()
                             .scaledToFit()

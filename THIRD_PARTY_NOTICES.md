@@ -32,3 +32,10 @@ The app can download Personalized DDI files from the public
 `5423e4e955fbb3a9eef3e1212acfbfc6e7a26236`. The binary files are not included
 in this repository. Each downloaded file is checked against a pinned SHA-256
 digest before use.
+
+## App artwork
+
+The flying pig artwork in `GFlyerIOS/Resources/Assets.xcassets` (the app icon,
+`GFlyerIcon` and `GFlyerMarker`) is JetPiggy's own brand artwork, not
+third-party material. It is generated from the JetPiggy brand masters by
+`scripts/make_brand_art.py`, and it is not covered by any open source license.
