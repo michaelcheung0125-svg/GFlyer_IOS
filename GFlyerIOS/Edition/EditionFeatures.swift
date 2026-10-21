@@ -25,6 +25,10 @@ protocol EditionFeatures {
     /// 設定頁「關於」的「使用教學」；nil 時不顯示。
     static var userGuideURL: URL? { get }
 
+    /// 設定頁「關於」的「私隱政策」，用瀏覽器打開；nil 時不顯示。照 Android 每個版本的
+    /// `EditionPrivacyText.policyUrl`：只有公開版有（審查指南 5.1.1），親友版沒有。
+    static var privacyPolicyURL: URL? { get }
+
     /// 設定頁按「還原備份檔」時確認的說明。
     static var restoreConfirmationMessage: String { get }
 

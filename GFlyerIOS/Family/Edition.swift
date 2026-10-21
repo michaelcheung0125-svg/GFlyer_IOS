@@ -18,6 +18,9 @@ enum Edition: EditionFeatures {
 
     static let userGuideURL = URL(string: "https://michaelcheung0125-svg.github.io/GFlyer-updates/USER_GUIDE_ZH_HK.html")
 
+    /// 私隱政策只寫公開版，親友版沒有（和 Android 親友版相同）。
+    static let privacyPolicyURL: URL? = nil
+
     static let restoreConfirmationMessage = "還原會以備份內容取代現有的收藏、歷史、資料夾、路線與速度預設。留言板登入與 Pairing File 不受影響。"
 
     static let backupFormatNote =

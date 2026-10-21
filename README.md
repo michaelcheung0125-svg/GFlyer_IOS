@@ -340,6 +340,13 @@ request carries only that coordinate, the fixed language `zh-TW` and the
 `GFlyer/<version> (iOS; +gflyer@jetpiggy.com)` User-Agent; history entries are never sent. This is
 the only feature that contacts Nominatim: place search uses Apple's MapKit.
 
+The App Store edition (`GFlyerPublic`) never contacts Nominatim: it looks up
+the country and city with Apple's `CLGeocoder`, and only after asking. Its
+privacy policy, which covers everything that edition stores and sends, is
+`docs/privacy-policy.md`; the in-app 「私隱政策」 (Settings › 關於) opens the
+published copy at <https://gflyer.jetpiggy.com/ios/privacy.html>, which goes up
+before the App Store submission.
+
 ## macOS prerequisites
 
 - A Mac with current Xcode

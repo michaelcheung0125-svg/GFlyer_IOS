@@ -31,6 +31,7 @@
 - 不要複製 StikDebug 的 AGPL UI 或應用程式碼。
 - 可使用 MIT 授權的 `idevice`，並保留 `THIRD_PARTY_NOTICES.md`。
 - App 內「開放原始碼授權」頁的清單 `GFlyerIOS/Resources/OpenSourceLicenses.json` 由 `scripts/open_source_licenses.py` 產生，不要手改。改了 `scripts/build_idevice.sh` 的 revision 或 features，同一次改動用 `--write` 重新產生；CI 的「Open source licences」核對它和 `libidevice_ffi.a` 實際連結的相符。
+- 公開版的私隱政策正本是 `docs/privacy-policy.md`（`docs/APP_STORE_PLAN.md` 第 19 項）。改了公開版處理資料的做法（連線、權限、存甚麼、備份檔或 iPhone 備份裏有甚麼），同一次改動改正本和它的「生效日期」，網頁已經放上去的話再交 `JetPiggy` 的網站 session 更新。
 - 不要提交 Pairing File、Apple 私密金鑰、provisioning profile、DDI 二進位檔或 `libidevice_ffi.a`。
 - `GFlyerIOS/Vendor/idevice/`、`.build/`、產生的 `.xcodeproj` 都應保持未追蹤。
 - 不要加入反偵測、修改第三方遊戲客戶端或規避第三方定位檢查功能。

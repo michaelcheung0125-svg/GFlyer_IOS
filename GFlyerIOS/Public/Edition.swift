@@ -17,6 +17,10 @@ enum Edition: EditionFeatures {
     /// 公開版的使用教學還沒有寫（docs/APP_STORE_PLAN.md 第 14 項的引導）。
     static let userGuideURL: URL? = nil
 
+    /// docs/APP_STORE_PLAN.md 第 19 項。內容的正本是 `docs/privacy-policy.md`；網站送審之前才放上去，
+    /// 在那之前這個網址打不開。
+    static let privacyPolicyURL = URL(string: "https://gflyer.jetpiggy.com/ios/privacy.html")
+
     static let restoreConfirmationMessage = "還原會以備份內容取代現有的收藏、歷史、資料夾、路線與速度預設。Pairing File 不受影響。"
 
     static let backupFormatNote =

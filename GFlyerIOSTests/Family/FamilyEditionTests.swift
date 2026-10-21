@@ -7,4 +7,9 @@ final class FamilyEditionTests: XCTestCase {
     func testTheDeveloperDiskImageStillDownloadsByItself() {
         XCTAssertNil(Edition.developerDiskImageMissingMessage)
     }
+
+    /// 私隱政策只寫公開版，親友版的設定頁沒有「私隱政策」。
+    func testHasNoPrivacyPolicy() {
+        XCTAssertNil(Edition.privacyPolicyURL)
+    }
 }

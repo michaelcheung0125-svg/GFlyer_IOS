@@ -253,6 +253,14 @@ struct SetupView: View {
             } label: {
                 Label("聯絡我們", systemImage: "envelope")
             }
+            // Android 在「隱私與使用範圍」的說明裏；iOS 沒有那個說明，放在聯絡我們旁邊
+            if let policyURL = Edition.privacyPolicyURL {
+                Button {
+                    openURL(policyURL)
+                } label: {
+                    Label("私隱政策", systemImage: "hand.raised")
+                }
+            }
             // Android 在設定「系統」的最後一項，和版本、聯絡我們同一組；iOS 的這一組是「關於」
             NavigationLink {
                 OpenSourceLicensesView()
