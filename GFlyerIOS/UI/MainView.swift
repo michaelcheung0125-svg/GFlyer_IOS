@@ -5,7 +5,6 @@ struct MainView: View {
     @Environment(\.scenePhase) private var scenePhase
     @ObservedObject var controller: SimulationController
     @ObservedObject var messageBoard: MessageBoardController
-    @ObservedObject var coordinateLibrary: CoordinateLibraryController
     @ObservedObject var edition: EditionModel
     @ObservedObject var airplaneAssist: AirplaneAssistController
     @State private var position: MapCameraPosition = .region(
@@ -20,7 +19,6 @@ struct MainView: View {
     @State private var showJoystick = false
     @State private var showMessageBoard = false
     @State private var showBoardShare = false
-    @State private var showLibrary = false
     @State private var showAirplaneAssist = false
     @State private var isPanelExpanded = true
     /// 右側工具列收起後只剩一個貼在畫面右邊的箭咀，關掉 App 也記住
@@ -77,7 +75,7 @@ struct MainView: View {
                 } message: { warning in
                     Text(CrossDateWarningText.message(for: warning))
                 }
-                .modifier(edition.mainScreenPresentations(feedback: editionFeedback))
+                .modifier(edition.mainScreenPresentations(simulation: controller, feedback: editionFeedback))
                 .alert(
                     "恢復上次模擬？",
                     isPresented: resumeAlertBinding,
@@ -122,9 +120,6 @@ struct MainView: View {
             .sheet(isPresented: $showBoardShare) {
                 ShareToMessageBoardView(board: messageBoard, simulation: controller)
             }
-            .sheet(isPresented: $showLibrary) {
-                CoordinateLibraryView(library: coordinateLibrary, simulation: controller)
-            }
             .sheet(isPresented: $showAirplaneAssist) {
                 AirplaneAssistView(assist: airplaneAssist, simulation: controller)
             }
@@ -142,7 +137,6 @@ struct MainView: View {
                 guard phase == .active, !Self.isCapturingScreenshots else { return }
                 messageBoard.refreshInBackground()
                 edition.appDidBecomeActive()
-                coordinateLibrary.refreshIfStale()
             }
             .onChange(of: controller.selectedCoordinate) { _, coordinate in
                 if suppressNextRecenter {
@@ -263,12 +257,10 @@ struct MainView: View {
                         showFavorites: $showFavorites,
                         showRoutes: $showRoutes,
                         showBoardShare: $showBoardShare,
-                        showLibrary: $showLibrary,
                         showAirplaneAssist: $showAirplaneAssist,
                         position: $position,
                         cameraDistance: $cameraDistance,
                         isLocating: isLocating,
-                        libraryHasNew: coordinateLibrary.hasNewCoordinates,
                         editionItems: edition.mapToolItems(feedback: editionFeedback),
                         onLocate: locateCurrentPosition,
                         onFavorite: requestFavorite
@@ -584,14 +576,11 @@ private struct MapToolBar: View {
     @Binding var showFavorites: Bool
     @Binding var showRoutes: Bool
     @Binding var showBoardShare: Bool
-    @Binding var showLibrary: Bool
     @Binding var showAirplaneAssist: Bool
     @Binding var position: MapCameraPosition
     @Binding var cameraDistance: CLLocationDistance
     let isLocating: Bool
-    /// 座標圖鑑有還沒看過的新座標:按鈕右上角顯示「NEW」(GFlyer-Suite docs/features/coordinate-library-new-badge.md)
-    let libraryHasNew: Bool
-    /// 版本專屬的按鈕(`EditionModelFeatures.mapToolItems`),接在「座標圖鑑」後面
+    /// 版本專屬的按鈕(`EditionModelFeatures.mapToolItems`),接在「分享到留言板」後面
     let editionItems: [MapToolItem]
     let onLocate: () -> Void
     /// ☆ 只負責觸發;命名 sheet 與它的狀態在 `MainView`,理由見 `MainView.favoriteNameRequest`。
@@ -675,12 +664,6 @@ private struct MapToolBar: View {
                 showRoutes = true
             },
             MapToolItem(id: "board-share", icon: "square.and.arrow.up", label: "分享到留言板") { showBoardShare = true },
-            MapToolItem(
-                id: "library",
-                icon: "books.vertical",
-                label: "座標圖鑑",
-                badge: libraryHasNew ? CoordinateLibraryNewBadge.text : nil
-            ) { showLibrary = true },
         ]
         let end: [MapToolItem] = [
             // 行動網絡下才需要飛航模式那串操作，所以只在偵測到行動網絡時強調它。

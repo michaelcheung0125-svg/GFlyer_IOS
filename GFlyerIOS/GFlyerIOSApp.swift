@@ -4,7 +4,6 @@ import SwiftUI
 struct GFlyerIOSApp: App {
     @StateObject private var controller = SimulationController()
     @StateObject private var messageBoard = MessageBoardController()
-    @StateObject private var coordinateLibrary = CoordinateLibraryController()
     /// 版本專屬功能（親友版的檢查新版、補錄步數等），見 `EditionModelFeatures`
     @StateObject private var edition = EditionModel()
     @StateObject private var airplaneAssist = AirplaneAssistController()
@@ -17,7 +16,6 @@ struct GFlyerIOSApp: App {
             MainView(
                 controller: controller,
                 messageBoard: messageBoard,
-                coordinateLibrary: coordinateLibrary,
                 edition: edition,
                 airplaneAssist: airplaneAssist
             )

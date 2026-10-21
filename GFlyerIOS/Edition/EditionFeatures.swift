@@ -31,13 +31,14 @@ protocol EditionModelFeatures: ObservableObject {
 
     init()
 
-    /// 主畫面上版本專屬的提示和畫面，例如親友版的「有新版本」和從地圖工具列打開的補錄。
-    func mainScreenPresentations(feedback: MainScreenFeedback) -> MainScreenPresentations
+    /// 主畫面上版本專屬的提示和畫面，例如親友版的「有新版本」和從地圖工具列打開的畫面。
+    /// 那些畫面用 `simulation` 傳送位置。
+    func mainScreenPresentations(simulation: SimulationController, feedback: MainScreenFeedback) -> MainScreenPresentations
 
     /// 版本專屬的提示正在顯示。主畫面升級後只出現一次的提示要等它關掉，免得互相擋掉。
     var isPresentingAlert: Bool { get }
 
-    /// 地圖工具列上版本專屬的按鈕，接在「座標圖鑑」後面。
+    /// 地圖工具列上版本專屬的按鈕，接在「分享到留言板」後面。
     func mapToolItems(feedback: MainScreenFeedback) -> [MapToolItem]
 
     /// 設定頁上版本專屬的提示和畫面。
@@ -71,7 +72,7 @@ struct MapToolItem: Identifiable {
     var tint: Color?
     /// 轉圈代替圖示，例如定位中。
     var isBusy = false
-    /// 右上角的小字，例如座標圖鑑的「NEW」。
+    /// 右上角的小字，例如「NEW」。
     var badge: String?
     let action: () -> Void
 }

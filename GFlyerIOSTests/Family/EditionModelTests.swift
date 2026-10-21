@@ -10,7 +10,11 @@ final class EditionModelTests: XCTestCase {
     private func makeEdition() -> (EditionModel, UserDefaults, String) {
         let suite = "gflyer.edition-tests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!
-        return (EditionModel(stepRecorder: StepRecorderController(defaults: defaults)), defaults, suite)
+        let edition = EditionModel(
+            coordinateLibrary: CoordinateLibraryController(markStore: CoordinateMarkStore(defaults: defaults)),
+            stepRecorder: StepRecorderController(defaults: defaults)
+        )
+        return (edition, defaults, suite)
     }
 
     func testEditionReportsTheUpdatePromptAndForwardsCheckerChanges() {
@@ -58,13 +62,27 @@ final class EditionModelTests: XCTestCase {
         let feedback = MainScreenFeedback(announce: { announced.append($0) }, reportError: { _ in })
 
         let items = edition.mapToolItems(feedback: feedback)
-        XCTAssertEqual(items.map(\.id), ["step-record"])
-        let item = try XCTUnwrap(items.first)
+        XCTAssertEqual(items.map(\.id), ["library", "step-record"], "和分版本之前的工具列同一個次序")
+        let item = try XCTUnwrap(items.last)
         XCTAssertEqual(item.label, "設定補錄步數")
 
         item.action()
         XCTAssertTrue(edition.showsStepRecorderOnMap)
         XCTAssertFalse(edition.showsStepRecorderInSettings, "設定頁的補錄畫面是另一個")
         XCTAssertEqual(announced, [], "還沒設定好捷徑時不送出")
+    }
+
+    func testLibraryButtonOpensTheLibraryAndShowsNoBadgeWithoutNewCoordinates() throws {
+        let (edition, defaults, suite) = makeEdition()
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let feedback = MainScreenFeedback(announce: { _ in }, reportError: { _ in })
+
+        let item = try XCTUnwrap(edition.mapToolItems(feedback: feedback).first)
+        XCTAssertEqual(item.label, "座標圖鑑")
+        XCTAssertNil(item.badge)
+
+        item.action()
+        XCTAssertTrue(edition.showsCoordinateLibrary)
+        XCTAssertFalse(edition.showsStepRecorderOnMap)
     }
 }
