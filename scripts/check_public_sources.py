@@ -8,9 +8,10 @@
 
 照 Android 匯出工具的禁用字檢查（GFlyer 的 tools/export-public/export.py）：檔名和內容都掃，
 二進位檔也掃（例如圖片的中繼資料），連註解；另外不可以有和親友版一模一樣的檔案（改了名也算）。
-範圍是公開版 App 和公開版測試的 sources（project.yml 的 GFlyerPublic、GFlyerPublicTests）：
-GFlyerIOS/ 和 GFlyerIOSTests/，扣掉 Vendor/ 和兩個 Family/。改了 project.yml 的 sources，
-這裏的 PUBLIC_SCOPES 和 EXPECTED_SOURCES 要一起改，否則這個檢查會失敗。
+範圍是公開版 App、通道 extension 和公開版測試的 sources（project.yml 的 GFlyerPublic、
+GFlyerPublicTunnel、GFlyerPublicTests）：GFlyerIOS/、GFlyerPublicTunnel/ 和 GFlyerIOSTests/，
+扣掉 Vendor/ 和兩個 Family/。改了 project.yml 的 sources，這裏的 PUBLIC_SCOPES 和
+EXPECTED_SOURCES 要一起改，否則這個檢查會失敗。
 
 --app 掃的是建好的 App：檔名、Info.plist，和每個檔案裏以 NUL 分開的字串（執行檔的字串、
 符號和 debug map 的檔名都在裏面）。原始碼掃描管的是寫進 repo 的字；這一步管建置時才加進來的，
@@ -33,10 +34,11 @@ ROOT = Path(__file__).resolve().parents[1]
 # 公開版會編譯或放進 App 的資料夾，和要扣掉的子資料夾
 PUBLIC_SCOPES = [
     ("GFlyerIOS/", ("GFlyerIOS/Vendor/", "GFlyerIOS/Family/")),
+    ("GFlyerPublicTunnel/", ()),
     ("GFlyerIOSTests/", ("GFlyerIOSTests/Family/",)),
 ]
 FAMILY_ONLY = ("GFlyerIOS/Family/", "GFlyerIOSTests/Family/")
-# project.yml 裏兩個公開版 target 的 sources，和 PUBLIC_SCOPES 描述的是同一件事
+# project.yml 裏公開版各個 target 的 sources，和 PUBLIC_SCOPES 描述的是同一件事
 EXPECTED_SOURCES = {
     "GFlyerPublic": [
         "- path: GFlyerIOS",
@@ -45,6 +47,10 @@ EXPECTED_SOURCES = {
         "- Family",
         "- Public",
         "- path: GFlyerIOS/Public",
+    ],
+    "GFlyerPublicTunnel": [
+        "- path: GFlyerPublicTunnel",
+        "- path: GFlyerIOS/Public/Tunnel/PacketReflector.swift",
     ],
     "GFlyerPublicTests": [
         "- path: GFlyerIOSTests",
@@ -98,11 +104,6 @@ FORBIDDEN_FILE_SUFFIXES = {
 }
 # 太小的檔案（空白檔、`{}` 之類）不比較是不是和親友版一模一樣
 MIN_HASHED_BYTES = 64
-# 可以和親友版一模一樣的檔案：公開版的路徑 → (親友版的路徑, 理由)
-SAME_AS_FAMILY_ALLOWED = {
-    "GFlyerIOS/Public/GFlyerPublic.entitlements": (
-        "GFlyerIOS/Family/GFlyerIOS.entitlements", "兩個版本目前都沒有要求任何權限"),
-}
 
 
 def in_public_scope(path: str) -> bool:
@@ -165,10 +166,8 @@ def scan(files: dict[str, bytes]) -> tuple[list[str], list[str]]:
         if Path(path).suffix.lower() in FORBIDDEN_FILE_SUFFIXES:
             problems.append(f"{path}：不應放進公開版的檔案")
         if len(data) >= MIN_HASHED_BYTES:
-            allowed = SAME_AS_FAMILY_ALLOWED.get(path, ("",))[0]
             for same in family.get(hashlib.sha256(data).hexdigest(), []):
-                if same != allowed:
-                    problems.append(f"{path}：和親友版的 {same} 一模一樣")
+                problems.append(f"{path}：和親友版的 {same} 一模一樣")
         for pattern, reason in FORBIDDEN:
             match = pattern.search(path)
             if match:
@@ -253,7 +252,8 @@ def self_test() -> list[str]:
         if not any(pattern.search(word) for word in words):
             failures.append(f"規則 {pattern.pattern} 沒有例子")
     for word in words:
-        for path in ("GFlyerIOS/Services/Sample.swift", "GFlyerIOSTests/SampleTests.swift"):
+        for path in ("GFlyerIOS/Services/Sample.swift", "GFlyerPublicTunnel/Sample.swift",
+                     "GFlyerIOSTests/SampleTests.swift"):
             if not scan({path: f"// {word}\n".encode("utf-8")})[0]:
                 failures.append(f"{path} 裏的「{word}」沒有被擋下")
         for path in ("GFlyerIOS/Family/Sample.swift", "GFlyerIOSTests/Family/SampleTests.swift",
@@ -269,11 +269,6 @@ def self_test() -> list[str]:
         failures.append("和親友版一模一樣的檔案沒有被擋下")
     if scan({"GFlyerIOS/Family/Art.png": copied[:-1], "GFlyerIOS/Resources/Small.png": copied[:-1]})[0]:
         failures.append("太小的檔案不應該比較")
-    for public, (family, _) in SAME_AS_FAMILY_ALLOWED.items():
-        if scan({family: copied, public: copied})[0]:
-            failures.append(f"允許的 {public} 被擋下")
-        if not scan({family: copied, public: copied, "GFlyerIOS/Family/Other.png": copied})[0]:
-            failures.append(f"{public} 和允許以外的親友版檔案相同時沒有被擋下")
     if not scan({"GFlyerIOS/Sample.swift": b"// GFlyer-Suite docs\n"})[1]:
         failures.append("私人 repo 名稱沒有提醒")
     project = (ROOT / "project.yml").read_text(encoding="utf-8").replace("\r\n", "\n")
@@ -348,8 +343,9 @@ def main() -> int:
 
     problems = check_scope((ROOT / "project.yml").read_text(encoding="utf-8"))
     names = tracked_files()
+    bases = tuple(base for base, _ in PUBLIC_SCOPES)
     files = {name: (ROOT / name).read_bytes() for name in names
-             if name.startswith(("GFlyerIOS/", "GFlyerIOSTests/")) and (ROOT / name).is_file()}
+             if name.startswith(bases) and (ROOT / name).is_file()}
     scanned = sum(1 for name in files if in_public_scope(name))
     found, warnings = scan(files)
     problems += found

@@ -3,7 +3,7 @@
 ## 專案範圍
 
 - 這是一個獨立的 iOS 專案，與 Android 專案 `C:\Project\GFlyer` 分開維護。目前發佈的是個人側載的親友版；上架 App Store 的公開版在規劃中（見「目前目標」）。
-- 原始碼位於 `GFlyerIOS/`；XcodeGen 設定位於 `project.yml`。有兩個 App target：`GFlyerIOS`（親友版）和 `GFlyerPublic`（公開版）。`GFlyerIOS/` 兩個版本共用，`GFlyerIOS/Family/` 只給親友版，`GFlyerIOS/Public/` 只給公開版；共用的程式只經 `Edition` 和 `EditionModel`（介面在 `GFlyerIOS/Edition/EditionFeatures.swift`）碰版本專屬的東西。App 圖示和飛豬圖兩個版本相同，由 `scripts/make_brand_art.py` 從 JetPiggy 品牌中心的正本轉出，不要手改；正本換了就重跑。
+- 原始碼位於 `GFlyerIOS/`；XcodeGen 設定位於 `project.yml`。有兩個 App target：`GFlyerIOS`（親友版）和 `GFlyerPublic`（公開版）。`GFlyerIOS/` 兩個版本共用，`GFlyerIOS/Family/` 只給親友版，`GFlyerIOS/Public/` 只給公開版，`GFlyerPublicTunnel/` 是公開版內建的本機通道（Network Extension，`docs/APP_STORE_PLAN.md` 第 12 項）；共用的程式只經 `Edition` 和 `EditionModel`（介面在 `GFlyerIOS/Edition/EditionFeatures.swift`）碰版本專屬的東西。App 圖示和飛豬圖兩個版本相同，由 `scripts/make_brand_art.py` 從 JetPiggy 品牌中心的正本轉出，不要手改；正本換了就重跑。
 - 不要把 Android Kotlin 檔案、Android build output 或 Android backend 搬回本專案。
 
 ## 跨平台功能（改功能前先判斷）
@@ -23,7 +23,7 @@
 - 親友版（現在的 App）照舊個人側載，經 SideStore 安裝。
 - 2026-10-19 使用者決定：iOS 照 Android 分成親友版和公開版，公開版以上架 App Store 為目標，在 iOS 27 以上做到全程不用電腦。計劃、次序和要使用者決定的事在 `docs/APP_STORE_PLAN.md`；跨平台的紀錄是 GFlyer-Suite DRIFT D35 與 PARITY「iOS 的兩個版本」。
 - 2026-10-21 起分成兩個 target（`docs/APP_STORE_PLAN.md` 第 8 項）。做新功能之前先決定它給不給公開版，拿不準就只放 `GFlyerIOS/Family/` 並問使用者。
-- 公開版會編譯的檔案（`GFlyerIOS/` 和 `GFlyerIOSTests/` 扣掉 `Vendor/` 和 `Family/`，連註解）要通過 `scripts/check_public_sources.py`：不可以有遊戲用語、親友版的功能名稱、SideStore／AltStore／LocalDevVPN、私人網址、個人帳戶和本機路徑。CI 的「Public edition source scan」跑它，建好的公開版 App 也再掃一次。共用的程式要說到這些，改由 `Edition` 給字，或搬進 `Family/`；改 `project.yml` 的 sources 時，同步改這個檔案的範圍。
+- 公開版會編譯的檔案（`GFlyerIOS/`、`GFlyerPublicTunnel/` 和 `GFlyerIOSTests/` 扣掉 `Vendor/` 和 `Family/`，連註解）要通過 `scripts/check_public_sources.py`：不可以有遊戲用語、親友版的功能名稱、SideStore／AltStore／LocalDevVPN、私人網址、個人帳戶和本機路徑。CI 的「Public edition source scan」跑它，建好的公開版 App 也再掃一次。共用的程式要說到這些，改由 `Edition` 給字，或搬進 `Family/`；改 `project.yml` 的 sources 時，同步改這個檔案的範圍。
 
 ## 開發規則
 

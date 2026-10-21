@@ -378,6 +378,13 @@ jobs:
           test -f "$app_path/AppIcon60x60@2x.png"
           plist="$app_path/Info.plist"
           test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$plist")" = com.jetpiggy.gflyer
+          # App 內建的本機通道（docs/APP_STORE_PLAN.md 第 12 項）
+          tunnel_plist="$app_path/PlugIns/GFlyerPublicTunnel.appex/Info.plist"
+          test -f "$app_path/PlugIns/GFlyerPublicTunnel.appex/GFlyerPublicTunnel"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$tunnel_plist")" = com.jetpiggy.gflyer.tunnel
+          test "$(/usr/libexec/PlistBuddy -c 'Print :NSExtension:NSExtensionPointIdentifier' "$tunnel_plist")" = com.apple.networkextension.packet-tunnel
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$tunnel_plist")" = \
+            "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$plist")"
           # 親友版的私人網址只放在親友版的 Info.plist（docs/APP_STORE_PLAN.md 第二階段的做法）
           for key in GFlyerMessageBoardAPIURL GFlyerCoordinateLibraryURL GFlyerUpdateSourceURL; do
             if /usr/libexec/PlistBuddy -c "Print :$key" "$plist" >/dev/null 2>&1; then
