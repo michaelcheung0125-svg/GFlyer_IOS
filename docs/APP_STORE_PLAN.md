@@ -99,7 +99,7 @@
 
 ## 第三階段：公開版才有的
 
-第 12 項的程式 2026-10-21 做完（`190bf0d`），還沒有在實機試，見表下面的「第 12 項的進度」。
+第 12 項的程式 2026-10-21 做完（`190bf0d`），還沒有在實機試，見表下面的「第 12 項的進度」。第 15 項的程式也做完（`8b46c61`），送審說明的 DDI 一段已起草，見「第 15 項的進度」。
 
 | # | 待辦 | 為甚麼和怎樣做 | 做完的標準 |
 |---|---|---|---|
@@ -110,7 +110,7 @@
 | 16 | 定位檢查頁（DRIFT D31） | 給審查員和使用者核對模擬有沒有生效、清除後有沒有恢復；Android 也是為審查做的。先在 GFlyer-Suite 寫 `docs/features/` 的規格，文字照 Android。用 `CLLocation.sourceInformation` 分辨模擬位置，要上機確認 | 規格寫好、兩邊文字一致，實機驗證 |
 | 17 | 地名反查改用系統服務（DRIFT D33） | 公開的 Nominatim 只准全部用戶合計每秒一次，上了 App Store 一定超過。改用 `CLGeocoder`，照 `region-labels.md` 3.5a 和同一份 fixture；同意照 U7 | 公開版不連 Nominatim |
 | 18 | 開放原始碼授權頁（DRIFT D34） | App Store 的使用者看不到 repo，散佈 idevice 和它連結的 Rust 程式庫要附上授權。清單從 Cargo.lock 產生；入口和頁名照 Android | 兩個版本都有，清單和實際打包的相符 |
-| 19 | 私隱政策 | 審查指南 5.1.1 要求所有 App 在 App Store Connect 填私隱政策網址，App 內也要有入口。Android 的正本只寫 Android 公開版，要另寫 iOS 版：配對檔和通道只在手機上處理、DDI 從哪裏下載、地名服務、聯絡電郵、資料保存多久和怎樣刪除。網址由使用者決定，例如和 Android 同一個網站 | 頁面公開，不用登入就看得到；App 內有「私隱政策」；內容和 App 的實際做法一致 |
+| 19 | 私隱政策 | 審查指南 5.1.1 要求所有 App 在 App Store Connect 填私隱政策網址，App 內也要有入口。Android 的正本只寫 Android 公開版，要另寫 iOS 版：配對檔和通道只在手機上處理、DDI 從哪裏下載、掛載 DDI 時向 Apple 的簽署伺服器送出這部 iPhone 的晶片識別碼（見「第 15 項的進度」）、地名服務、聯絡電郵、資料保存多久和怎樣刪除。網址由使用者決定，例如和 Android 同一個網站 | 頁面公開，不用登入就看得到；App 內有「私隱政策」；內容和 App 的實際做法一致 |
 | 20 | 私隱資訊清單和 App 私隱標籤 | App Store 要求 `PrivacyInfo.xcprivacy` 宣告用到的指定原因 API（例如 `UserDefaults`、檔案時間）；App Store Connect 的資料收集問卷照實填。Claude 按程式的實際做法起草，使用者確認 | 上傳時沒有私隱清單的警告；問卷已提交 |
 | 21 | 加密的出口申報 | 配對和通道用 SRP、TLS-PSK 等標準加密。`Info.plist` 的 `ITSAppUsesNonExemptEncryption` 和 App Store Connect 的問題照實回答。Claude 起草，使用者確認 | 每次上傳不用再手動回答 |
 
@@ -125,6 +125,20 @@
 - CI 檢查公開版 App 裏有這個 extension，bundle id、extension 類型對，版本號和 App 相同；`--app` 掃描連 extension 一起掃。
 - 拆開比對：親友版的 IPA 和第 10 項之後完全相同，連執行檔；公開版多了 `PlugIns/GFlyerPublicTunnel.appex`，字串多了上面通道的說明。
 - 實機要試的（做完的標準）：沒有裝 LocalDevVPN 的 iPhone 第一次開通道（iOS 的詢問）和傳送；Wi-Fi 和行動網絡（飛航模式流程）；關掉通道後一般上網；在 iOS 的 VPN 設定直接開關；改了目標 IP 之後重開。
+
+### 第 15 項的進度
+
+程式 2026-10-21 做完（`8b46c61`；CI run `39623879142` 的第二次四個 job 綠燈（第一次三個 macOS job 等不到 GitHub 的 runner，被取消），親友版 331 個測試，公開版 266 個（兩邊都多了 3 個 `DeveloperDiskImageStoreTests`；公開版另外多了 6 個 `DeveloperDiskImageDownloadTests`，親友版 1 個 `FamilyEditionTests`），編譯警告和之前相同），**還沒有在實機試**：公開版要付費開發者帳戶才裝得到 iPhone（第 22 項）。
+
+- 公開版不會自己下載 DDI。設定頁（「裝置設定」）的「Developer Disk Image」有「DDI 狀態」（檢查中…／未下載／下載中…／已下載）和「下載 DDI（約 16.5 MB）」，按了才下載；說明寫明從 GitHub 下載固定版本、經 SHA-256 驗證、保留在本機。大小由三個檔案的大小加起來（`DeveloperDiskImageStore.downloadSizeText`，16,536,648 bytes，1 MB = 1,000,000 bytes，和 iOS 顯示的相同），改了 revision 要一起改。
+- 還沒下載，iPhone 這次開機後也還沒掛載過 DDI 時按開始或「測試本機通道」，連線到要掛載 DDI 那一步會停下來（iPhone 已經掛載了就不用 DDI 的檔案，照常連線），顯示「還沒有下載 DDI。請到設定頁的「Developer Disk Image」按「下載 DDI（約 16.5 MB）」，完成後再試。」，不會下載（`Edition.developerDiskImageMissingMessage`）。下載失敗顯示「DDI 下載失敗：」加原因，按鈕可以再按。離開設定頁下載會繼續，回來時看到「下載中…」。
+- 親友版照舊：第一次掛載時自己下載，設定頁的說明一字不改。拆開比對（和第 12 項的 run 比）：親友版的 IPA 只有執行檔不同（大 11,976 bytes），字串相同；公開版的字串少了親友版那句 DDI 說明，多了上面的狀態、按鈕和說明；建好的公開版 App 掃描照舊 45 個提醒。
+- 掛載時 iPhone 如果沒有這個映像的個人化票據，idevice 會向 Apple 的簽署伺服器 `http://gs.apple.com/TSS/controller` 要一張（`3854a5d` 的 `idevice/src/tss.rs`），請求裏有這部 iPhone 的 BoardId、ChipID、ECID 和 nonce；Xcode 掛載時也一樣。這不經 `URLSession`，所以不受 App Transport Security 管。私隱政策（第 19 項）要寫。
+- 實機要試的：新裝的公開版，iPhone 重新開機後未下載時按開始會停在上面那句；按下載後狀態變成「已下載」，再按開始能掛載並傳送；飛航模式下按下載會顯示失敗，按鈕可以再按。
+
+送審說明的 DDI 一段（第 26 項用；按鈕和設定頁的名稱照 App 裏的字，送審前照 TestFlight 的畫面再核對一次）：
+
+> **Developer Disk Image (DDI).** To simulate a location, iOS must first mount Apple's Personalized Developer Disk Image, the same image Xcode mounts when a developer runs an app on a device. GFlyer never downloads it by itself: the settings screen (裝置設定, gear button on the map) has a "Developer Disk Image" section that shows the status and a button "下載 DDI（約 16.5 MB）" ("Download DDI, about 16.5 MB"). Nothing is downloaded until the user taps it; if the user starts a simulation before that and iOS has not mounted the image yet, GFlyer stops and points to that button. The three files (`Image.dmg`, `Image.dmg.trustcache`, `BuildManifest.plist`, 16.5 MB in total) are Apple's files from Xcode, downloaded from the public GitHub repository `doronz88/DeveloperDiskImage` at a fixed revision. GFlyer checks each file against a SHA-256 hash built into the app and keeps them on the device. iOS itself mounts the image, and only with a personalization ticket from Apple's signing server (`gs.apple.com`), which GFlyer requests the same way Xcode does. The DDI is not code that GFlyer runs and it does not add or change any GFlyer feature (guideline 2.5.2); it provides the developer services that iOS uses for location simulation.
 
 ## 第四階段：簽署、TestFlight、送審
 
@@ -154,7 +168,7 @@
 - **「顯示開發者模式」的做法是推論**（第 13 項），要用一支從沒配對過的 iOS 27 iPhone 確認。
 - **背景播放路線。** 現在靠背景定位模式和 `CLBackgroundActivitySession` 讓路線在背景繼續。審查指南 2.5.4 只准背景服務用在原本的用途，送審時要照實說明，審查員可能有意見。
 - **個人帳戶和 VPN**，見 U1。
-- **DDI 的來源。** Apple 的映像放在第三方的 GitHub repo，公開版靠它下載（第 15 項）。
+- **DDI 的來源。** Apple 的映像放在第三方的 GitHub repo，公開版靠它下載（第 15 項）。repo 不見了或改了內容，SHA-256 核對不過就下載不到，要改 App 換來源。
 - **沒有 Wi-Fi 時能不能配對**還不知道。LL Pair 和 StikPair 都要求本機網路權限。
 - **iOS 更新。** Apple 以後可能改變配對或 DDI 的做法。Apple 的 Device Hub 文件說升級 iOS 之後要重新配對，要實測對 GFlyer 的配對檔有沒有影響。
 - **iOS 26 以下仍然要電腦。**
