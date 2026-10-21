@@ -150,7 +150,9 @@ actor IdeviceLocationSimulationBackend: LocationSimulationBackend {
         if initialError == nil { return }
         idevice_error_free(initialError)
 
-        let files = try await DeveloperDiskImageStore.shared.prepare()
+        let files = try await DeveloperDiskImageStore.shared.prepare(
+            missingMessage: Edition.developerDiskImageMissingMessage
+        )
         try mountDeveloperDiskImage(files)
         try check(
             remote_server_connect_rsd(adapter, handshake, &remoteServer),

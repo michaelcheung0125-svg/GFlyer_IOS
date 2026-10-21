@@ -1,4 +1,4 @@
-import Foundation
+import SwiftUI
 
 /// 親友版（經 SideStore 安裝）。見 `EditionFeatures`。
 enum Edition: EditionFeatures {
@@ -22,4 +22,13 @@ enum Edition: EditionFeatures {
 
     static let backupFormatNote =
         "備份檔為 GFlyer Backup v1 格式，包含收藏、歷史、資料夾、路線與速度預設，與 GFlyer Android 的備份/還原互通。留言板登入與 Pairing File 不會包含在備份內。"
+
+    static let developerDiskImageMissingMessage: String? = nil
+
+    @MainActor
+    static func developerDiskImageRows(controller _: SimulationController) -> some View {
+        Text("第一次使用裝置模式時，GFlyer 會下載約 16 MB、固定版本並經 SHA-256 驗證的 Personalized DDI，之後保留在本機使用。")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+    }
 }

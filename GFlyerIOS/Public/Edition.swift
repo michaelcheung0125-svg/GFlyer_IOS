@@ -1,4 +1,4 @@
-import Foundation
+import SwiftUI
 
 /// 公開版（App Store）。見 `EditionFeatures`。
 enum Edition: EditionFeatures {
@@ -21,4 +21,15 @@ enum Edition: EditionFeatures {
 
     static let backupFormatNote =
         "備份檔為 GFlyer Backup v1 格式，包含收藏、歷史、資料夾、路線與速度預設，與 GFlyer Android 的備份/還原互通。Pairing File 不會包含在備份內。"
+
+    /// 設定頁下載 DDI 的按鈕，連大小。
+    static let developerDiskImageDownloadTitle = "下載 DDI（約 \(DeveloperDiskImageStore.downloadSizeText)）"
+
+    static let developerDiskImageMissingMessage: String? =
+        "還沒有下載 DDI。請到設定頁的「Developer Disk Image」按「\(developerDiskImageDownloadTitle)」，完成後再試。"
+
+    @MainActor
+    static func developerDiskImageRows(controller: SimulationController) -> some View {
+        DeveloperDiskImageDownloadRows(controller: controller, download: .shared)
+    }
 }

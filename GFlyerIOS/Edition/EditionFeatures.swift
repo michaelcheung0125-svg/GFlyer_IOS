@@ -30,6 +30,15 @@ protocol EditionFeatures {
 
     /// 設定頁備份和還原下面的說明。
     static var backupFormatNote: String { get }
+
+    /// 要掛載 DDI、本機又沒有時：nil 就直接下載（親友版）；有值就不自己下載，丟出這句錯誤，
+    /// 使用者要先在設定頁按下載（公開版：審查指南 4.2.3 要求第一次使用要下載的資源先說明大小
+    /// 並詢問）。idevice backend 不在主執行緒，所以放在這裏。
+    static var developerDiskImageMissingMessage: String? { get }
+
+    associatedtype DeveloperDiskImageRows: View
+    /// 設定頁「Developer Disk Image」section 的內容。
+    @MainActor @ViewBuilder static func developerDiskImageRows(controller: SimulationController) -> DeveloperDiskImageRows
 }
 
 /// 見 `EditionFeatures.tunnelWording`。每一句都是完整的句子，畫面上的字由版本決定。

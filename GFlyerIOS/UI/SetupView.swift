@@ -423,9 +423,7 @@ struct SetupView: View {
 
     private var developerDiskImageSection: some View {
         Section("Developer Disk Image") {
-            Text("第一次使用裝置模式時，GFlyer 會下載約 16 MB、固定版本並經 SHA-256 驗證的 Personalized DDI，之後保留在本機使用。")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+            Edition.developerDiskImageRows(controller: controller)
         }
     }
 
