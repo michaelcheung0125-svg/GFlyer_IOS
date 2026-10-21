@@ -100,12 +100,26 @@ WARN = [
     (re.compile(r"GFlyer-updates"), "私人 repo 名稱（親友版更新來源）"),
     (re.compile(r"GFlyer_IOS"), "私人 repo 名稱（iOS）"),
 ]
+# 「開放原始碼授權」頁的清單（第 18 項，scripts/open_source_licenses.py 產生；App 裏放在根目錄）。
+# 授權全文要原樣附上，裏面第三方版權人的名字和電郵會撞到上面的「個人姓名」「私人電郵」。只有這個檔、
+# 只有下面這幾段字放行，其餘規則照舊。清單換了內容又撞到時，確認是第三方的版權人才加在這裏。
+NOTICES_FILE = "OpenSourceLicenses.json"
+NOTICES_ALLOWED = ["Michael Wright", "keepsimple@gmail.com", "jpixton@gmail.com"]
 # 不應出現在公開版的檔案（不論在哪個資料夾）：簽署用的檔案、Pairing File、DDI 和建置產物
 FORBIDDEN_FILE_SUFFIXES = {
     ".p12", ".pem", ".cer", ".mobileprovision", ".mobiledevicepairing", ".dmg", ".a", ".ipa",
 }
 # 太小的檔案（空白檔、`{}` 之類）不比較是不是和親友版一模一樣
 MIN_HASHED_BYTES = 64
+
+
+def without_allowed_notices(name: str, text: str) -> str:
+    """授權清單裏放行的第三方名字換成不會撞到規則的字，其他檔案原樣。"""
+    if Path(name).name != NOTICES_FILE:
+        return text
+    for allowed in NOTICES_ALLOWED:
+        text = text.replace(allowed, "#" * len(allowed))
+    return text
 
 
 def in_public_scope(path: str) -> bool:
@@ -174,7 +188,7 @@ def scan(files: dict[str, bytes]) -> tuple[list[str], list[str]]:
             match = pattern.search(path)
             if match:
                 problems.append(f"{path}：檔名有「{match.group(0)}」（{reason}）")
-        text = data.decode("utf-8", errors="replace")
+        text = without_allowed_notices(path, data.decode("utf-8", errors="replace"))
         for number, line in enumerate(text.splitlines(), start=1):
             for pattern, reason in FORBIDDEN:
                 match = pattern.search(line)
@@ -232,7 +246,7 @@ def scan_app(app: Path) -> tuple[list[str], list[str]]:
         data = path.read_bytes()
         texts = plist_strings(plistlib.loads(data)) if name == "Info.plist" else binary_strings(data)
         for text in sorted(set(texts)):
-            check(name, text)
+            check(name, without_allowed_notices(name, text))
     return problems, warnings
 
 
@@ -274,6 +288,15 @@ def self_test() -> list[str]:
         failures.append("太小的檔案不應該比較")
     if not scan({"GFlyerIOS/Sample.swift": b"// GFlyer-Suite docs\n"})[1]:
         failures.append("私人 repo 名稱沒有提醒")
+    notices = f"GFlyerIOS/Resources/{NOTICES_FILE}"
+    allowed = " ".join(NOTICES_ALLOWED)
+    if scan({notices: f"Copyright {allowed}\n".encode("utf-8")})[0]:
+        failures.append("授權清單裏放行的第三方名字被當成有問題")
+    for word in ("michaelcheung", "Michael Cheung", "someone@gmail.com", "xyz91", "game"):
+        if not scan({notices: f"Copyright {word}\n".encode("utf-8")})[0]:
+            failures.append(f"授權清單裏的「{word}」沒有被擋下")
+    if not scan({"GFlyerIOS/Services/Sample.swift": f"// {NOTICES_ALLOWED[0]}\n".encode("utf-8")})[0]:
+        failures.append("授權清單以外的檔案也放行了第三方名字")
     project = (ROOT / "project.yml").read_text(encoding="utf-8").replace("\r\n", "\n")
     if check_scope(project):
         failures.append("現在的 project.yml 和範圍不同")
@@ -294,13 +317,16 @@ def self_test_app() -> list[str]:
             {**plist, "LSApplicationQueriesSchemes": ["localdevvpn"]}, fmt=plistlib.FMT_BINARY)},
         "執行檔的字串": {"GFlyerPublic": executable + "LocalDevVPN/CoreDevice 通道已驗證\0".encode("utf-8")},
         "檔名": {"Flower.png": b"\x89PNG"},
+        "授權清單": {NOTICES_FILE: f'{{"text": "Copyright {NOTICES_ALLOWED[0]}, xyz91"}}'.encode("utf-8")},
     }
     with tempfile.TemporaryDirectory() as temp:
         for case, extra in [("乾淨的 App", {}), *dirty.items()]:
             app = Path(temp) / f"{len(list(Path(temp).iterdir()))}.app"
             app.mkdir()
             files = {"Info.plist": plistlib.dumps(plist, fmt=plistlib.FMT_BINARY),
-                     "GFlyerPublic": executable, **extra}
+                     "GFlyerPublic": executable,
+                     NOTICES_FILE: f'{{"text": "Copyright {" ".join(NOTICES_ALLOWED)}"}}'.encode("utf-8"),
+                     **extra}
             for name, data in files.items():
                 (app / name).write_bytes(data)
             problems = scan_app(app)[0]

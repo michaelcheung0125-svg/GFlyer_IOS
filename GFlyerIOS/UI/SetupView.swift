@@ -253,6 +253,21 @@ struct SetupView: View {
             } label: {
                 Label("聯絡我們", systemImage: "envelope")
             }
+            // Android 在設定「系統」的最後一項，和版本、聯絡我們同一組；iOS 的這一組是「關於」
+            NavigationLink {
+                OpenSourceLicensesView()
+            } label: {
+                Label {
+                    VStack(alignment: .leading, spacing: Spacing.xs) {
+                        Text(OpenSourceLicensesText.title)
+                        Text(OpenSourceLicensesText.entrySubtitle)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                } icon: {
+                    Image(systemName: "doc.text")
+                }
+            }
         }
     }
 

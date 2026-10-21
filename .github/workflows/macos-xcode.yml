@@ -72,6 +72,45 @@ jobs:
       - name: Scan the public edition's sources
         run: python3 scripts/check_public_sources.py
 
+  # 「開放原始碼授權」頁的清單（GFlyerIOS/Resources/OpenSourceLicenses.json）要和 libidevice_ffi.a
+  # 實際連結的相符（docs/APP_STORE_PLAN.md 第 18 項）。不建置，只用 cargo tree 和 cargo metadata 讀
+  # build_idevice.sh 釘住的 revision 和 features，所以放在 Linux 上，也不碰下面 idevice 的建置快取。
+  # 不相符時把產生的清單上傳成 artifact；改 revision 或 features 之後照 scripts/open_source_licenses.py
+  # 開頭的說明用 --write 重新產生。
+  open-source-licenses:
+    name: Open source licences
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Fetch the pinned idevice source
+        run: |
+          revision="$(sed -n 's/^IDEVICE_REVISION="\([0-9a-f]*\)"$/\1/p' scripts/build_idevice.sh)"
+          test -n "$revision"
+          source="$RUNNER_TEMP/idevice"
+          git init -q "$source"
+          git -C "$source" remote add origin https://github.com/jkcoxson/idevice.git
+          git -C "$source" fetch -q --depth 1 origin "$revision"
+          git -C "$source" checkout -q --detach FETCH_HEAD
+          cargo --version
+
+      - name: Check the licence list against what libidevice_ffi.a links
+        run: >-
+          python3 -I scripts/open_source_licenses.py
+          --source "$RUNNER_TEMP/idevice"
+          --out "$RUNNER_TEMP/OpenSourceLicenses.json"
+
+      - name: Upload the generated list
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: open-source-licenses
+          path: ${{ runner.temp }}/OpenSourceLicenses.json
+          if-no-files-found: ignore
+          retention-days: 14
+
   # 親友版（GFlyerIOS）和公開版（GFlyerPublic）各跑一次同一份共用測試，兩個 job 同時跑
   # （docs/APP_STORE_PLAN.md 第 8 項）。截圖只截親友版。
   simulator-tests:

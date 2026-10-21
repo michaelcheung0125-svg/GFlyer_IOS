@@ -30,6 +30,7 @@
 - 寫、審或修改任何 Swift 程式碼前，先讀 `.claude/skills/write-swift/SKILL.md` 開頭的「本專案版本護欄」。那一節寫明本專案的 toolchain（Swift 5 語言模式、CI 釘在 Xcode 26.6、最低 iOS 17.4）與因此不能使用的語言特性，並且優先於該 skill 其餘內容。
 - 不要複製 StikDebug 的 AGPL UI 或應用程式碼。
 - 可使用 MIT 授權的 `idevice`，並保留 `THIRD_PARTY_NOTICES.md`。
+- App 內「開放原始碼授權」頁的清單 `GFlyerIOS/Resources/OpenSourceLicenses.json` 由 `scripts/open_source_licenses.py` 產生，不要手改。改了 `scripts/build_idevice.sh` 的 revision 或 features，同一次改動用 `--write` 重新產生；CI 的「Open source licences」核對它和 `libidevice_ffi.a` 實際連結的相符。
 - 不要提交 Pairing File、Apple 私密金鑰、provisioning profile、DDI 二進位檔或 `libidevice_ffi.a`。
 - `GFlyerIOS/Vendor/idevice/`、`.build/`、產生的 `.xcodeproj` 都應保持未追蹤。
 - 不要加入反偵測、修改第三方遊戲客戶端或規避第三方定位檢查功能。
