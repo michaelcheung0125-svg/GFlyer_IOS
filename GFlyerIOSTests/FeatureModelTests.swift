@@ -9,15 +9,11 @@ final class FeatureModelTests: XCTestCase {
         XCTAssertNil(GeoCoordinate.parse("not a coordinate"))
     }
 
-    func testSpeedScaleRoundTripsSliderAndWarnsAboveFlowerLimit() {
+    func testSpeedScaleRoundTripsSlider() {
         for speed in [SpeedScale.minimumKilometresPerHour, 5.0, 50.0, 900.0] {
             let roundTrip = SpeedScale.fromSliderPosition(SpeedScale.toSliderPosition(speed))
             XCTAssertEqual(roundTrip, speed, accuracy: 0.01)
         }
-        XCTAssertFalse(SpeedScale.exceedsFlowerLimit(20))
-        XCTAssertTrue(SpeedScale.exceedsFlowerLimit(20.1))
-        // 從汽車按 -1 三十次(Android 以 Float 累加)得到 20.000013 km/h,畫面顯示 20.0,不該警告
-        XCTAssertFalse(SpeedScale.exceedsFlowerLimit(20.000013))
     }
 
     func testTeleportLoopTransitionDoesNotAddWalkBackPoint() {

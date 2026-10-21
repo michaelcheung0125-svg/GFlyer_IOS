@@ -539,7 +539,6 @@ enum SpeedScale {
     static let carKilometresPerHour = 50.0
     static let airplaneKilometresPerHour = 900.0
     static let maximumKilometresPerHour = airplaneKilometresPerHour
-    static let flowerLimitKilometresPerHour = 20.0
 
     static let defaultPresets = [
         QuickSpeedPreset(name: "正常走路", kilometresPerHour: walkKilometresPerHour),
@@ -588,10 +587,6 @@ enum SpeedScale {
 
     static func isAtMost(_ speed: Double, _ threshold: Double) -> Bool {
         speed <= threshold || isSameSpeed(speed, threshold)
-    }
-
-    static func exceedsFlowerLimit(_ speed: Double) -> Bool {
-        !isAtMost(speed, flowerLimitKilometresPerHour)
     }
 
     /// Android 0.8.6 以前內建「正常走路」的速度。

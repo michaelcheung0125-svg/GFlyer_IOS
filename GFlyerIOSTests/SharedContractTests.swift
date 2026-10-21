@@ -233,25 +233,25 @@ final class SharedContractTests: XCTestCase {
         }
     }
 
-    /// thresholdCases:種花警告是 above(v, 20)。懸浮鈕圖示是 Android 專屬,這裡只拿它的分段
-    /// 驗證 isBelow / isAtMost 的邊界。
+    /// thresholdCases:懸浮鈕圖示是 Android 專屬,這裡只拿它的分段驗證 isBelow / isAtMost 的邊界。
+    /// 超過 20 km/h 的提示只在親友版,那一欄在 `GFlyerIOSTests/Family/FlowerSpeedLimitTests.swift`。
     func testThresholdsMatchTheSharedSpeedFixture() {
-        let cases: [(name: String, metresPerSecond: Double, icon: String, exceedsFlowerLimit: Bool)] = [
-            ("android-walk-constant", 1.388888955116272, "5to19", false),
-            ("ios-walk-read-back-by-android", 1.3888888359069824, "5to19", false),
-            ("floating-plus-one-up-to-19", 5.277776718139648, "19to50", false),
-            ("floating-minus-one-down-to-19", 5.2777814865112305, "19to50", false),
-            ("android-bicycle-constant", 5.277778148651123, "19to50", false),
-            ("clearly-below-5", 1.3833333333333335, "under5", false),
-            ("within-tolerance-below-19", 5.2763888888888895, "19to50", false),
-            ("clearly-below-19", 5.273611111111111, "5to19", false),
-            ("android-car-constant", 13.88888931274414, "19to50", true),
-            ("within-tolerance-above-50", 13.890277777777778, "19to50", true),
-            ("clearly-above-50", 13.894444444444446, "over50", true),
-            ("floating-minus-one-down-to-20", 5.555559158325195, "19to50", false),
-            ("ios-20-read-back-by-android", 5.55555534362793, "19to50", false),
-            ("within-tolerance-above-20", 5.5569444444444445, "19to50", false),
-            ("clearly-above-20", 5.561111111111111, "19to50", true),
+        let cases: [(name: String, metresPerSecond: Double, icon: String)] = [
+            ("android-walk-constant", 1.388888955116272, "5to19"),
+            ("ios-walk-read-back-by-android", 1.3888888359069824, "5to19"),
+            ("floating-plus-one-up-to-19", 5.277776718139648, "19to50"),
+            ("floating-minus-one-down-to-19", 5.2777814865112305, "19to50"),
+            ("android-bicycle-constant", 5.277778148651123, "19to50"),
+            ("clearly-below-5", 1.3833333333333335, "under5"),
+            ("within-tolerance-below-19", 5.2763888888888895, "19to50"),
+            ("clearly-below-19", 5.273611111111111, "5to19"),
+            ("android-car-constant", 13.88888931274414, "19to50"),
+            ("within-tolerance-above-50", 13.890277777777778, "19to50"),
+            ("clearly-above-50", 13.894444444444446, "over50"),
+            ("floating-minus-one-down-to-20", 5.555559158325195, "19to50"),
+            ("ios-20-read-back-by-android", 5.55555534362793, "19to50"),
+            ("within-tolerance-above-20", 5.5569444444444445, "19to50"),
+            ("clearly-above-20", 5.561111111111111, "19to50"),
         ]
         for testCase in cases {
             let speed = testCase.metresPerSecond * 3.6
@@ -266,7 +266,6 @@ final class SharedContractTests: XCTestCase {
                 icon = "over50"
             }
             XCTAssertEqual(icon, testCase.icon, testCase.name)
-            XCTAssertEqual(SpeedScale.exceedsFlowerLimit(speed), testCase.exceedsFlowerLimit, testCase.name)
         }
     }
 

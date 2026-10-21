@@ -14,6 +14,9 @@ protocol EditionFeatures {
     /// `CFBundleURLTypes` 一致。兩個版本不可以相同：兩個 App 都裝了的話，iOS 不保證
     /// 回呼打開的是哪一個。
     static var callbackScheme: String { get }
+
+    /// 主畫面速度控制下面的提示，沒有時為 nil。照 Android 的 `speedHint`。
+    static func speedHint(kilometresPerHour: Double) -> String?
 }
 
 /// 版本專屬功能在 App 執行期間的狀態，例如親友版的檢查新版和補錄步數。`GFlyerIOSApp` 建立一個，

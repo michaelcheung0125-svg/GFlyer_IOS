@@ -1023,8 +1023,8 @@ private struct ControlPanel: View {
                     }
                 }
             }
-            if SpeedScale.exceedsFlowerLimit(controller.speedKilometresPerHour) {
-                Label("注意: 超過 20 km/h 將無法種花", systemImage: "exclamationmark.triangle.fill")
+            if let hint = Edition.speedHint(kilometresPerHour: controller.speedKilometresPerHour) {
+                Label(hint, systemImage: "exclamationmark.triangle.fill")
                     .font(.caption2).foregroundStyle(Color.statusAttention)
             }
         }
