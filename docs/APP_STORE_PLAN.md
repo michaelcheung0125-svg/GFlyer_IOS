@@ -65,7 +65,7 @@
 
 ## 第二階段：分成兩個版本
 
-照 Android 的做法（GFlyer `AGENTS.md` 的「兩個版本」）。U2、U3、U6 和 U8 2026-10-21 照建議決定。第 8 項和第 11 項已做，見「已做」；第 9 項做完第 1–3 步。做法的細節在表下面。
+照 Android 的做法（GFlyer `AGENTS.md` 的「兩個版本」）。U2、U3、U6 和 U8 2026-10-21 照建議決定。第 8 項和第 11 項已做，見「已做」；第 9 項做完第 1–4 步。做法的細節在表下面。
 
 | # | 待辦 | 為甚麼和怎樣做 | 做完的標準 |
 |---|---|---|---|
@@ -90,7 +90,7 @@
 1. 檢查新版和 SideStore 的連結（`AppUpdate`、`AppUpdateChecker`、地圖上的更新提示、設定頁的「軟體更新」）。最獨立，先用它驗證版本介面。**已做**（2026-10-21，`27072b8`；CI run `39514298680` 三個 job 綠燈，親友版 316 個測試、公開版 304 個，各有 1 個依條件略過，編譯警告和之前相同）：`AppUpdate`、`AppUpdateChecker` 和 `AppUpdateTests` 搬到 `Family/`；地圖上的「有新版本」、設定頁的「更新」錯誤提示和「軟體更新」section 搬到 `Family/UI/AppUpdateViews.swift`。設定頁「關於」的版本、Bundle ID 和「聯絡我們」電郵裏的版本改由共用的 `AppVersionInfo` 讀。拆開比對：親友版和 `e713a01` 比只有執行檔不同，`Info.plist`、`Assets.car` 和字串相同；公開版的字串比親友版少 24 條，全是檢查新版和 SideStore 的字（例如「有新版本」「用 SideStore 更新」「軟體更新」），沒有多出的
 2. 步數補錄（`StepRecord*`、捷徑回呼 `gflyer://steps/…`）。**已做**（2026-10-21，`7dc579f`；CI run `39518722050` 三個 job 綠燈，親友版 319 個測試、公開版 295 個，各有 1 個依條件略過）：`StepRecordEntry`、`StepRecorderController`、`StepRecorderView` 和 `StepRecorderTests` 搬到 `Family/`；地圖工具列的步行圖示、從地圖和設定頁打開的補錄畫面、一鍵補錄在主畫面的結果和設定頁的「補錄步數」放在 `Family/UI/StepRecorderEntryPoints.swift`，`EditionModelTests` 多了 3 個測試。編譯警告沒有新的，公開版少了補錄那一個。拆開比對：親友版和第 1 步之後比只有執行檔不同；公開版少了補錄的字串（例如「補錄步數」「設定補錄步數」「如何建立捷徑」），沒有多出的。CI 截圖上地圖工具列的排列和之前相同
 3. 種花提示（`MainView` 和 `SimulationModels` 裏超過 20 km/h 的提示）。**已做**（2026-10-21，`8309529`；CI run `39519993188` 三個 job 綠燈，親友版 322 個測試、公開版 295 個，各有 1 個依條件略過，編譯警告和之前相同）：照 Android，20 km/h 的上限改成 `Family/Model/FlowerSpeedLimit.swift`，`SpeedScale` 不再有它；共用的 speed fixture 裏種花的那一欄從 `SharedContractTests` 和 `FeatureModelTests` 搬到 `FlowerSpeedLimitTests`。拆開比對：親友版只有執行檔不同；公開版只少了「注意: 超過 20 km/h 將無法種花」一條字串
-4. 座標圖鑑（`CoordinateLibrary*`、`CoordinateMarkStore`、`LibraryTeleportHistory`、NEW、資料過時回報）。原本排在留言板後面，2026-10-21 改成先搬：`CoordinateLibraryController` 的資料過時回報用到留言板的 `MessageBoardAPIClient`，留言板卻沒有用到圖鑑。先搬圖鑑，它在 `Family/` 照樣用得到還在共用的 API client，之後 API client 跟留言板一起搬；先搬留言板的話，API client 要先留在共用，等圖鑑搬走再搬一次。地圖工具列上圖鑑排在「分享到留言板」後面，先搬圖鑑也不用改親友版按鈕的次序
+4. 座標圖鑑（`CoordinateLibrary*`、`CoordinateMarkStore`、`LibraryTeleportHistory`、NEW、資料過時回報）。原本排在留言板後面，2026-10-21 改成先搬：`CoordinateLibraryController` 的資料過時回報用到留言板的 `MessageBoardAPIClient`，留言板卻沒有用到圖鑑。先搬圖鑑，它在 `Family/` 照樣用得到還在共用的 API client，之後 API client 跟留言板一起搬；先搬留言板的話，API client 要先留在共用，等圖鑑搬走再搬一次。地圖工具列上圖鑑排在「分享到留言板」後面，先搬圖鑑也不用改親友版按鈕的次序。**已做**（2026-10-21，`4c062e5`；CI run `39521311660` 三個 job 綠燈，親友版 323 個測試（多了 1 個圖鑑按鈕的測試）、公開版 265 個（圖鑑的 30 個測試搬到親友版，依條件略過的那 1 個也在裏面，所以公開版不再有略過的測試），編譯警告和之前相同）：共用的 `SharedContractTests` 裏前往紀錄、檢查線上版和「NEW」的部分搬到 `Family/CoordinateLibraryContractTests`。拆開比對：親友版只有執行檔不同；公開版只少了圖鑑的字串（包括座標庫的網址），沒有多出字串。地圖工具列和導覽列按鈕的截圖和第 2 步逐像素相同。檔案的搬移（`git mv`）誤進了前一個只改文件的 commit `f801765`，所以單獨 checkout `f801765` 時公開版編譯不過，`f801765` 和 `4c062e5` 合起來才是這一步；兩個都已推上去，沒有改寫歷史
 5. 留言板（`MessageBoard*`、`MessageBoardAPIClient`、地圖工具列的分享、未讀數）
 6. LocalDevVPN 的交接（`LocalDevVPNBridge`、設定頁的 LocalDevVPN section、`SimulationController` 的通道檢查）。之後到第 12 項做好之前，公開版能編譯、不能傳送
 
