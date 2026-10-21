@@ -243,6 +243,11 @@ Exit criterion: a 30-minute foreground route completes without losing the tunnel
 - Interrupted-session resume: periodic active-session snapshots with a
   10-minute expiry and a relaunch resume prompt (implemented in `0.3.0 (5)`;
   validation pending)
+- 「定位檢查」 page from `docs/features/location-check.md` (2026-10-22,
+  `7c0a05c`; both editions; device validation pending). `LocationCheck` holds
+  the verdict and the texts, `LocationCheckReader` owns its own
+  `CLLocationManager` while the page is open, and `LocationCheckTests` copies
+  `location-check/verdict-and-text.json`
 - Route polyline editing and waypoint reorder
 
 Exit criterion: behavior matches the existing Android model tests where the platform does not impose a different constraint.

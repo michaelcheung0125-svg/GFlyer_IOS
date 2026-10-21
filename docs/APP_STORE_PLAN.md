@@ -99,7 +99,7 @@
 
 ## 第三階段：公開版才有的
 
-第 12 項的程式 2026-10-21 做完（`190bf0d`），還沒有在實機試，見表下面的「第 12 項的進度」。第 15 項的程式也做完（`8b46c61`），送審說明的 DDI 一段已起草，見「第 15 項的進度」。
+第 12 項的程式 2026-10-21 做完（`190bf0d`），還沒有在實機試，見表下面的「第 12 項的進度」。第 15 項的程式也做完（`8b46c61`），送審說明的 DDI 一段已起草，見「第 15 項的進度」。第 16 項的程式 2026-10-22 做完（`7c0a05c`），兩個版本都有，還沒有在實機試，見「第 16 項的進度」。
 
 | # | 待辦 | 為甚麼和怎樣做 | 做完的標準 |
 |---|---|---|---|
@@ -139,6 +139,18 @@
 送審說明的 DDI 一段（第 26 項用；按鈕和設定頁的名稱照 App 裏的字，送審前照 TestFlight 的畫面再核對一次）：
 
 > **Developer Disk Image (DDI).** To simulate a location, iOS must first mount Apple's Personalized Developer Disk Image, the same image Xcode mounts when a developer runs an app on a device. GFlyer never downloads it by itself: the settings screen (裝置設定, gear button on the map) has a "Developer Disk Image" section that shows the status and a button "下載 DDI（約 16.5 MB）" ("Download DDI, about 16.5 MB"). Nothing is downloaded until the user taps it; if the user starts a simulation before that and iOS has not mounted the image yet, GFlyer stops and points to that button. The three files (`Image.dmg`, `Image.dmg.trustcache`, `BuildManifest.plist`, 16.5 MB in total) are Apple's files from Xcode, downloaded from the public GitHub repository `doronz88/DeveloperDiskImage` at a fixed revision. GFlyer checks each file against a SHA-256 hash built into the app and keeps them on the device. iOS itself mounts the image, and only with a personalization ticket from Apple's signing server (`gs.apple.com`), which GFlyer requests the same way Xcode does. The DDI is not code that GFlyer runs and it does not add or change any GFlyer feature (guideline 2.5.2); it provides the developer services that iOS uses for location simulation.
+
+### 第 16 項的進度
+
+程式 2026-10-22 做完（`7c0a05c`；CI run `39660389201` 四個 job 綠燈，親友版 342 個測試，公開版 277 個，兩邊都多了 11 個 `LocationCheckTests`，編譯警告和之前相同），**還沒有在實機試**。規格先寫在 GFlyer-Suite 的 `docs/features/location-check.md`，fixture `contracts/fixtures/location-check/verdict-and-text.json`（Suite `eafe172`），都照 Android 的 `model/LocationCheck.kt` 和 `ui/LocationCheckPage.kt`。
+
+- 兩個版本都有，和 Android 一樣，都在共用的程式裏（`GFlyerIOS/Model/LocationCheck.swift`、`Services/LocationCheckReader.swift`、`UI/LocationCheckView.swift`）。入口在設定頁「目前位置與背景路線」的「定位檢查」，推進一頁；只在裝置版出現，和「恢復」一樣。
+- 頁面照 Android：說明、「本 App 正在推送」、「其他 App 收到的位置」五列（座標、精度、時間、來源、和推送的位置相距）、結論的卡片、「傳送到選取的位置」和「停止模擬」。結論的文字和 Android 一字不差；兩句說明是 iOS 的寫法：停止後仍是模擬位置時指到「完整清除模擬定位」，模擬中收不到推送的位置時叫使用者按「停止模擬」再傳送一次。Android 的「模擬位置應用程式」那一列 iOS 沒有。
+- 位置用這一頁自己的 `CLLocationManager` 讀，只在頁面開著、App 在前景時讀，不儲存、不傳送；「來源」是 `isSimulatedBySoftware`。沒有權限時卡片有「允許定位權限」：還沒問過就跳系統的詢問，拒絕過就開 iOS 設定。
+- 「傳送到選取的位置」：地圖是「定點傳送」時照按開始；別的模式沒有在模擬時先切到「定點傳送」（路線清掉）；別的模式而且在模擬中，顯示「請先停止目前的定位模擬，再傳送到選取的位置。」。Android 直接改成定點，iOS 不行，因為 `status.mode` 跟着地圖的模式（規格第 7 節）。跨日時區提醒在這一頁跳出。
+- 「和推送的位置相距」的公里照十進位四捨五入（1,250 公尺是 1.3 公里），和 Android 的 `String.format` 相同。
+- 拆開比對（和第 15 項的 run 比）：兩個版本都只有執行檔不同，多的字串是這一頁的字，兩邊相同；建好的公開版 App 掃描照舊 45 個提醒。
+- 實機要試的（規格第 6 節）：模擬中結論是「其他 App 收到的就是本 App 推送的位置」（也就是經 DDI 模擬的位置 `isSimulatedBySoftware` 是 true）；一般停止後的結論；「完整清除模擬定位」之後是「現在沒有模擬，收到的是手機的真實位置」；路線播放中；沒有權限時的「允許定位權限」。親友版經 SideStore 安裝就可以試，不用等付費帳戶；要發佈才裝得到。
 
 ## 第四階段：簽署、TestFlight、送審
 

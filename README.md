@@ -39,6 +39,12 @@ This is a separate SwiftUI prototype for personal sideloading. It does not modif
   arrival action is never rewritten (a 「模擬移動」 route still walks straight
   after a rollback to 0.6.8); 繞圈 is pre-selected the first time someone
   switches to 「定點傳送」, which is Android's default
+- 「定位檢查」 page (Settings › 目前位置與背景路線, device builds only), ported from
+  GFlyer Android (GFlyer-Suite `docs/features/location-check.md`): it shows the
+  location iOS gives apps right now (coordinate, accuracy, time, simulated or
+  real by `isSimulatedBySoftware`, distance from the pushed position) and a
+  verdict, with 「傳送到選取的位置」 and 「停止模擬」. It reads the location only
+  while the page is open and never stores or sends it
 - Cross-date teleport reminder using the Android longitude-based offline
   UTC-offset estimate
 - Visible iOS 17 background location activity for route and exploration playback
