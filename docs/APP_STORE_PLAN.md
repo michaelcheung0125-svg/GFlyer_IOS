@@ -99,9 +99,11 @@
 
 ## 第三階段：公開版才有的
 
+第 12 項的程式 2026-10-21 做完（`190bf0d`），還沒有在實機試，見表下面的「第 12 項的進度」。
+
 | # | 待辦 | 為甚麼和怎樣做 | 做完的標準 |
 |---|---|---|---|
-| 12 | App 內建的本機通道（Network Extension） | 審查指南 4.2.3 要求 App 不用另外安裝別的 App 就能運作。LocalDevVPN 雖然也上架了 App Store，公開版不可以要求使用者另外裝。做法：Packet Tunnel extension，只路由 `10.7.0.1` 這一個位址，把封包反射回手機本身。原理和 LocalDevVPN 相同，但程式自己寫，因為 LocalDevVPN 沒有標明授權。App 用 `NETunnelProviderManager` 開關，兩邊用 App Group 共享狀態；飛航模式輔助照舊。免費 Apple ID 不能簽 Network Extension，所以只有公開版有，親友版照舊用 LocalDevVPN | 沒有裝 LocalDevVPN 的 iPhone 用公開版建立通道並傳送；Wi-Fi 和行動網路（飛航模式流程）都試過；關掉通道後一般上網不受影響 |
+| 12 | App 內建的本機通道（Network Extension） | 審查指南 4.2.3 要求 App 不用另外安裝別的 App 就能運作。LocalDevVPN 雖然也上架了 App Store，公開版不可以要求使用者另外裝。做法：Packet Tunnel extension，只路由 `10.7.0.1` 這一個位址，把封包反射回手機本身。原理和 LocalDevVPN 相同，但程式自己寫，因為 LocalDevVPN 沒有標明授權。App 用 `NETunnelProviderManager` 開關；目標 IP 寫在通道設定的 `providerConfiguration`，不用 App Group；飛航模式輔助照舊。免費 Apple ID 不能簽 Network Extension，所以只有公開版有，親友版照舊用 LocalDevVPN | 沒有裝 LocalDevVPN 的 iPhone 用公開版建立通道並傳送；Wi-Fi 和行動網路（飛航模式流程）都試過；關掉通道後一般上網不受影響 |
 | 13 | 「顯示開發者模式」 | 從 App Store 安裝的 App 不會讓開關出現。Apple 的文件說開始配對時開關才會出現，LL Pair 也有「顯示開發者模式」。推測做法是先開始廣播配對主機；LL Pair 沒有公開程式，要先實機確認 | 一支從沒接過電腦的 iOS 27 iPhone，從 TestFlight 安裝後能叫出開關 |
 | 14 | 第一次設定的引導 | 一步一個畫面，文字照實機畫面寫：① 顯示開發者模式 ② 開啟開發者模式並重新開機 ③ 在手機上配對 ④ 建立本機通道 ⑤ 下載 DDI ⑥ 傳送一次並到 Apple 地圖確認 ⑦ 清除並恢復真實位置。iOS 26 以下的第 ③ 步改成匯入電腦產生的配對檔 | 沒看過說明的人照畫面能完成 |
 | 15 | DDI 下載的說明 | 現在從第三方的 GitHub repo（`doronz88/DeveloperDiskImage`）下載 Apple 的映像，並核對 SHA-256。審查指南 4.2.3 要求第一次啟動要下載的資源先說明大小並詢問；2.5.2 不准下載會改變 App 功能的程式碼，DDI 是給 iOS 掛載的開發者映像，送審說明要寫清楚 | 下載前顯示大小並等使用者同意；送審說明寫明用途和來源 |
@@ -112,12 +114,24 @@
 | 20 | 私隱資訊清單和 App 私隱標籤 | App Store 要求 `PrivacyInfo.xcprivacy` 宣告用到的指定原因 API（例如 `UserDefaults`、檔案時間）；App Store Connect 的資料收集問卷照實填。Claude 按程式的實際做法起草，使用者確認 | 上傳時沒有私隱清單的警告；問卷已提交 |
 | 21 | 加密的出口申報 | 配對和通道用 SRP、TLS-PSK 等標準加密。`Info.plist` 的 `ITSAppUsesNonExemptEncryption` 和 App Store Connect 的問題照實回答。Claude 起草，使用者確認 | 每次上傳不用再手動回答 |
 
+### 第 12 項的進度
+
+程式 2026-10-21 做完（`190bf0d`；CI run `39584119587` 四個 job 綠燈，親友版 327 個測試，公開版 257 個（多了 7 個 `PacketReflectorTests` 和 10 個 `LocalTunnelTests`），編譯警告和之前相同），**還沒有在實機試**：免費 Apple ID 簽不了 Network Extension，要等付費開發者帳戶（U1、第 22 項）。
+
+- 通道 extension `GFlyerPublicTunnel`（`com.jetpiggy.gflyer.tunnel`）放在公開版 App 的 `PlugIns/`。它只把目標 IP 這一個位址（/32）的路由導進通道，沒有 DNS 設定。通道介面的位址是 `10.7.0.2`（目標 IP 是 `10.7.0.2` 時改用 `10.7.0.3`），`tunnelRemoteAddress` 也用它。送往目標 IP 的 IPv4 封包對調來源和目的位址後寫回去（`GFlyerIOS/Public/Tunnel/PacketReflector.swift`，App 和 extension 都編進去），iPhone 就把它當成目標 IP 連進來的連線；對調不用重算 checksum，其他封包丟掉。這些位址是自己定的，沒有參考 LocalDevVPN 的程式。
+- 目標 IP 由 App 寫在通道設定的 `providerConfiguration`，從 iOS 的 VPN 設定直接開啟也讀得到，所以不用 App Group。目標 IP 改了，下次開通道時更新設定，開着的先關再開。
+- App 端（`GFlyerIOS/Public/LocalTunnel.swift`、`Tunnel/SystemTunnel.swift`）：按開始時通道沒開就先開，等到送往目標 IP 的路由經過通道才開始，最多等 10 秒。不用切去別的 App，所以沒有親友版的「按開始時自動開啟」開關。設定頁「本機通道」有通道狀態和「開啟本機通道」／「關閉本機通道」；「恢復」有「清除後同時關閉本機通道」（預設關）。iOS 的 VPN 設定裏的名稱是「GFlyer 本機通道」。
+- 第一次開啟時 iOS 會問可否加入 VPN 設定。App 裏只寫「iOS 會詢問可否加入 VPN 設定，要允許才能使用」，沒有寫按鈕的名稱：香港繁體中文的畫面還沒有人看過，第 14 項照實機截圖重寫。
+- CI 檢查公開版 App 裏有這個 extension，bundle id、extension 類型對，版本號和 App 相同；`--app` 掃描連 extension 一起掃。
+- 拆開比對：親友版的 IPA 和第 10 項之後完全相同，連執行檔；公開版多了 `PlugIns/GFlyerPublicTunnel.appex`，字串多了上面通道的說明。
+- 實機要試的（做完的標準）：沒有裝 LocalDevVPN 的 iPhone 第一次開通道（iOS 的詢問）和傳送；Wi-Fi 和行動網絡（飛航模式流程）；關掉通道後一般上網；在 iOS 的 VPN 設定直接開關；改了目標 IP 之後重開。
+
 ## 第四階段：簽署、TestFlight、送審
 
 | # | 待辦 | 為甚麼和怎樣做 | 誰做 | 做完的標準 |
 |---|---|---|---|---|
 | 28 | 匯出公開版到 JetPiggy 的 repo | U8。照 Android 的 `tools/export-public/export.py`：按清單只匯出共用和 `Public/` 的檔案，掃描禁用字，檢查沒有和親友版一模一樣的檔案，在匯出的 repo 自己建置得到；加 `AGENTS.md`、`NOTICE`，並照品牌規則第 8 節登記。建 repo 和 push 等使用者明確要求 | Claude 寫工具，使用者建 repo | 匯出的 repo 自己的 CI 綠燈；裏面沒有親友版的檔案和禁用字 |
-| 22 | 付費開發者帳戶、App ID 和權限 | U1。App 和通道的 extension 各要一個 App ID，開 Network Extension 和 App Groups，建發佈憑證和描述檔 | 使用者 | 帳戶通過審核；App Store Connect 建好 App |
+| 22 | 付費開發者帳戶、App ID 和權限 | U1。App 和通道的 extension 各要一個 App ID，開 Network Extension（第 12 項不用 App Groups），建發佈憑證和描述檔 | 使用者 | 帳戶通過審核；App Store Connect 建好 App |
 | 23 | CI 簽署並上傳 | 沒有 Mac，所以由 GitHub Actions 建置、簽署，並用 App Store Connect API 金鑰上傳。憑證、描述檔和金鑰只放 GitHub 的加密 secrets，不 commit（`AGENTS.md`）。repo 是公開的，從 fork 開的 PR 拿不到 secrets；上傳的 job 只在使用者手動觸發時執行。上傳的建置要用 release 類的設定：現在 CI 的 `Idevice` 設定是 debug 類，不會 strip，執行檔帶着 debug map，裏面有 `/Users/runner/work/GFlyer_IOS/...` 的路徑；第 10 項的 `--app` 掃描會把它們列成提醒 | 使用者建 secrets；Claude 寫 workflow | TestFlight 出現建置 |
 | 24 | TestFlight 實機測試 | iOS 27、從沒配對過電腦的 iPhone 全程不用電腦：安裝、開發者模式、配對、通道、DDI、傳送、清除。另外測 iOS 26 以下匯入配對檔、Wi-Fi 和行動網路、重新開機後重建、路線在背景和鎖屏時繼續、清除後真實位置恢復（`docs/RELEASE_PROCESS.md` 不可回退的決定第 5 點） | 使用者 | 每一項有結果，記進 `HANDOFF.md` |
 | 25 | 商店資訊 | 名稱、副標題、說明、關鍵字、截圖、支援網址、私隱網址。不提遊戲和「作弊」，截圖和說明只展示公開版真正有的功能；照 JetPiggy 的規則檢查 | Claude 起草，使用者確認 | 全部填好 |
@@ -136,6 +150,7 @@
 ## 風險和還沒確認的事
 
 - **審查可能拒絕。** 這是最大的不確定。LocationLab 和 LL Pair 都過了審查，是好的先例；但審查逐案判斷，上架之後也可能被下架。
+- **本機通道沒有在實機試過**（第 12 項）：只導一個 /32 位址、通道介面用 `10.7.0.2`、`tunnelRemoteAddress` 用通道介面的位址，這些設定都還沒有在 iPhone 上跑過；要付費開發者帳戶才簽得了 Network Extension。
 - **「顯示開發者模式」的做法是推論**（第 13 項），要用一支從沒配對過的 iOS 27 iPhone 確認。
 - **背景播放路線。** 現在靠背景定位模式和 `CLBackgroundActivitySession` 讓路線在背景繼續。審查指南 2.5.4 只准背景服務用在原本的用途，送審時要照實說明，審查員可能有意見。
 - **個人帳戶和 VPN**，見 U1。
