@@ -248,6 +248,17 @@ Exit criterion: a 30-minute foreground route completes without losing the tunnel
   the verdict and the texts, `LocationCheckReader` owns its own
   `CLLocationManager` while the page is open, and `LocationCheckTests` copies
   `location-check/verdict-and-text.json`
+- Country · city labels by edition (2026-10-22, `ec093a6`, `docs/APP_STORE_PLAN.md`
+  item 17; device validation pending). `RegionLookup` keeps the queue and the
+  cache and asks `Edition.makeRegionLabelSource()` for the service: the family
+  edition's `NominatimRegionLabelSource` (moved to `Family/`; `Family/NominatimRegionLabelTests`
+  copies `region/nominatim-labels.json`) or the public edition's
+  `AppleGeocoderRegionLabelSource` (`CLGeocoder`, `zh_TW`; `Public/AppleGeocoderRegionLabelTests`
+  copies `region/platform-geocoder-labels.json`). Like Android's public edition
+  (`region-labels.md` §3.10), the public edition asks first:
+  `RegionLookupConsent` under `gflyer.region-lookup-consent.v1`, never in the
+  backup, and a 「提示與地名」 settings section; `RegionLookupConsentTests` runs in
+  both editions
 - Route polyline editing and waypoint reorder
 
 Exit criterion: behavior matches the existing Android model tests where the platform does not impose a different constraint.
@@ -350,10 +361,13 @@ Exit criterion: a 30-minute route continues while another App is in the foregrou
 - Keep the public HTTPS message-board API independent from LocalDevVPN and the
   CoreDevice transport; never attach Pairing File or signing material to board
   requests.
-- Send only favorite coordinates and the first point of each saved route to
-  OpenStreetMap Nominatim for the country · city labels, one request at a time
-  with at least 1.1 s between requests and the
-  `GFlyer/<version> (iOS; +gflyer@jetpiggy.com)` User-Agent; never send history. Keep the results only in
+- Send only favorite coordinates and the first point of each saved route for
+  the country · city labels, one request at a time with at least 1.1 s between
+  requests; never send history. The family edition sends them to OpenStreetMap
+  Nominatim with the `GFlyer/<version> (iOS; +gflyer@jetpiggy.com)` User-Agent.
+  The public edition sends them to Apple's geocoder only after the user allows
+  「顯示收藏的國家與城市」 and never contacts Nominatim (the public source scan
+  rejects its host). Keep the results only in
   `gflyer.region-labels.v1`, never in the backup file, and keep README's
   privacy sentence (GFlyer-Suite `docs/features/region-labels.md` §3.9) true.
 - Do not include anti-detection or third-party client modification features.

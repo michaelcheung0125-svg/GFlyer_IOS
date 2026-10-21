@@ -99,7 +99,7 @@
 
 ## 第三階段：公開版才有的
 
-第 12 項的程式 2026-10-21 做完（`190bf0d`），還沒有在實機試，見表下面的「第 12 項的進度」。第 15 項的程式也做完（`8b46c61`），送審說明的 DDI 一段已起草，見「第 15 項的進度」。第 16 項的程式 2026-10-22 做完（`7c0a05c`），兩個版本都有，還沒有在實機試，見「第 16 項的進度」。
+第 12 項的程式 2026-10-21 做完（`190bf0d`），還沒有在實機試，見表下面的「第 12 項的進度」。第 15 項的程式也做完（`8b46c61`），送審說明的 DDI 一段已起草，見「第 15 項的進度」。第 16 項的程式 2026-10-22 做完（`7c0a05c`），兩個版本都有，還沒有在實機試，見「第 16 項的進度」。第 17 項的程式也做完（`ec093a6`），公開版改用 Apple 的地點服務，不連 Nominatim，還沒有在實機試，見「第 17 項的進度」。
 
 | # | 待辦 | 為甚麼和怎樣做 | 做完的標準 |
 |---|---|---|---|
@@ -152,6 +152,18 @@
 - 拆開比對（和第 15 項的 run 比）：兩個版本都只有執行檔不同，多的字串是這一頁的字，兩邊相同；建好的公開版 App 掃描照舊 45 個提醒。
 - 實機要試的（規格第 6 節）：模擬中結論是「其他 App 收到的就是本 App 推送的位置」（也就是經 DDI 模擬的位置 `isSimulatedBySoftware` 是 true）；一般停止後的結論；「完整清除模擬定位」之後是「現在沒有模擬，收到的是手機的真實位置」；路線播放中；沒有權限時的「允許定位權限」。親友版經 SideStore 安裝就可以試，不用等付費帳戶；要發佈才裝得到。
 
+### 第 17 項的進度
+
+程式 2026-10-22 做完（`ec093a6`；CI run `39672264473` 四個 job 綠燈，親友版 357 個測試，公開版 289 個：兩邊都多了 13 個 `RegionLookupConsentTests`；Nominatim 的 3 個 fixture 測試從共用的 `RegionLabelTests` 搬到只有親友版跑的 `NominatimRegionLabelTests`，親友版另外多了 2 個；公開版多了 2 個 `AppleGeocoderRegionLabelTests`；編譯警告和之前相同），**還沒有在實機試**：公開版要付費開發者帳戶才裝得到（第 22 項）。照 GFlyer-Suite `docs/features/region-labels.md` 3.5a 和 3.10。U7 照建議做（先問，文字照 Android 公開版），使用者還沒有正式決定。
+
+- 佇列、快取和顯示照舊是共用的 `RegionLookup`：一次一筆、每筆之後隔 1.1 秒、快取在 `gflyer.region-labels.v1`、查失敗到下次開 App 才再查。查哪個服務由 `Edition.makeRegionLabelSource()` 決定。Nominatim 的請求和解析搬到 `GFlyerIOS/Family/Services/NominatimRegionLabels.swift`，只編進親友版；親友版的行為不變，也不問。
+- 公開版用 `CLGeocoder` 的 `reverseGeocodeLocation`，語言固定 `zh_TW`（`GFlyerIOS/Public/Services/AppleGeocoderRegionLabels.swift`）。標籤照 3.5a：國家加城市，城市用 `locality`、`subAdministrativeArea`、`administrativeArea` 裏第一個不是空白的；城市和國家相同就只寫國家。`AppleGeocoderRegionLabelTests` 照抄 Suite 的 `contracts/fixtures/region/platform-geocoder-labels.json`（13 個例子，Android 公開版的 `PlatformGeocoderTextTest` 讀同一份）。
+- 同意照 Android 公開版：要查之前先問「顯示收藏的國家與城市？」，按鈕「不用」「允許」，兩段說明和 Android 一字不差，服務名稱是「Apple 的地點服務」。開 App 時有收藏要查而還沒問過就問；按 ☆ 時還沒問過，先問再開「收藏位置」。還沒允許時不送、不顯示本機快取裏的地名，「收藏位置」也不預填名稱。答案存在 `gflyer.region-lookup-consent.v1`，不放進備份檔。按「不用」之後收藏變動也不再問。
+- 公開版的設定頁多了「提示與地名」：「跨日時區提示」從「路線播放」搬過來，加上「顯示收藏的國家與城市」和「收藏的座標會送往 Apple 的地點服務查詢」。打開時先跳出同一個詢問，按「允許」才打開；關掉馬上生效，還在排隊的拿掉。親友版的設定頁不變。
+- `scripts/check_public_sources.py` 多了一條（共 29 條）：公開版的原始碼和建好的 App 不可以有 `nominatim.openstreetmap.org`。
+- 拆開比對（和第 16 項的 run 比）：兩個版本都只有執行檔不同，版本照舊 0.6.17 (30)。兩邊的字串都多了詢問的說明、按鈕和「提示與地名」（共用的程式，親友版不會顯示）；公開版另外多了「Apple 的地點服務」。建好的公開版 App 掃描照舊 45 個提醒；親友版的執行檔裏照舊有 Nominatim 的位址。
+- 實機要試的：新裝的公開版按 ☆，先問再出現「收藏位置」，按「允許」後照常預填名稱，按「不用」不預填、清單不顯示國家與城市；已有收藏時開 App 就問；回答過之後重開不再問；「提示與地名」的開關；Apple 回的地名和 fixture 的層級是否一致（例如臺北、香港、新加坡）；收藏很多時 Apple 的頻率限制。親友版的反查程式搬了位置，下次發佈後確認收藏的國家與城市照常出現。
+
 ## 第四階段：簽署、TestFlight、送審
 
 | # | 待辦 | 為甚麼和怎樣做 | 誰做 | 做完的標準 |
@@ -181,6 +193,7 @@
 - **背景播放路線。** 現在靠背景定位模式和 `CLBackgroundActivitySession` 讓路線在背景繼續。審查指南 2.5.4 只准背景服務用在原本的用途，送審時要照實說明，審查員可能有意見。
 - **個人帳戶和 VPN**，見 U1。
 - **DDI 的來源。** Apple 的映像放在第三方的 GitHub repo，公開版靠它下載（第 15 項）。repo 不見了或改了內容，SHA-256 核對不過就下載不到，要改 App 換來源。
+- **Apple 的地點服務**（第 17 項）。Apple 的文件說反查有每個 App 的頻率限制，沒有公布數字；收藏很多的人第一次允許時，可能有一部分查不到，要到下次開 App 才再查（`region-labels.md` 3.6）。另外 Apple 開發者論壇有人說 iOS 26 SDK 把 `CLPlacemark` 的部分欄位標成 deprecated，改推 MapKit 的 `MKReverseGeocodingRequest`；最低 iOS 是 17.4，CI 沒有出現警告，GFlyer 用的欄位有沒有一起標還沒有在 SDK 的標頭確認。最低 iOS 升到 26 時再看要不要改，改了要重新對 fixture。
 - **沒有 Wi-Fi 時能不能配對**還不知道。LL Pair 和 StikPair 都要求本機網路權限。
 - **iOS 更新。** Apple 以後可能改變配對或 DDI 的做法。Apple 的 Device Hub 文件說升級 iOS 之後要重新配對，要實測對 GFlyer 的配對檔有沒有影響。
 - **iOS 26 以下仍然要電腦。**
