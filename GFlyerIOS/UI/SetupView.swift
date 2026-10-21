@@ -73,7 +73,6 @@ struct SetupView: View {
     @Environment(\.openURL) private var openURL
     @ObservedObject var controller: SimulationController
     @ObservedObject var edition: EditionModel
-    @ObservedObject var stepRecorder: StepRecorderController
     @ObservedObject private var pairingStore: PairingFileStore
     @ObservedObject private var deviceLocation: DeviceLocationService
     @ObservedObject private var vpn: LocalDevVPNBridge
@@ -92,20 +91,14 @@ struct SetupView: View {
     @State private var pendingBackupData: Data?
     @State private var transferSummary: String?
     @State private var forceClearMessage: String?
-    @State private var showStepRecorder = false
     @State private var isForceClearing = false
     @State private var contactMessage: String?
     @State private var confirmingPairingRemoval = false
     private let appVersion = AppVersionInfo()
 
-    init(
-        controller: SimulationController,
-        edition: EditionModel,
-        stepRecorder: StepRecorderController
-    ) {
+    init(controller: SimulationController, edition: EditionModel) {
         self.controller = controller
         self.edition = edition
-        self.stepRecorder = stepRecorder
         _pairingStore = ObservedObject(wrappedValue: controller.pairingStore)
         _deviceLocation = ObservedObject(wrappedValue: controller.deviceLocation)
         _vpn = ObservedObject(wrappedValue: controller.vpn)
@@ -132,14 +125,11 @@ struct SetupView: View {
                 } message: {
                     Text(controller.lastError ?? "未知錯誤")
                 }
-                .modifier(edition.settingsAlerts)
+                .modifier(edition.settingsPresentations)
                 .alert("完成", isPresented: binding(for: $transferSummary)) {
                     Button("確定", role: .cancel) { transferSummary = nil }
                 } message: {
                     Text(transferSummary ?? "")
-                }
-                .sheet(isPresented: $showStepRecorder) {
-                    StepRecorderView(recorder: stepRecorder)
                 }
                 .alert("清除結果", isPresented: binding(for: $forceClearMessage)) {
                     Button("確定", role: .cancel) { forceClearMessage = nil }
@@ -220,7 +210,6 @@ struct SetupView: View {
             playbackSection
             orbitRadiusSection
             edition.settingsSections
-            stepRecorderSection
             transferSection
             instructionsSection
             if controller.canControlDeviceLocation { recoverySection }
@@ -605,25 +594,6 @@ struct SetupView: View {
         }
         // 一列裡有好幾個按鈕,不加的話在 Form 裡點哪裡都會觸發整列
         .buttonStyle(.borderless)
-    }
-
-    private var stepRecorderSection: some View {
-        Section("補錄步數") {
-            Button {
-                showStepRecorder = true
-            } label: {
-                LabeledContent {
-                    Text("今天 \(stepRecorder.todaySteps) 步")
-                        .font(.numericCaption)
-                        .foregroundStyle(.secondary)
-                } label: {
-                    Label("補錄步數", systemImage: "figure.walk")
-                }
-            }
-            Text("透過你自建的「捷徑」把步數寫入健康 App，GFlyer 本身不需要健康權限。")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-        }
     }
 
     private var transferSection: some View {

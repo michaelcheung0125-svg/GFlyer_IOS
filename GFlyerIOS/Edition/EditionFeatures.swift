@@ -16,30 +16,59 @@ protocol EditionFeatures {
     static var callbackScheme: String { get }
 }
 
-/// 版本專屬功能在 App 執行期間的狀態，例如親友版的檢查新版。`GFlyerIOSApp` 建立一個，
+/// 版本專屬功能在 App 執行期間的狀態，例如親友版的檢查新版和補錄步數。`GFlyerIOSApp` 建立一個，
 /// 交給主畫面和設定頁。公開版的實作全部是空的，照 Android 公開版的 `NoScreenFeatures`。
 ///
 /// 每一項都放在原本寫在共用畫面的同一個位置，所以親友版的畫面和提示的先後都和分版本之前相同。
 @MainActor
 protocol EditionModelFeatures: ObservableObject {
-    associatedtype MainScreenAlerts: ViewModifier
-    associatedtype SettingsAlerts: ViewModifier
+    associatedtype MainScreenPresentations: ViewModifier
+    associatedtype SettingsPresentations: ViewModifier
     associatedtype SettingsSections: View
 
     init()
 
-    /// 主畫面上版本專屬的提示，例如親友版的「有新版本」。
-    var mainScreenAlerts: MainScreenAlerts { get }
+    /// 主畫面上版本專屬的提示和畫面，例如親友版的「有新版本」和從地圖工具列打開的補錄。
+    func mainScreenPresentations(feedback: MainScreenFeedback) -> MainScreenPresentations
 
     /// 版本專屬的提示正在顯示。主畫面升級後只出現一次的提示要等它關掉，免得互相擋掉。
     var isPresentingAlert: Bool { get }
 
-    /// 設定頁上版本專屬的提示。
-    var settingsAlerts: SettingsAlerts { get }
+    /// 地圖工具列上版本專屬的按鈕，接在「座標圖鑑」後面。
+    func mapToolItems(feedback: MainScreenFeedback) -> [MapToolItem]
+
+    /// 設定頁上版本專屬的提示和畫面。
+    var settingsPresentations: SettingsPresentations { get }
 
     /// 設定頁裏版本專屬的 section，放在「繞圈設定」之後。
     @ViewBuilder var settingsSections: SettingsSections { get }
 
+    /// 打開 App 的網址是這個版本的功能的，就處理並回傳 true，例如親友版補錄的捷徑回呼。
+    /// 回傳 false 的交給共用的功能（飛航模式輔助）。
+    func handleOpenURL(_ url: URL) -> Bool
+
     /// App 回到前景時。CI 截圖時不呼叫（`MainView.isCapturingScreenshots`）。
     func appDidBecomeActive()
+}
+
+/// 主畫面讓版本專屬的功能回報結果用的兩個方法。
+struct MainScreenFeedback {
+    /// 畫面頂端顯示一下就消失的提示。
+    let announce: (String) -> Void
+    /// 「操作失敗」提示。
+    let reportError: (String) -> Void
+}
+
+/// 地圖工具列的一個按鈕。共用的和版本專屬的按鈕都用它，畫法相同，兩個一列。
+struct MapToolItem: Identifiable {
+    let id: String
+    let icon: String
+    /// VoiceOver 讀的名稱。
+    let label: String
+    var tint: Color?
+    /// 轉圈代替圖示，例如定位中。
+    var isBusy = false
+    /// 右上角的小字，例如座標圖鑑的「NEW」。
+    var badge: String?
+    let action: () -> Void
 }

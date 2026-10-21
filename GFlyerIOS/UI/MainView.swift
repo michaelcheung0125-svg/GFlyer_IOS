@@ -7,7 +7,6 @@ struct MainView: View {
     @ObservedObject var messageBoard: MessageBoardController
     @ObservedObject var coordinateLibrary: CoordinateLibraryController
     @ObservedObject var edition: EditionModel
-    @ObservedObject var stepRecorder: StepRecorderController
     @ObservedObject var airplaneAssist: AirplaneAssistController
     @State private var position: MapCameraPosition = .region(
         MKCoordinateRegion(
@@ -22,7 +21,6 @@ struct MainView: View {
     @State private var showMessageBoard = false
     @State private var showBoardShare = false
     @State private var showLibrary = false
-    @State private var showStepRecorder = false
     @State private var showAirplaneAssist = false
     @State private var isPanelExpanded = true
     /// 右側工具列收起後只剩一個貼在畫面右邊的箭咀，關掉 App 也記住
@@ -79,7 +77,7 @@ struct MainView: View {
                 } message: { warning in
                     Text(CrossDateWarningText.message(for: warning))
                 }
-                .modifier(edition.mainScreenAlerts)
+                .modifier(edition.mainScreenPresentations(feedback: editionFeedback))
                 .alert(
                     "恢復上次模擬？",
                     isPresented: resumeAlertBinding,
@@ -114,11 +112,7 @@ struct MainView: View {
     private var contentWithSheets: some View {
         contentWithChrome
             .sheet(isPresented: $showSetup) {
-                SetupView(
-                    controller: controller,
-                    edition: edition,
-                    stepRecorder: stepRecorder
-                )
+                SetupView(controller: controller, edition: edition)
             }
             .sheet(isPresented: $showFavorites) { SavedPlacesView(controller: controller) }
             .sheet(isPresented: $showRoutes) { SavedRoutesView(controller: controller) }
@@ -131,7 +125,6 @@ struct MainView: View {
             .sheet(isPresented: $showLibrary) {
                 CoordinateLibraryView(library: coordinateLibrary, simulation: controller)
             }
-            .sheet(isPresented: $showStepRecorder) { StepRecorderView(recorder: stepRecorder) }
             .sheet(isPresented: $showAirplaneAssist) {
                 AirplaneAssistView(assist: airplaneAssist, simulation: controller)
             }
@@ -164,18 +157,6 @@ struct MainView: View {
             .onChange(of: controlPanelFrame) { _, _ in refitExplorationPreviewForPanel() }
             .onChange(of: isPanelExpanded) { _, expanded in
                 if expanded { showJoystick = false }
-            }
-            // 工具列的一鍵補錄不會開啟補錄畫面，結果要在主畫面回報。開著補錄
-            // 畫面時交給它自己的 alert，這裡不重複顯示。
-            .onChange(of: stepRecorder.lastMessage) { _, message in
-                guard let message, !showStepRecorder else { return }
-                announce(message)
-                stepRecorder.lastMessage = nil
-            }
-            .onChange(of: stepRecorder.lastError) { _, error in
-                guard let error, !showStepRecorder else { return }
-                controller.lastError = error
-                stepRecorder.lastError = nil
             }
             .overlay(alignment: .top) { feedbackOverlay }
     }
@@ -275,7 +256,6 @@ struct MainView: View {
                     Spacer()
                     MapToolBar(
                         controller: controller,
-                        stepRecorder: stepRecorder,
                         airplaneAssist: airplaneAssist,
                         isExpanded: $isToolBarExpanded,
                         showJoystick: $showJoystick,
@@ -284,15 +264,14 @@ struct MainView: View {
                         showRoutes: $showRoutes,
                         showBoardShare: $showBoardShare,
                         showLibrary: $showLibrary,
-                        showStepRecorder: $showStepRecorder,
                         showAirplaneAssist: $showAirplaneAssist,
                         position: $position,
                         cameraDistance: $cameraDistance,
                         isLocating: isLocating,
                         libraryHasNew: coordinateLibrary.hasNewCoordinates,
+                        editionItems: edition.mapToolItems(feedback: editionFeedback),
                         onLocate: locateCurrentPosition,
-                        onFavorite: requestFavorite,
-                        onFeedback: announce
+                        onFavorite: requestFavorite
                     )
                 }
                 .padding(.top, Spacing.sm)
@@ -483,6 +462,11 @@ struct MainView: View {
         }
     }
 
+    /// 版本專屬的功能（`EditionModelFeatures`）在主畫面回報結果用。
+    private var editionFeedback: MainScreenFeedback {
+        MainScreenFeedback(announce: announce, reportError: { controller.lastError = $0 })
+    }
+
     private func announce(_ message: String) {
         feedbackTask?.cancel()
         withAnimation(Motion.feedbackIn) { feedbackMessage = message }
@@ -593,7 +577,6 @@ private struct SearchBar: View {
 
 private struct MapToolBar: View {
     @ObservedObject var controller: SimulationController
-    @ObservedObject var stepRecorder: StepRecorderController
     @ObservedObject var airplaneAssist: AirplaneAssistController
     @Binding var isExpanded: Bool
     @Binding var showJoystick: Bool
@@ -602,17 +585,17 @@ private struct MapToolBar: View {
     @Binding var showRoutes: Bool
     @Binding var showBoardShare: Bool
     @Binding var showLibrary: Bool
-    @Binding var showStepRecorder: Bool
     @Binding var showAirplaneAssist: Bool
     @Binding var position: MapCameraPosition
     @Binding var cameraDistance: CLLocationDistance
     let isLocating: Bool
     /// 座標圖鑑有還沒看過的新座標:按鈕右上角顯示「NEW」(GFlyer-Suite docs/features/coordinate-library-new-badge.md)
     let libraryHasNew: Bool
+    /// 版本專屬的按鈕(`EditionModelFeatures.mapToolItems`),接在「座標圖鑑」後面
+    let editionItems: [MapToolItem]
     let onLocate: () -> Void
     /// ☆ 只負責觸發;命名 sheet 與它的狀態在 `MainView`,理由見 `MainView.favoriteNameRequest`。
     let onFavorite: () -> Void
-    let onFeedback: (String) -> Void
 
     var body: some View {
         if isExpanded {
@@ -646,45 +629,12 @@ private struct MapToolBar: View {
     }
 
     private var expandedToolBar: some View {
-        VStack(spacing: Spacing.xs) {
-            HStack(spacing: Spacing.xs) {
-                mapButton("plus", label: "放大") { zoom(0.5) }
-                mapButton("minus", label: "縮小") { zoom(2) }
-            }
-            HStack(spacing: Spacing.xs) {
-                mapButton(
-                    "location.fill",
-                    label: "前往目前位置",
-                    isBusy: isLocating,
-                    action: onLocate
-                )
-                mapButton(showJoystick ? "gamecontroller.fill" : "gamecontroller", label: "搖桿") {
-                    showJoystick.toggle()
-                    if showJoystick { isPanelExpanded = false }
-                }
-            }
-            HStack(spacing: Spacing.xs) {
-                // 實心 / 空心看選取點(和 Android 相同);按下去收藏的是收藏目標座標,模擬中是模擬位置
-                let isFavorite = controller.favorites.contains { $0.coordinate == controller.selectedCoordinate }
-                mapButton(isFavorite ? "star.fill" : "star", label: FavoriteAddTexts.toolbarButtonLabel, action: onFavorite)
-                mapButton("star.circle", label: "收藏與歷史") { showFavorites = true }
-            }
-            HStack(spacing: Spacing.xs) {
-                mapButton("point.3.filled.connected.trianglepath.dotted", label: "已儲存路線") { showRoutes = true }
-                mapButton("square.and.arrow.up", label: "分享到留言板") { showBoardShare = true }
-            }
-            HStack(spacing: Spacing.xs) {
-                mapButton(
-                    "books.vertical",
-                    label: "座標圖鑑",
-                    badge: libraryHasNew ? CoordinateLibraryNewBadge.text : nil
-                ) { showLibrary = true }
-                stepRecordButton
-            }
-            HStack(spacing: Spacing.xs) {
-                airplaneAssistButton
-                mapButton("chevron.right", label: "收起地圖工具列") {
-                    withAnimation(Motion.panel) { isExpanded = false }
+        // 兩個一列。只剩一個的最後一列靠右，和收起後的箭咀同一邊
+        VStack(alignment: .trailing, spacing: Spacing.xs) {
+            let items = toolItems
+            ForEach(Array(stride(from: 0, to: items.count, by: 2)), id: \.self) { start in
+                HStack(spacing: Spacing.xs) {
+                    ForEach(items[start..<min(start + 2, items.count)]) { mapButton($0) }
                 }
             }
         }
@@ -696,59 +646,73 @@ private struct MapToolBar: View {
         .contentShape(RoundedRectangle(cornerRadius: Metrics.corner))
     }
 
-    /// 一鍵補錄。捷徑還沒成功跑過一次時不直接送出，改為帶使用者去設定頁——
-    /// 在那之前送出只會開啟一個找不到的捷徑，使用者也不知道要去哪裡修。
-    private var stepRecordButton: some View {
-        let isReady = stepRecorder.isQuickRecordReady
-        return mapButton(
-            "figure.walk",
-            label: isReady ? "補錄 \(stepRecorder.quickStepCount) 步" : "設定補錄步數",
-            tint: isReady ? nil : Color.secondary
-        ) {
-            guard isReady else {
-                showStepRecorder = true
-                return
-            }
-            let steps = stepRecorder.quickStepCount
-            stepRecorder.record(steps: steps)
-            onFeedback("正在用捷徑補錄 \(steps) 步")
-        }
+    /// 由上到下、每列由左到右。
+    private var toolItems: [MapToolItem] {
+        let camera: [MapToolItem] = [
+            MapToolItem(id: "zoom-in", icon: "plus", label: "放大") { zoom(0.5) },
+            MapToolItem(id: "zoom-out", icon: "minus", label: "縮小") { zoom(2) },
+            MapToolItem(id: "locate", icon: "location.fill", label: "前往目前位置", isBusy: isLocating, action: onLocate),
+            MapToolItem(
+                id: "joystick",
+                icon: showJoystick ? "gamecontroller.fill" : "gamecontroller",
+                label: "搖桿"
+            ) {
+                showJoystick.toggle()
+                if showJoystick { isPanelExpanded = false }
+            },
+        ]
+        // 實心 / 空心看選取點(和 Android 相同);按下去收藏的是收藏目標座標,模擬中是模擬位置
+        let isFavorite = controller.favorites.contains { $0.coordinate == controller.selectedCoordinate }
+        let places: [MapToolItem] = [
+            MapToolItem(
+                id: "favorite",
+                icon: isFavorite ? "star.fill" : "star",
+                label: FavoriteAddTexts.toolbarButtonLabel,
+                action: onFavorite
+            ),
+            MapToolItem(id: "favorites", icon: "star.circle", label: "收藏與歷史") { showFavorites = true },
+            MapToolItem(id: "routes", icon: "point.3.filled.connected.trianglepath.dotted", label: "已儲存路線") {
+                showRoutes = true
+            },
+            MapToolItem(id: "board-share", icon: "square.and.arrow.up", label: "分享到留言板") { showBoardShare = true },
+            MapToolItem(
+                id: "library",
+                icon: "books.vertical",
+                label: "座標圖鑑",
+                badge: libraryHasNew ? CoordinateLibraryNewBadge.text : nil
+            ) { showLibrary = true },
+        ]
+        let end: [MapToolItem] = [
+            // 行動網絡下才需要飛航模式那串操作，所以只在偵測到行動網絡時強調它。
+            MapToolItem(
+                id: "airplane",
+                icon: "airplane",
+                label: "飛航模式輔助",
+                tint: airplaneAssist.connection.needsAssist ? Color.statusAttention : nil
+            ) { showAirplaneAssist = true },
+            MapToolItem(id: "collapse", icon: "chevron.right", label: "收起地圖工具列") {
+                withAnimation(Motion.panel) { isExpanded = false }
+            },
+        ]
+        return camera + places + editionItems + end
     }
 
-    /// 行動網絡下才需要飛航模式那串操作，所以只在偵測到行動網絡時強調它。
-    private var airplaneAssistButton: some View {
-        mapButton(
-            "airplane",
-            label: "飛航模式輔助",
-            tint: airplaneAssist.connection.needsAssist ? Color.statusAttention : nil
-        ) {
-            showAirplaneAssist = true
-        }
-    }
-
-    private func mapButton(
-        _ icon: String,
-        label: String,
-        tint: Color? = nil,
-        isBusy: Bool = false,
-        badge: String? = nil,
-        action: @escaping () -> Void
-    ) -> some View {
-        Button(action: action) {
+    private func mapButton(_ item: MapToolItem) -> some View {
+        Button(action: item.action) {
             Group {
-                if isBusy {
+                if item.isBusy {
                     ProgressView()
                 } else {
-                    Image(systemName: icon)
+                    Image(systemName: item.icon)
                 }
             }
             // .plain 的按鈕不會自動上 accent 色，所以未指定時維持原本的 primary
-            .foregroundStyle(tint ?? Color.primary)
+            .foregroundStyle(item.tint ?? Color.primary)
             .frame(width: Metrics.tapTarget, height: Metrics.tapTarget)
             // 沒有這行時，可點區域只有圖示筆畫本身而不是整個方框
             .contentShape(Rectangle())
             .overlay(alignment: .topTrailing) {
-                if let badge {
+                if let badge = item.badge {
                     // 和留言板按鈕的未讀徽章同一個寫法:系統紅是 iOS 未讀徽章的慣例,不是 statusDanger
                     Text(badge)
                         .font(.system(size: 8, weight: .bold))
@@ -762,8 +726,8 @@ private struct MapToolBar: View {
         }
         // 原本是 .plain，那會連按壓高亮一起拿掉，所以按下去畫面毫無變化。
         .buttonStyle(PressFeedbackButtonStyle())
-        .accessibilityLabel(label)
-        .accessibilityValue(isBusy ? "定位中" : (badge ?? ""))
+        .accessibilityLabel(item.label)
+        .accessibilityValue(item.isBusy ? "定位中" : (item.badge ?? ""))
     }
 
     private func zoom(_ factor: Double) {
