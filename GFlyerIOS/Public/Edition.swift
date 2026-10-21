@@ -32,4 +32,11 @@ enum Edition: EditionFeatures {
     static func developerDiskImageRows(controller: SimulationController) -> some View {
         DeveloperDiskImageDownloadRows(controller: controller, download: .shared)
     }
+
+    /// 不連 Nominatim（docs/APP_STORE_PLAN.md 第 17 項）。
+    static func makeRegionLabelSource() -> any RegionLabelSource { AppleGeocoderRegionLabelSource() }
+
+    /// 照 Android 公開版先問（U7）。Android 寫「手機系統的地點服務」，因為背後的服務由手機決定；
+    /// iOS 的 `CLGeocoder` 一定是 Apple 的。
+    static let regionLookupConsentService: String? = "Apple 的地點服務"
 }

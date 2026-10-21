@@ -141,7 +141,16 @@ struct SetupView: View {
                 } message: {
                     Text(contactMessage ?? "")
                 }
+                // 打開「顯示收藏的國家與城市」,或在這裏還原備份、匯入路線之後要先問的
+                .modifier(RegionConsentAlert(controller: controller, isBlocked: isPresentingOtherPrompt))
         }
+    }
+
+    /// 這一頁別的提示、選檔畫面開着時,「顯示收藏的國家與城市？」等它們關掉才跳出。
+    private var isPresentingOtherPrompt: Bool {
+        importError != nil || controller.lastError != nil || transferSummary != nil || forceClearMessage != nil
+            || contactMessage != nil || pendingBackupData != nil || confirmingPairingRemoval || showPresetPrompt
+            || showImporter || showExporter || controller.pendingCrossDateWarning != nil
     }
 
     // MARK: - 檔案匯入與匯出
@@ -208,6 +217,7 @@ struct SetupView: View {
             developerDiskImageSection
             speedPresetSection
             playbackSection
+            if controller.regionLookupAsksFirst { hintsSection }
             orbitRadiusSection
             edition.settingsSections
             transferSection
@@ -511,12 +521,7 @@ struct SetupView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
-            VStack(alignment: .leading, spacing: Spacing.xs) {
-                Toggle(CrossDateWarningText.settingTitle, isOn: playbackBinding(\.crossDateWarningEnabled))
-                Text(CrossDateWarningText.settingDescription)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
+            if !controller.regionLookupAsksFirst { crossDateWarningToggle }
             Picker("搖桿速度上限", selection: playbackBinding(\.joystickMaxSpeedKilometresPerHour)) {
                 ForEach(PlaybackSettings.joystickMaxSpeedOptions, id: \.self) { speed in
                     Text("\(speed) km/h").tag(speed)
@@ -526,6 +531,38 @@ struct SetupView: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
+    }
+
+    private var crossDateWarningToggle: some View {
+        VStack(alignment: .leading, spacing: Spacing.xs) {
+            Toggle(CrossDateWarningText.settingTitle, isOn: playbackBinding(\.crossDateWarningEnabled))
+            Text(CrossDateWarningText.settingDescription)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    /// 要先取得同意的版本(公開版)照 Android 公開版,把跨日提示和「顯示收藏的國家與城市」放在「提示與地名」,
+    /// 同意說明叫使用者到這裏改(GFlyer-Suite docs/features/region-labels.md 3.10)。親友版沒有這一組,
+    /// 跨日提示照舊在「路線播放」。
+    private var hintsSection: some View {
+        Section(RegionLookupConsentText.settingsGroupTitle) {
+            crossDateWarningToggle
+            VStack(alignment: .leading, spacing: Spacing.xs) {
+                Toggle(RegionLookupConsentText.settingTitle, isOn: regionLabelsBinding)
+                Text(controller.regionConsentSettingDescription)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    /// 開 = 允許。打開時先跳出說明,按「允許」才真的打開;關掉馬上生效、不另外問。
+    private var regionLabelsBinding: Binding<Bool> {
+        Binding(
+            get: { controller.regionLookupConsent == .allowed },
+            set: { controller.setRegionLabelsEnabled($0) }
+        )
     }
 
     /// 和 Android 的「繞圈設定」相同:每一圈 ±5 公尺、可刪任一圈,新增的一圈 40 公尺;改完一律經過

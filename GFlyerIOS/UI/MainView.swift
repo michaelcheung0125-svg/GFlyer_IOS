@@ -102,6 +102,10 @@ struct MainView: View {
                 lookUp: { await controller.favoriteNameLabel(for: $0) },
                 onConfirm: confirmFavorite
             ))
+            .modifier(RegionConsentAlert(controller: controller, isBlocked: regionConsentBlocked) { prompt in
+                // 按 ☆ 叫出的:不論允許與否,答完照樣打開命名 sheet(和 Android 相同)
+                if prompt == .star { requestFavorite() }
+            })
     }
 
     private var contentWithSheets: some View {
@@ -332,10 +336,20 @@ struct MainView: View {
                     && controller.pendingResumeSession == nil
                     && controller.pendingCrossDateWarning == nil
                     && controller.lastError == nil
+                    && controller.regionConsentPrompt == nil
                     && !edition.isPresentingAlert
             },
             set: { if !$0 { controller.dismissArrivalRulesNotice() } }
         )
+    }
+
+    /// 「顯示收藏的國家與城市？」等主畫面的 sheet 和其他 alert 都關掉才跳出;設定頁開着時由設定頁自己跳。
+    private var regionConsentBlocked: Bool {
+        showSetup || showFavorites || showRoutes || showAirplaneAssist || favoriteNameRequest != nil
+            || controller.pendingResumeSession != nil
+            || controller.pendingCrossDateWarning != nil
+            || controller.lastError != nil
+            || edition.isPresentingAlert
     }
 
     private static func resumeMessage(for snapshot: ActiveSessionSnapshot) -> String {
@@ -448,7 +462,12 @@ struct MainView: View {
         case let .alreadySaved(message):
             announce(message)
         case let .askName(request):
-            favoriteNameRequest = request
+            // 要先取得同意的版本第一次按 ☆:先問要不要查國家與城市,答完才打開命名 sheet(region-labels.md 3.10)
+            if controller.asksRegionConsentOnStar {
+                controller.askRegionConsent(.star)
+            } else {
+                favoriteNameRequest = request
+            }
         }
     }
 

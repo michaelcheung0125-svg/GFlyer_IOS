@@ -6,8 +6,8 @@ import XCTest
 /// 插隊的順序、和一般請求共用的 1.1 秒間隔、同一格在佇列裡最多一筆、緊急請求失敗不封鎖而一般請求失敗封鎖、
 /// 等待者一定拿到結果、等待的一方不等了也不撤回請求。
 ///
-/// 假的 Nominatim 可以讓請求停在半路(正在查),測試趁這時候插進緊急請求,再看佇列(`pendingCoordinates`)
-/// 與事件的順序。「GET 緯度,經度」是送出的 lat / lon 原文,「sleep 1.1」是請求結束之後的等待。
+/// 假的反查服務可以讓請求停在半路(正在查),測試趁這時候插進緊急請求,再看佇列(`pendingCoordinates`)
+/// 與事件的順序。「GET 緯度,經度」是送出的座標(寫法和 Nominatim 的 lat / lon 相同),「sleep 1.1」是請求結束之後的等待。
 @MainActor
 final class RegionLookupUrgentTests: XCTestCase {
 
@@ -17,14 +17,14 @@ final class RegionLookupUrgentTests: XCTestCase {
         let suiteName = "gflyer.region-urgent-tests.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
         defer { defaults.removePersistentDomain(forName: suiteName) }
-        let nominatim = UrgentTestNominatim()
-        nominatim.respond(to: UrgentSpot.seoul, city: "首爾", country: "南韓")
-        nominatim.respond(to: UrgentSpot.london, city: "倫敦", country: "英國")
-        let lookup = makeLookup(defaults, nominatim)
+        let service = UrgentTestRegionLabelSource()
+        service.respond(to: UrgentSpot.seoul, city: "首爾", country: "南韓")
+        service.respond(to: UrgentSpot.london, city: "倫敦", country: "英國")
+        let lookup = makeLookup(defaults, service)
 
-        nominatim.holdsRequests = true
+        service.holdsRequests = true
         lookup.request([UrgentSpot.taipei, UrgentSpot.osaka, UrgentSpot.sydney])
-        await waitUntil("臺北正在查") { nominatim.isHoldingARequest }
+        await waitUntil("臺北正在查") { service.isHoldingARequest }
         XCTAssertEqual(lookup.pendingCoordinates, [UrgentSpot.osaka, UrgentSpot.sydney])
 
         let seoul = Task { await lookup.lookUpUrgently(UrgentSpot.seoul) }
@@ -48,10 +48,10 @@ final class RegionLookupUrgentTests: XCTestCase {
             "之後才來的一般請求排在隊尾,不會超過緊急請求"
         )
 
-        nominatim.holdsRequests = false
-        nominatim.finishHeldRequest()
+        service.holdsRequests = false
+        service.finishHeldRequest()
         await lookup.waitUntilIdle()
-        XCTAssertEqual(nominatim.events, [
+        XCTAssertEqual(service.events, [
             "GET 25.0339,121.5645", "sleep 1.1",
             "GET 51.5072,-0.1276", "sleep 1.1",
             "GET 37.5665,126.978", "sleep 1.1",
@@ -59,7 +59,7 @@ final class RegionLookupUrgentTests: XCTestCase {
             "GET -33.8688,151.2093", "sleep 1.1",
             "GET 40.7128,-74.006", "sleep 1.1",
         ])
-        XCTAssertEqual(nominatim.maxInFlight, 1, "同一時間最多一個請求")
+        XCTAssertEqual(service.maxInFlight, 1, "同一時間最多一個請求")
         let seoulLabel = await seoul.value
         let londonLabel = await london.value
         XCTAssertEqual(seoulLabel, "南韓 · 首爾")
@@ -71,13 +71,13 @@ final class RegionLookupUrgentTests: XCTestCase {
         let suiteName = "gflyer.region-urgent-tests.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
         defer { defaults.removePersistentDomain(forName: suiteName) }
-        let nominatim = UrgentTestNominatim()
-        nominatim.respond(to: UrgentSpot.taipei, city: "臺北市", country: "臺灣")
-        let lookup = makeLookup(defaults, nominatim)
+        let service = UrgentTestRegionLabelSource()
+        service.respond(to: UrgentSpot.taipei, city: "臺北市", country: "臺灣")
+        let lookup = makeLookup(defaults, service)
 
-        nominatim.holdsRequests = true
+        service.holdsRequests = true
         lookup.request([UrgentSpot.osaka, UrgentSpot.taipeiSameCell, UrgentSpot.sydney])
-        await waitUntil("大阪正在查") { nominatim.isHoldingARequest }
+        await waitUntil("大阪正在查") { service.isHoldingARequest }
         XCTAssertEqual(lookup.pendingCoordinates, [UrgentSpot.taipeiSameCell, UrgentSpot.sydney])
 
         // 同一格的另一點(按 ☆ 的那一點)
@@ -94,11 +94,11 @@ final class RegionLookupUrgentTests: XCTestCase {
         lookup.request([UrgentSpot.taipeiSameCell, UrgentSpot.taipeiOtherPoint])
         XCTAssertEqual(lookup.pendingCoordinates, [UrgentSpot.taipei, UrgentSpot.sydney])
 
-        nominatim.holdsRequests = false
-        nominatim.finishHeldRequest()
+        service.holdsRequests = false
+        service.finishHeldRequest()
         await lookup.waitUntilIdle()
         XCTAssertEqual(
-            nominatim.requested,
+            service.requested,
             ["34.6937,135.5023", "25.0339,121.5645", "-33.8688,151.2093"],
             "臺北那一格只送一次,送的是最後按 ☆ 的原始座標"
         )
@@ -115,24 +115,24 @@ final class RegionLookupUrgentTests: XCTestCase {
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
         defer { defaults.removePersistentDomain(forName: suiteName) }
         defaults.set(try JSONEncoder().encode(["25.03,121.56": "臺灣 · 臺北市"]), forKey: RegionLookup.storageKey)
-        let nominatim = UrgentTestNominatim()
-        let lookup = makeLookup(defaults, nominatim)
+        let service = UrgentTestRegionLabelSource()
+        let lookup = makeLookup(defaults, service)
 
         // 已有快取(同一格的另一點):直接回傳標籤,不排、不送
         let cached = await lookup.lookUpUrgently(UrgentSpot.taipeiSameCell)
         XCTAssertEqual(cached, "臺灣 · 臺北市")
         XCTAssertEqual(lookup.pendingCoordinates, [])
-        XCTAssertEqual(nominatim.events, [])
+        XCTAssertEqual(service.events, [])
 
         // 一般請求查失敗(海上沒有回應 = 連線失敗)就封鎖到下次啟動
         lookup.request([UrgentSpot.pacific])
         await lookup.waitUntilIdle()
-        XCTAssertEqual(nominatim.requested, ["10.0,-150.0"])
+        XCTAssertEqual(service.requested, ["10.0,-150.0"])
         let blocked = await lookup.lookUpUrgently(UrgentSpot.pacific)
         XCTAssertNil(blocked, "被封鎖:馬上當作查不到")
         lookup.request([UrgentSpot.pacific])
         await lookup.waitUntilIdle()
-        XCTAssertEqual(nominatim.requested, ["10.0,-150.0"], "被封鎖的格子一般與緊急請求都不再送")
+        XCTAssertEqual(service.requested, ["10.0,-150.0"], "被封鎖的格子一般與緊急請求都不再送")
         XCTAssertEqual(lookup.pendingCoordinates, [])
     }
 
@@ -140,23 +140,23 @@ final class RegionLookupUrgentTests: XCTestCase {
         let suiteName = "gflyer.region-urgent-tests.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
         defer { defaults.removePersistentDomain(forName: suiteName) }
-        let nominatim = UrgentTestNominatim()
-        nominatim.respond(to: UrgentSpot.taipei, city: "臺北市", country: "臺灣")
-        let lookup = makeLookup(defaults, nominatim)
+        let service = UrgentTestRegionLabelSource()
+        service.respond(to: UrgentSpot.taipei, city: "臺北市", country: "臺灣")
+        let lookup = makeLookup(defaults, service)
 
-        nominatim.holdsRequests = true
+        service.holdsRequests = true
         lookup.request([UrgentSpot.taipei])
-        await waitUntil("臺北正在查") { nominatim.isHoldingARequest }
+        await waitUntil("臺北正在查") { service.isHoldingARequest }
         let waiting = Task { await lookup.lookUpUrgently(UrgentSpot.taipeiSameCell) }
         await waitUntil("等那一筆") { lookup.waiterCount(for: UrgentSpot.taipeiSameCell) == 1 }
         XCTAssertEqual(lookup.pendingCoordinates, [], "正在查的格子不再排")
 
-        nominatim.holdsRequests = false
-        nominatim.finishHeldRequest()
+        service.holdsRequests = false
+        service.finishHeldRequest()
         let label = await waiting.value
         XCTAssertEqual(label, "臺灣 · 臺北市")
         await lookup.waitUntilIdle()
-        XCTAssertEqual(nominatim.requested, ["25.0339,121.5645"], "沒有多送")
+        XCTAssertEqual(service.requested, ["25.0339,121.5645"], "沒有多送")
     }
 
     /// 緊急請求等的是正在查的一般請求時,那一筆仍算一般請求:查失敗照一般規則封鎖。
@@ -164,17 +164,17 @@ final class RegionLookupUrgentTests: XCTestCase {
         let suiteName = "gflyer.region-urgent-tests.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
         defer { defaults.removePersistentDomain(forName: suiteName) }
-        let nominatim = UrgentTestNominatim()
-        let lookup = makeLookup(defaults, nominatim)
+        let service = UrgentTestRegionLabelSource()
+        let lookup = makeLookup(defaults, service)
 
-        nominatim.holdsRequests = true
+        service.holdsRequests = true
         lookup.request([UrgentSpot.pacific])
-        await waitUntil("太平洋正在查") { nominatim.isHoldingARequest }
+        await waitUntil("太平洋正在查") { service.isHoldingARequest }
         let waiting = Task { await lookup.lookUpUrgently(UrgentSpot.pacific) }
         await waitUntil("等那一筆") { lookup.waiterCount(for: UrgentSpot.pacific) == 1 }
 
-        nominatim.holdsRequests = false
-        nominatim.finishHeldRequest()
+        service.holdsRequests = false
+        service.finishHeldRequest()
         let label = await waiting.value
         XCTAssertNil(label)
         await lookup.waitUntilIdle()
@@ -183,7 +183,7 @@ final class RegionLookupUrgentTests: XCTestCase {
         XCTAssertNil(again)
         lookup.request([UrgentSpot.pacific])
         await lookup.waitUntilIdle()
-        XCTAssertEqual(nominatim.requested, ["10.0,-150.0"], "封鎖了:一般與緊急請求都不再送")
+        XCTAssertEqual(service.requested, ["10.0,-150.0"], "封鎖了:一般與緊急請求都不再送")
     }
 
     // MARK: - 失敗
@@ -194,29 +194,29 @@ final class RegionLookupUrgentTests: XCTestCase {
         let suiteName = "gflyer.region-urgent-tests.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
         defer { defaults.removePersistentDomain(forName: suiteName) }
-        let nominatim = UrgentTestNominatim()
-        let lookup = makeLookup(defaults, nominatim)
+        let service = UrgentTestRegionLabelSource()
+        let lookup = makeLookup(defaults, service)
 
         let first = await lookup.lookUpUrgently(UrgentSpot.pacific)
         XCTAssertNil(first)
         await lookup.waitUntilIdle()
-        XCTAssertEqual(nominatim.requested, ["10.0,-150.0"])
+        XCTAssertEqual(service.requested, ["10.0,-150.0"])
         XCTAssertEqual(lookup.pendingCoordinates, [], "不會自己重試")
 
         let pressedAgain = await lookup.lookUpUrgently(UrgentSpot.pacific)
         XCTAssertNil(pressedAgain)
         await lookup.waitUntilIdle()
-        XCTAssertEqual(nominatim.requested.count, 2, "再按 ☆:再插隊送一次")
+        XCTAssertEqual(service.requested.count, 2, "再按 ☆:再插隊送一次")
 
         lookup.request([UrgentSpot.pacific])
         await lookup.waitUntilIdle()
-        XCTAssertEqual(nominatim.requested.count, 3, "之後的一般請求還能再查一次")
+        XCTAssertEqual(service.requested.count, 3, "之後的一般請求還能再查一次")
 
         let blocked = await lookup.lookUpUrgently(UrgentSpot.pacific)
         XCTAssertNil(blocked)
         lookup.request([UrgentSpot.pacific])
         await lookup.waitUntilIdle()
-        XCTAssertEqual(nominatim.events, [
+        XCTAssertEqual(service.events, [
             "GET 10.0,-150.0", "sleep 1.1",
             "GET 10.0,-150.0", "sleep 1.1",
             "GET 10.0,-150.0", "sleep 1.1",
@@ -230,25 +230,25 @@ final class RegionLookupUrgentTests: XCTestCase {
         let suiteName = "gflyer.region-urgent-tests.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
         defer { defaults.removePersistentDomain(forName: suiteName) }
-        let nominatim = UrgentTestNominatim()
-        let lookup = makeLookup(defaults, nominatim)
+        let service = UrgentTestRegionLabelSource()
+        let lookup = makeLookup(defaults, service)
 
         let failed = await lookup.lookUpUrgently(UrgentSpot.pacific)
         XCTAssertNil(failed)
 
-        nominatim.holdsRequests = true
+        service.holdsRequests = true
         lookup.request([UrgentSpot.osaka])
-        await waitUntil("大阪正在查") { nominatim.isHoldingARequest }
+        await waitUntil("大阪正在查") { service.isHoldingARequest }
         let again1 = Task { await lookup.lookUpUrgently(UrgentSpot.pacific) }
         await waitUntil("再排一次") { lookup.pendingCoordinates == [UrgentSpot.pacific] }
         let again2 = Task { await lookup.lookUpUrgently(UrgentSpot.pacificOtherPoint) }
         await waitUntil("換成最後按的那一點") { lookup.pendingCoordinates.first == UrgentSpot.pacificOtherPoint }
         XCTAssertEqual(lookup.pendingCoordinates, [UrgentSpot.pacificOtherPoint], "同一格只有一筆")
 
-        nominatim.holdsRequests = false
-        nominatim.finishHeldRequest()
+        service.holdsRequests = false
+        service.finishHeldRequest()
         await lookup.waitUntilIdle()
-        XCTAssertEqual(nominatim.events, [
+        XCTAssertEqual(service.events, [
             "GET 10.0,-150.0", "sleep 1.1",
             "GET 34.6937,135.5023", "sleep 1.1",
             "GET 10.001,-150.001", "sleep 1.1",
@@ -262,19 +262,19 @@ final class RegionLookupUrgentTests: XCTestCase {
         let suiteName = "gflyer.region-urgent-tests.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
         defer { defaults.removePersistentDomain(forName: suiteName) }
-        let nominatim = UrgentTestNominatim()
-        let lookup = makeLookup(defaults, nominatim)
+        let service = UrgentTestRegionLabelSource()
+        let lookup = makeLookup(defaults, service)
 
         let offline = await lookup.lookUpUrgently(UrgentSpot.osaka)
         XCTAssertNil(offline)
-        nominatim.respond(to: UrgentSpot.osaka, city: "大阪市", country: "日本")
+        service.respond(to: UrgentSpot.osaka, city: "大阪市", country: "日本")
         lookup.request([UrgentSpot.osaka])
         await lookup.waitUntilIdle()
         XCTAssertEqual(lookup.labels, ["34.69,135.50": "日本 · 大阪市"])
 
         let cached = await lookup.lookUpUrgently(UrgentSpot.osaka)
         XCTAssertEqual(cached, "日本 · 大阪市")
-        XCTAssertEqual(nominatim.requested, ["34.6937,135.5023", "34.6937,135.5023"])
+        XCTAssertEqual(service.requested, ["34.6937,135.5023", "34.6937,135.5023"])
     }
 
     // MARK: - 間隔
@@ -283,23 +283,23 @@ final class RegionLookupUrgentTests: XCTestCase {
         let suiteName = "gflyer.region-urgent-tests.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
         defer { defaults.removePersistentDomain(forName: suiteName) }
-        let nominatim = UrgentTestNominatim()
-        nominatim.respond(to: UrgentSpot.taipei, city: "臺北市", country: "臺灣")
-        nominatim.respond(to: UrgentSpot.osaka, city: "大阪市", country: "日本")
-        nominatim.respond(to: UrgentSpot.seoul, city: "首爾", country: "南韓")
-        nominatim.respond(to: UrgentSpot.london, city: "倫敦", country: "英國")
-        let lookup = makeLookup(defaults, nominatim)
+        let service = UrgentTestRegionLabelSource()
+        service.respond(to: UrgentSpot.taipei, city: "臺北市", country: "臺灣")
+        service.respond(to: UrgentSpot.osaka, city: "大阪市", country: "日本")
+        service.respond(to: UrgentSpot.seoul, city: "首爾", country: "南韓")
+        service.respond(to: UrgentSpot.london, city: "倫敦", country: "英國")
+        let lookup = makeLookup(defaults, service)
 
         // 一般請求進行中插進緊急請求:等那一筆結束、再等 1.1 秒才送,而且排在下一個一般請求前面
-        nominatim.holdsRequests = true
+        service.holdsRequests = true
         lookup.request([UrgentSpot.taipei, UrgentSpot.osaka])
-        await waitUntil("臺北正在查") { nominatim.isHoldingARequest }
+        await waitUntil("臺北正在查") { service.isHoldingARequest }
         let seoul = Task { await lookup.lookUpUrgently(UrgentSpot.seoul) }
         await waitUntil("首爾排進佇列") { lookup.pendingCoordinates.first == UrgentSpot.seoul }
-        nominatim.holdsRequests = false
-        nominatim.finishHeldRequest()
+        service.holdsRequests = false
+        service.finishHeldRequest()
         await lookup.waitUntilIdle()
-        XCTAssertEqual(nominatim.events, [
+        XCTAssertEqual(service.events, [
             "GET 25.0339,121.5645", "sleep 1.1",
             "GET 37.5665,126.978", "sleep 1.1",
             "GET 34.6937,135.5023", "sleep 1.1",
@@ -311,15 +311,15 @@ final class RegionLookupUrgentTests: XCTestCase {
         let london = await lookup.lookUpUrgently(UrgentSpot.london)
         XCTAssertEqual(london, "英國 · 倫敦")
         await lookup.waitUntilIdle()
-        XCTAssertEqual(Array(nominatim.events.dropFirst(6)), ["GET 51.5072,-0.1276", "sleep 1.1"])
+        XCTAssertEqual(Array(service.events.dropFirst(6)), ["GET 51.5072,-0.1276", "sleep 1.1"])
 
         // 沒有失敗時,同一格整個過程只送一次
         let seoulAgain = await lookup.lookUpUrgently(UrgentSpot.seoul)
         XCTAssertEqual(seoulAgain, "南韓 · 首爾")
         lookup.request([UrgentSpot.taipei, UrgentSpot.osaka, UrgentSpot.seoul, UrgentSpot.london])
         await lookup.waitUntilIdle()
-        XCTAssertEqual(nominatim.requested.count, 4)
-        XCTAssertEqual(nominatim.maxInFlight, 1)
+        XCTAssertEqual(service.requested.count, 4)
+        XCTAssertEqual(service.maxInFlight, 1)
     }
 
     // MARK: - 等待者
@@ -328,13 +328,13 @@ final class RegionLookupUrgentTests: XCTestCase {
         let suiteName = "gflyer.region-urgent-tests.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
         defer { defaults.removePersistentDomain(forName: suiteName) }
-        let nominatim = UrgentTestNominatim()
-        nominatim.respond(to: UrgentSpot.taipeiSameCell, city: "臺北市", country: "臺灣")
-        let lookup = makeLookup(defaults, nominatim)
+        let service = UrgentTestRegionLabelSource()
+        service.respond(to: UrgentSpot.taipeiSameCell, city: "臺北市", country: "臺灣")
+        let lookup = makeLookup(defaults, service)
 
-        nominatim.holdsRequests = true
+        service.holdsRequests = true
         lookup.request([UrgentSpot.osaka])
-        await waitUntil("大阪正在查") { nominatim.isHoldingARequest }
+        await waitUntil("大阪正在查") { service.isHoldingARequest }
         // sheet 關掉又在同一格打開:同一格有兩個等待者;查不到的格子也一樣
         let found1 = Task { await lookup.lookUpUrgently(UrgentSpot.taipei) }
         await waitUntil("臺北第一個等待者") { lookup.waiterCount(for: UrgentSpot.taipei) == 1 }
@@ -346,8 +346,8 @@ final class RegionLookupUrgentTests: XCTestCase {
         await waitUntil("太平洋第二個等待者") { lookup.waiterCount(for: UrgentSpot.pacific) == 2 }
         XCTAssertEqual(lookup.pendingCoordinates, [UrgentSpot.pacific, UrgentSpot.taipeiSameCell], "每一格仍只有一筆")
 
-        nominatim.holdsRequests = false
-        nominatim.finishHeldRequest()
+        service.holdsRequests = false
+        service.finishHeldRequest()
         await lookup.waitUntilIdle()
         let labels = await [found1.value, found2.value, lost1.value, lost2.value]
         XCTAssertEqual(labels, ["臺灣 · 臺北市", "臺灣 · 臺北市", nil, nil])
@@ -360,23 +360,23 @@ final class RegionLookupUrgentTests: XCTestCase {
         let suiteName = "gflyer.region-urgent-tests.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
         defer { defaults.removePersistentDomain(forName: suiteName) }
-        let nominatim = UrgentTestNominatim()
-        nominatim.respond(to: UrgentSpot.seoul, city: "首爾", country: "南韓")
-        let lookup = makeLookup(defaults, nominatim)
+        let service = UrgentTestRegionLabelSource()
+        service.respond(to: UrgentSpot.seoul, city: "首爾", country: "南韓")
+        let lookup = makeLookup(defaults, service)
         var published: [[String: String]] = []
         lookup.onLabelsChange = { published.append($0) }
 
-        nominatim.holdsRequests = true
+        service.holdsRequests = true
         lookup.request([UrgentSpot.osaka])
-        await waitUntil("大阪正在查") { nominatim.isHoldingARequest }
+        await waitUntil("大阪正在查") { service.isHoldingARequest }
         let waiting = Task { await lookup.lookUpUrgently(UrgentSpot.seoul) }
         await waitUntil("首爾排進佇列") { lookup.pendingCoordinates == [UrgentSpot.seoul] }
         waiting.cancel()
 
-        nominatim.holdsRequests = false
-        nominatim.finishHeldRequest()
+        service.holdsRequests = false
+        service.finishHeldRequest()
         await lookup.waitUntilIdle()
-        XCTAssertEqual(nominatim.requested, ["34.6937,135.5023", "37.5665,126.978"], "照樣送出")
+        XCTAssertEqual(service.requested, ["34.6937,135.5023", "37.5665,126.978"], "照樣送出")
         XCTAssertEqual(lookup.labels, ["37.57,126.98": "南韓 · 首爾"])
         XCTAssertEqual(published, [["37.57,126.98": "南韓 · 首爾"]], "清單照樣更新")
         let stored = try XCTUnwrap(defaults.data(forKey: RegionLookup.storageKey))
@@ -387,8 +387,9 @@ final class RegionLookupUrgentTests: XCTestCase {
 
     // MARK: - 輔助
 
-    private func makeLookup(_ defaults: UserDefaults, _ nominatim: UrgentTestNominatim) -> RegionLookup {
-        RegionLookup(defaults: defaults, transport: nominatim, clock: nominatim, userAgent: "GFlyer/test (iOS)")
+    /// 不用先取得同意,兩個版本跑的都是親友版的行為。
+    private func makeLookup(_ defaults: UserDefaults, _ service: UrgentTestRegionLabelSource) -> RegionLookup {
+        RegionLookup(defaults: defaults, source: service, clock: service, asksFirst: false)
     }
 
     /// 佇列的工作與等待者都在主執行緒上排隊執行,所以照時間等、讓它們跑,不數 `Task.yield()`。
@@ -410,17 +411,17 @@ final class RegionLookupUrgentTests: XCTestCase {
     }
 }
 
-/// 假的 Nominatim,同時當 transport 與時鐘,和 `RegionLookup` 一樣在主執行緒上,測試可以直接讀它的狀態。
-/// 依序記下每一次請求(「GET 緯度,經度」,寫法和送出的 lat / lon 相同)與等待(「sleep 秒數」),依座標回應;
-/// 沒有設定回應的座標當作連線失敗。`holdsRequests` 打開時每個請求都停在半路(正在查),等 `finishHeldRequest()`
-/// 才回應。等待只記錄、不真的等。
+/// 假的反查服務,同時當時鐘,和 `RegionLookup` 一樣在主執行緒上,測試可以直接讀它的狀態。
+/// 依序記下每一次請求(「GET 緯度,經度」,寫法和 Nominatim 送出的 lat / lon 相同)與等待(「sleep 秒數」),
+/// 依座標回應;沒有設定標籤的座標當作查不到。`holdsRequests` 打開時每個請求都停在半路(正在查),
+/// 等 `finishHeldRequest()` 才回應。等待只記錄、不真的等。
 @MainActor
-private final class UrgentTestNominatim: RegionLookupTransport, RegionLookupClock {
+private final class UrgentTestRegionLabelSource: RegionLabelSource, RegionLookupClock {
     private(set) var events: [String] = []
     private(set) var maxInFlight = 0
     var holdsRequests = false
     private var inFlight = 0
-    private var responses: [String: RegionLookupResponse] = [:]
+    private var labels: [String: String] = [:]
     private var held: [CheckedContinuation<Void, Never>] = []
 
     /// 送出請求的座標,依時間順序。
@@ -431,9 +432,7 @@ private final class UrgentTestNominatim: RegionLookupTransport, RegionLookupCloc
     var isHoldingARequest: Bool { !held.isEmpty }
 
     func respond(to coordinate: GeoCoordinate, city: String, country: String) {
-        let key = "\(String(coordinate.latitude)),\(String(coordinate.longitude))"
-        let body = #"{"address":{"city":"\#(city)","country":"\#(country)"}}"#
-        responses[key] = RegionLookupResponse(statusCode: 200, body: Data(body.utf8))
+        labels[Self.key(coordinate)] = "\(country) · \(city)"
     }
 
     /// 讓停在半路的第一個請求回應。
@@ -442,11 +441,8 @@ private final class UrgentTestNominatim: RegionLookupTransport, RegionLookupCloc
         held.removeFirst().resume()
     }
 
-    func response(for request: URLRequest) async -> RegionLookupResponse? {
-        let items = request.url.flatMap { URLComponents(url: $0, resolvingAgainstBaseURL: false)?.queryItems } ?? []
-        let latitude = items.first { $0.name == "lat" }?.value ?? "?"
-        let longitude = items.first { $0.name == "lon" }?.value ?? "?"
-        let key = "\(latitude),\(longitude)"
+    func label(for coordinate: GeoCoordinate) async -> String? {
+        let key = Self.key(coordinate)
         events.append("GET \(key)")
         inFlight += 1
         maxInFlight = max(maxInFlight, inFlight)
@@ -459,11 +455,15 @@ private final class UrgentTestNominatim: RegionLookupTransport, RegionLookupCloc
             await Task.yield()
         }
         inFlight -= 1
-        return responses[key]
+        return labels[key]
     }
 
     func sleep(seconds: TimeInterval) async {
         events.append("sleep \(seconds)")
+    }
+
+    private static func key(_ coordinate: GeoCoordinate) -> String {
+        "\(String(coordinate.latitude)),\(String(coordinate.longitude))"
     }
 }
 
@@ -478,7 +478,7 @@ private enum UrgentSpot {
     static let newYork = GeoCoordinate(latitude: 40.7128, longitude: -74.006)
     static let london = GeoCoordinate(latitude: 51.5072, longitude: -0.1276)
     static let seoul = GeoCoordinate(latitude: 37.5665, longitude: 126.978)
-    /// 海上,假的 Nominatim 沒有回應(連線失敗)。
+    /// 海上,假的反查服務查不到。
     static let pacific = GeoCoordinate(latitude: 10.0, longitude: -150.0)
     /// 也在 10.00,-150.00 那一格。
     static let pacificOtherPoint = GeoCoordinate(latitude: 10.001, longitude: -150.001)

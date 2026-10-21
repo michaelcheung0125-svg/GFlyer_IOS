@@ -31,4 +31,9 @@ enum Edition: EditionFeatures {
             .font(.caption)
             .foregroundStyle(.secondary)
     }
+
+    static func makeRegionLabelSource() -> any RegionLabelSource { NominatimRegionLabelSource() }
+
+    /// 親友版不上 App Store，照舊不問（DRIFT D33）。
+    static let regionLookupConsentService: String? = nil
 }

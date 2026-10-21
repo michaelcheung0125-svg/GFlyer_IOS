@@ -48,16 +48,21 @@ struct FavoriteNameRequest: Identifiable, Equatable {
     let coordinate: GeoCoordinate
     /// 這個座標所在快取格的「國家 · 城市」原文(不修剪、不截斷);快取裡沒有就是空字串。
     let suggestedName: String
+    /// 沒有預填時可以插隊反查。要先取得同意的版本(公開版)沒有允許時是 false:不查、也不顯示「正在查詢地名…」
+    /// (GFlyer-Suite docs/features/region-labels.md 3.10)。
+    let looksUpName: Bool
 
-    init(coordinate: GeoCoordinate, suggestedName: String, id: UUID = UUID()) {
+    init(coordinate: GeoCoordinate, suggestedName: String, looksUpName: Bool = true, id: UUID = UUID()) {
         self.id = id
         self.coordinate = coordinate
         self.suggestedName = suggestedName
+        self.looksUpName = looksUpName
     }
 
-    /// 只比內容:座標與預填相同就相等,不管是哪一次按 ☆。
+    /// 只比內容:座標、預填與要不要反查相同就相等,不管是哪一次按 ☆。
     static func == (lhs: FavoriteNameRequest, rhs: FavoriteNameRequest) -> Bool {
         lhs.coordinate == rhs.coordinate && lhs.suggestedName == rhs.suggestedName
+            && lhs.looksUpName == rhs.looksUpName
     }
 }
 
@@ -70,17 +75,18 @@ enum FavoriteAddPrompt: Equatable {
 
     /// 重複判斷用收藏目標座標(座標完全相等),不是選取點(規格待決事項 1;Android 之後也改成相同)。
     /// 預填是這一格快取裡的標籤,這裡只讀快取;快取裡沒有時,sheet 打開後才插隊反查,查到時欄位還沒鎖住才填
-    /// (`FavoriteNameField`,規格 §3.4)。
+    /// (`FavoriteNameField`,規格 §3.4)。`looksUpName` 是 false(公開版沒有允許反查)時不預填、不反查。
     static func forTarget(
         _ target: GeoCoordinate,
         favorites: [SavedPlace],
-        regionLabels: [String: String]
+        regionLabels: [String: String],
+        looksUpName: Bool = true
     ) -> FavoriteAddPrompt {
         if favorites.contains(where: { $0.coordinate == target }) {
             return .alreadySaved(message: FavoriteAddTexts.alreadyExists)
         }
-        let suggestedName = RegionLabel.label(in: regionLabels, for: target) ?? ""
-        return .askName(FavoriteNameRequest(coordinate: target, suggestedName: suggestedName))
+        let suggestedName = looksUpName ? RegionLabel.label(in: regionLabels, for: target) ?? "" : ""
+        return .askName(FavoriteNameRequest(coordinate: target, suggestedName: suggestedName, looksUpName: looksUpName))
     }
 }
 
@@ -99,10 +105,11 @@ struct FavoriteNameField: Equatable {
     private(set) var isLookingUp: Bool
 
     /// 打開 sheet 時:快取裡有地名就預填並鎖住,沒有就空白、等反查(`suggestedName` 是空字串)。
-    init(suggestedName: String) {
+    /// `looksUpName` 是 false(公開版沒有允許反查)時不等,也不顯示「正在查詢地名…」。
+    init(suggestedName: String, looksUpName: Bool = true) {
         text = suggestedName
         locked = !suggestedName.isEmpty
-        isLookingUp = suggestedName.isEmpty
+        isLookingUp = suggestedName.isEmpty && looksUpName
     }
 
     /// 使用者改了欄位的文字:換成新文字並鎖住,改成空字串也鎖住。文字沒變(只是點進欄位、移動游標)不算,

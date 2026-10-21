@@ -34,7 +34,12 @@ final class SimulationController: ObservableObject {
     @Published private var isStoppingExploration = false
     /// 收藏位置與收藏路線第一點的「國家 · 城市」,鍵用 `RegionLabel.key(for:)` 算;查到才有
     /// (GFlyer-Suite docs/features/region-labels.md)。清單開著時查到新的,那一列直接更新。
+    /// 要先取得同意的版本(公開版)沒有允許時是空的:本機的快取留着,只是不顯示(region-labels.md 3.10)。
     @Published private(set) var regionLabels: [String: String] = [:]
+    /// 「顯示收藏的國家與城市？」正在等答案;只有要先取得同意的版本會有(region-labels.md 3.10)。
+    @Published private(set) var regionConsentPrompt: RegionConsentPrompt?
+    /// 使用者對那個說明的答案。設定頁「顯示收藏的國家與城市」的開關看它。
+    @Published private(set) var regionLookupConsent: RegionLookupConsent = .unasked
     @Published var lastError: String?
 
     let pairingStore = PairingFileStore()
@@ -99,9 +104,10 @@ final class SimulationController: ObservableObject {
         status.message = self.backend.canControlDeviceLocation
             ? "裝置後端已載入；通道尚未測試"
             : "目前為預覽模式；尚未連結 idevice"
-        regionLabels = self.regionLookup.labels
-        self.regionLookup.onLabelsChange = { [weak self] labels in self?.regionLabels = labels }
-        // App 啟動就開始查,不等清單打開(和 Android 相同,隱私說明也照這樣寫)
+        regionLookupConsent = self.regionLookup.consent
+        publishRegionLabels()
+        self.regionLookup.onLabelsChange = { [weak self] _ in self?.publishRegionLabels() }
+        // App 啟動就開始查,不等清單打開(和 Android 相同,隱私說明也照這樣寫);要先取得同意的版本先問
         requestRegionLabels()
     }
 
@@ -881,8 +887,68 @@ final class SimulationController: ObservableObject {
 
     /// 按 ☆ 時要做什麼:收藏目標座標已經收藏過就只顯示訊息,否則問名稱,預填這一格快取裡的標籤。
     /// 這裡只讀 `regionLabels`;那一格沒有標籤時的插隊反查由命名 sheet 打開後經 `favoriteNameLabel(for:)` 送出(規格 §3.4)。
+    /// 沒有允許反查時(公開版)不預填、也不插隊反查。
     func favoritePrompt() -> FavoriteAddPrompt {
-        FavoriteAddPrompt.forTarget(favoriteTargetCoordinate, favorites: favorites, regionLabels: regionLabels)
+        FavoriteAddPrompt.forTarget(
+            favoriteTargetCoordinate,
+            favorites: favorites,
+            regionLabels: regionLabels,
+            looksUpName: regionLookup.lookupsAllowed
+        )
+    }
+
+    // MARK: - 先取得同意(region-labels.md 3.10)
+
+    /// 要先取得同意的版本(公開版)才是 true:設定頁有「顯示收藏的國家與城市」,開 App 和按 ☆ 時可能先問。
+    var regionLookupAsksFirst: Bool { regionLookup.asksFirst }
+
+    /// 按 ☆ 要收藏新的地點、而使用者還沒答過:先問,答完才打開命名 sheet。
+    var asksRegionConsentOnStar: Bool {
+        RegionLookupConsentRules.asksOnStar(asksFirst: regionLookup.asksFirst, consent: regionLookup.consent)
+    }
+
+    /// 同意說明的內文;不用問的版本是空的。
+    var regionConsentParagraphs: [String] {
+        Edition.regionLookupConsentService.map(RegionLookupConsentText.paragraphs(service:)) ?? []
+    }
+
+    /// 設定頁「顯示收藏的國家與城市」底下的一行;不用問的版本是空的。
+    var regionConsentSettingDescription: String {
+        Edition.regionLookupConsentService.map(RegionLookupConsentText.settingDescription(service:)) ?? ""
+    }
+
+    /// 跳出「顯示收藏的國家與城市？」;已經有一個在等答案時不換掉它。
+    func askRegionConsent(_ prompt: RegionConsentPrompt) {
+        guard regionLookup.asksFirst, regionConsentPrompt == nil else { return }
+        regionConsentPrompt = prompt
+    }
+
+    /// 使用者在說明按了「允許」或「不用」。
+    func answerRegionConsent(allowed: Bool) {
+        setRegionLookupConsent(allowed ? .allowed : .declined)
+    }
+
+    /// 設定頁的「顯示收藏的國家與城市」:打開要先看過說明再按「允許」,關掉馬上生效、不另外問。
+    func setRegionLabelsEnabled(_ enabled: Bool) {
+        if enabled {
+            askRegionConsent(.settings)
+        } else {
+            setRegionLookupConsent(.declined)
+        }
+    }
+
+    /// 記下答案(收回同意時,還沒送出的反查一併拿掉),清單跟着顯示或藏起地名;允許時馬上把收藏排進去查。
+    private func setRegionLookupConsent(_ consent: RegionLookupConsent) {
+        regionLookup.setConsent(consent)
+        regionLookupConsent = consent
+        regionConsentPrompt = nil
+        publishRegionLabels()
+        requestRegionLabels()
+    }
+
+    /// 沒有允許反查時清單上不顯示地名(本機的快取留着,不送出任何東西)。
+    private func publishRegionLabels() {
+        regionLabels = regionLookup.lookupsAllowed ? regionLookup.labels : [:]
     }
 
     /// 命名 sheet 等地名用:`coordinate`(按 ☆ 那一刻記下的座標)那一格還沒有標籤就插隊反查,等到結果為止
@@ -1484,7 +1550,17 @@ final class SimulationController: ObservableObject {
 
     /// 收藏位置依清單順序,接著是收藏路線的第一點,和 Android 相同。定位歷史不送出查詢,
     /// 只有剛好和某個收藏落在同一個快取格時才顯示標籤(region-labels.md §3.1)。
+    /// 要先取得同意的版本還沒允許時不排;還沒問過而且有座標要查,就跳出說明(3.10)。
     private func requestRegionLabels() {
-        regionLookup.request(favorites.map(\.coordinate) + savedRoutes.compactMap(\.points.first))
+        let coordinates = favorites.map(\.coordinate) + savedRoutes.compactMap(\.points.first)
+        if regionLookup.lookupsAllowed {
+            regionLookup.request(coordinates)
+        } else if RegionLookupConsentRules.asksOnLookup(
+            asksFirst: regionLookup.asksFirst,
+            consent: regionLookup.consent,
+            coordinateCount: coordinates.count
+        ) {
+            askRegionConsent(.lookup)
+        }
     }
 }

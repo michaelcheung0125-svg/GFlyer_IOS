@@ -215,7 +215,7 @@ final class FavoriteAddTests: XCTestCase {
         ])
         let controller = harness.controller
         XCTAssertEqual(controller.regionLabels.count, 2)
-        await harness.nominatim.respond(to: FavoriteSpot.seoul, body: #"{"address":{"city":"首爾","country":"南韓"}}"#)
+        await harness.service.respond(to: FavoriteSpot.seoul, label: "南韓 · 首爾")
 
         // 同一個快取格裡的另一個座標:標籤原文;sheet 不等,就算問了也直接回標籤、不送
         controller.select(FavoriteSpot.taipeiSameCell)
@@ -233,7 +233,7 @@ final class FavoriteAddTests: XCTestCase {
             .askName(FavoriteNameRequest(coordinate: FavoriteSpot.osaka, suggestedName: "日本 · 大阪市"))
         )
         await harness.lookup.waitUntilIdle()
-        var requested = await harness.nominatim.requested
+        var requested = await harness.service.requested
         XCTAssertEqual(requested, [], "有快取的格子不送")
 
         // 從來沒查過的格子:預填空字串。按 ☆ 本身不送;sheet 問的時候才對按下時的原始座標送一次
@@ -244,11 +244,11 @@ final class FavoriteAddTests: XCTestCase {
         }
         XCTAssertEqual(uncached, FavoriteNameRequest(coordinate: FavoriteSpot.seoul, suggestedName: ""))
         await harness.lookup.waitUntilIdle()
-        requested = await harness.nominatim.requested
+        requested = await harness.service.requested
         XCTAssertEqual(requested, [], "按 ☆ 與預填本身不送出反查")
         let found = await controller.favoriteNameLabel(for: uncached.coordinate)
         XCTAssertEqual(found, "南韓 · 首爾")
-        requested = await harness.nominatim.requested
+        requested = await harness.service.requested
         XCTAssertEqual(requested, ["37.5665,126.978"], "送的是模擬位置那一點的原始座標")
         XCTAssertEqual(controller.regionLabels["37.57,126.98"], "南韓 · 首爾", "查到的標籤進快取,清單看得到")
         // 同一格再按 ☆:已經有快取,直接預填、不再送
@@ -257,19 +257,19 @@ final class FavoriteAddTests: XCTestCase {
             .askName(FavoriteNameRequest(coordinate: FavoriteSpot.seoul, suggestedName: "南韓 · 首爾"))
         )
 
-        // 查不到的格子(假的 Nominatim 沒有回應):緊急請求查失敗不封鎖,收藏存下去時清單的一般請求會再查一次
+        // 查不到的格子(假的反查服務沒有標籤):緊急請求查失敗不封鎖,收藏存下去時清單的一般請求會再查一次
         // (region-labels.md §3.3、§3.6)
         let missing = await controller.favoriteNameLabel(for: FavoriteSpot.pacific)
         XCTAssertNil(missing)
         XCTAssertEqual(controller.addFavorite(name: "太平洋", coordinate: FavoriteSpot.pacific), "收藏成功")
         await harness.lookup.waitUntilIdle()
-        requested = await harness.nominatim.requested
+        requested = await harness.service.requested
         XCTAssertEqual(requested, ["37.5665,126.978", "10.0,-150.0", "10.0,-150.0"])
         // 那一次也失敗:封鎖到下次啟動,再問也不送
         let blocked = await controller.favoriteNameLabel(for: FavoriteSpot.pacific)
         XCTAssertNil(blocked)
         await harness.lookup.waitUntilIdle()
-        let requestCount = await harness.nominatim.requestCount
+        let requestCount = await harness.service.requestCount
         XCTAssertEqual(requestCount, 3)
     }
 
@@ -356,7 +356,7 @@ final class FavoriteAddTests: XCTestCase {
         let controller: SimulationController
         let backend: FavoriteTestBackend
         let lookup: RegionLookup
-        let nominatim: FavoriteTestNominatim
+        let service: FavoriteTestRegionLabelSource
     }
 
     /// 資料、中斷快照與標籤快取都放在測試自己的 UserDefaults suite;反查不連網、只計數。
@@ -365,8 +365,9 @@ final class FavoriteAddTests: XCTestCase {
         if !labels.isEmpty {
             defaults.set(try JSONEncoder().encode(labels), forKey: RegionLookup.storageKey)
         }
-        let nominatim = FavoriteTestNominatim()
-        let lookup = RegionLookup(defaults: defaults, transport: nominatim, clock: nominatim, userAgent: "GFlyer/test (iOS)")
+        // 不用先取得同意,兩個版本跑的都是親友版的行為;要先問的在 `RegionLookupConsentTests`
+        let service = FavoriteTestRegionLabelSource()
+        let lookup = RegionLookup(defaults: defaults, source: service, clock: service, asksFirst: false)
         let backend = FavoriteTestBackend()
         let controller = SimulationController(
             backend: backend,
@@ -374,7 +375,7 @@ final class FavoriteAddTests: XCTestCase {
             sessionStore: ActiveSessionStore(defaults: defaults),
             regionLookup: lookup
         )
-        return Harness(controller: controller, backend: backend, lookup: lookup, nominatim: nominatim)
+        return Harness(controller: controller, backend: backend, lookup: lookup, service: service)
     }
 
     /// 定點傳送到 `coordinate`,等推送成功。跨日提醒和這裡無關,直接略過(否則跑測試的時區可能讓它擋住傳送)。
@@ -464,26 +465,26 @@ private enum FavoriteTestBackendError: LocalizedError {
     }
 }
 
-/// 不連網的反查:依序記下送出請求的座標(「緯度,經度」,寫法和送出的 lat / lon 相同),依座標回應;
-/// 沒有設定回應的當作連線失敗。等待也不真的等。
-private actor FavoriteTestNominatim: RegionLookupTransport, RegionLookupClock {
+/// 不連網的反查:依序記下送出請求的座標(「緯度,經度」,寫法和 Nominatim 送出的 lat / lon 相同),依座標回應;
+/// 沒有設定標籤的當作查不到。等待也不真的等。
+private actor FavoriteTestRegionLabelSource: RegionLabelSource, RegionLookupClock {
     private(set) var requested: [String] = []
-    private var responses: [String: RegionLookupResponse] = [:]
+    private var labels: [String: String] = [:]
 
     var requestCount: Int { requested.count }
 
-    func respond(to coordinate: GeoCoordinate, body: String) {
-        let key = "\(String(coordinate.latitude)),\(String(coordinate.longitude))"
-        responses[key] = RegionLookupResponse(statusCode: 200, body: Data(body.utf8))
+    func respond(to coordinate: GeoCoordinate, label: String) {
+        labels[Self.key(coordinate)] = label
     }
 
-    func response(for request: URLRequest) async -> RegionLookupResponse? {
-        let items = request.url.flatMap { URLComponents(url: $0, resolvingAgainstBaseURL: false)?.queryItems } ?? []
-        let latitude = items.first { $0.name == "lat" }?.value ?? "?"
-        let longitude = items.first { $0.name == "lon" }?.value ?? "?"
-        let key = "\(latitude),\(longitude)"
+    func label(for coordinate: GeoCoordinate) async -> String? {
+        let key = Self.key(coordinate)
         requested.append(key)
-        return responses[key]
+        return labels[key]
+    }
+
+    private static func key(_ coordinate: GeoCoordinate) -> String {
+        "\(String(coordinate.latitude)),\(String(coordinate.longitude))"
     }
 
     func sleep(seconds: TimeInterval) async { }

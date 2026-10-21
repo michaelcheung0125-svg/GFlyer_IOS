@@ -39,6 +39,14 @@ protocol EditionFeatures {
     associatedtype DeveloperDiskImageRows: View
     /// 設定頁「Developer Disk Image」section 的內容。
     @MainActor @ViewBuilder static func developerDiskImageRows(controller: SimulationController) -> DeveloperDiskImageRows
+
+    /// 收藏的「國家 · 城市」反查送去的服務（GFlyer-Suite docs/features/region-labels.md）：親友版是 Nominatim，
+    /// 公開版是 Apple 的地點服務（3.5a，DRIFT D33）。照 Android 每個版本的 `Edition.placeLookup`。
+    static func makeRegionLabelSource() -> any RegionLabelSource
+
+    /// 自動反查要先取得同意時（公開版，region-labels.md 3.10），同意說明和設定開關裏反查送去的服務；
+    /// nil 是不用問（親友版）。
+    static var regionLookupConsentService: String? { get }
 }
 
 /// 見 `EditionFeatures.tunnelWording`。每一句都是完整的句子，畫面上的字由版本決定。

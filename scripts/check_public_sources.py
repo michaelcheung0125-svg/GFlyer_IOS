@@ -81,6 +81,8 @@ FORBIDDEN = [
     (re.compile(r"sidestore", re.I), "親友版的安裝方式"),
     (re.compile(r"altstore", re.I), "親友版的安裝方式"),
     (re.compile(r"localdevvpn", re.I), "親友版的本機通道（公開版用 App 內建的通道）"),
+    # 公開的 Nominatim 只准全部用戶合計每秒一次；公開版的地名反查用 Apple 的地點服務（第 17 項，DRIFT D33）
+    (re.compile(r"nominatim\.openstreetmap\.org", re.I), "公開版不連 Nominatim"),
     (re.compile(r"michaelcheung", re.I), "個人帳戶"),
     (re.compile(r"michael", re.I), "個人姓名"),
     (re.compile(r"xyz91", re.I), "本機使用者名稱"),
@@ -246,6 +248,7 @@ def self_test() -> list[str]:
         "talllkai": "SideStore", "AltStore": "LocalDevVPN", "michaelcheung": "michael", "xyz91": "gmail.com",
         "example.workers.dev": "example.github.io", r"C:\Project\GFlyer_IOS": "/c/Users/someone/",
         "AIza" + "x" * 30: "-----BEGIN RSA PRIVATE KEY-----",
+        "https://nominatim.openstreetmap.org/reverse": "NOMINATIM.OpenStreetMap.org",
     }
     words = [word for pair in samples.items() for word in pair]
     for pattern, _ in FORBIDDEN:

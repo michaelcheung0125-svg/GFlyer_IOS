@@ -39,7 +39,10 @@ private struct FavoriteNameForm: View {
         self.request = request
         self.lookUp = lookUp
         self.onConfirm = onConfirm
-        _field = State(initialValue: FavoriteNameField(suggestedName: request.suggestedName))
+        _field = State(initialValue: FavoriteNameField(
+            suggestedName: request.suggestedName,
+            looksUpName: request.looksUpName
+        ))
     }
 
     var body: some View {
