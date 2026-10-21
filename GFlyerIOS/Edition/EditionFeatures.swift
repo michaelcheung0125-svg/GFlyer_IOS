@@ -10,7 +10,7 @@ import SwiftUI
 ///
 /// 共用的程式只經這裏碰版本專屬的東西（docs/APP_STORE_PLAN.md 第 8 項）。
 protocol EditionFeatures {
-    /// 捷徑和 LocalDevVPN 回到 App 用的自訂 scheme，要和這個版本 `Info.plist` 的
+    /// 捷徑和開關本機通道的 App 回到 GFlyer 用的自訂 scheme，要和這個版本 `Info.plist` 的
     /// `CFBundleURLTypes` 一致。兩個版本不可以相同：兩個 App 都裝了的話，iOS 不保證
     /// 回呼打開的是哪一個。
     static var callbackScheme: String { get }
@@ -79,4 +79,63 @@ struct MapToolItem: Identifiable {
     /// 右上角的小字，例如「NEW」。
     var badge: String?
     let action: () -> Void
+}
+
+/// 本機通道：送往目標 IP 的連線經它回到這支 iPhone 的開發服務。每個版本的資料夾提供一個
+/// `LocalTunnel`（親友版請使用者另外安裝的 App 開關通道；公開版到 docs/APP_STORE_PLAN.md
+/// 第 12 項才有自己的），`SimulationController` 建立一個（`vpn`）。共用的程式只經這些成員碰通道，
+/// 說明文字也由它給，每個版本說的是自己的通道。
+@MainActor
+protocol LocalTunnelFeatures: ObservableObject {
+    associatedtype SettingsRows: View
+    associatedtype RecoveryRows: View
+
+    /// 查路由用的目標 IP，`SimulationController.deviceIP` 一變就同步過來。
+    var deviceIP: String { get set }
+
+    /// 重新查一次通道的狀態。設定頁打開時呼叫。
+    func refreshStatus()
+
+    /// 按開始時要先開通道的話，回傳開通道期間主畫面的狀態；不用（通道已開，或這個版本
+    /// 不代使用者開）回傳 nil，直接開始。
+    func statusWhileConnectingBeforeStart() -> String?
+
+    /// 開通道，真的開了回傳 nil；開不了回傳要顯示的狀態和錯誤。
+    func connectBeforeStart() async -> TunnelFailure?
+
+    /// 完整清除成功並驗證之後。使用者要的話關通道並回傳結果；沒有嘗試回傳 nil。
+    func disconnectAfterFullClearIfWanted() async -> TunnelClosing?
+
+    /// 完整清除後 iOS 仍回報模擬座標、通道又沒有關掉時的說明；nil 用一般的說明。
+    static var stillSimulatedWhileOpenMessage: String? { get }
+
+    /// 設定頁通道 section 的標題。
+    static var settingsTitle: String { get }
+
+    /// 設定頁通道 section 裏版本專屬的列，放在「目標 IP」前面。
+    @ViewBuilder func settingsRows(controller: SimulationController) -> SettingsRows
+
+    /// 設定頁測試通道的按鈕。
+    static var testButtonTitle: String { get }
+
+    /// 設定頁通道 section 最後的說明。
+    static var deviceIPHint: String { get }
+
+    /// 設定頁「恢復」裏「完整清除模擬定位」下面的列。
+    @ViewBuilder func recoveryRows(isClearing: Bool) -> RecoveryRows
+
+    /// 設定頁「操作順序」匯入 Pairing File 之後的步驟，連編號。
+    static var usageSteps: [String] { get }
+}
+
+/// 開不了通道時主畫面的狀態和「操作失敗」的錯誤。
+struct TunnelFailure {
+    let status: String
+    let message: String
+}
+
+/// 完整清除後關通道的結果。`message` 接在驗證結果的下一行。
+struct TunnelClosing {
+    let closed: Bool
+    let message: String
 }

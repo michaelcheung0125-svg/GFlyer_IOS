@@ -19,8 +19,8 @@ struct GFlyerIOSApp: App {
             )
             // 捷徑回呼先交給版本專屬的功能（親友版的補錄：steps/... 把補錄標成已寫入），
             // 再交給飛航模式輔助：airplane/... 回報飛行模式有沒有切換成功。scheme 是
-            // Edition.callbackScheme。LocalDevVPN 開關 VPN 後打開的是沒有路徑的 scheme://，
-            // 刻意不處理：結果由 LocalDevVPNBridge 在回到前景時查路由確認
+            // Edition.callbackScheme。開關本機通道的 App 回到 GFlyer 時打開的是沒有路徑的
+            // scheme://，刻意不處理：結果由 `LocalTunnel` 在回到前景時查路由確認
             .onOpenURL { url in
                 guard !edition.handleOpenURL(url) else { return }
                 airplaneAssist.handleCallback(url)

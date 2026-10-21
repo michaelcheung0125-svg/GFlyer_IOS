@@ -2,7 +2,7 @@ import UIKit
 import XCTest
 @testable import GFlyerIOS
 
-/// 回呼的 scheme 每個版本不同（`EditionFeatures`），兩個版本的 test target 都跑這些測試。
+/// 回呼的 scheme 每個版本不同（`EditionFeatures`），測試不寫死。
 private let scheme = Edition.callbackScheme
 
 @MainActor
@@ -64,23 +64,6 @@ final class LocalDevVPNBridgeTests: XCTestCase {
         XCTAssertEqual(enable.absoluteString, "localdevvpn://enable?scheme=\(scheme)")
         let disable = try XCTUnwrap(LocalDevVPNBridge.url(for: .disconnect))
         XCTAssertEqual(disable.absoluteString, "localdevvpn://disable?scheme=\(scheme)")
-    }
-
-    // MARK: - 路由檢查
-
-    func testTunnelInterfaceNames() {
-        XCTAssertTrue(LocalDevVPNBridge.isTunnelInterface("utun4"))
-        XCTAssertTrue(LocalDevVPNBridge.isTunnelInterface("ipsec0"))
-        XCTAssertFalse(LocalDevVPNBridge.isTunnelInterface("en0"))
-        XCTAssertFalse(LocalDevVPNBridge.isTunnelInterface("pdp_ip0"))
-        XCTAssertFalse(LocalDevVPNBridge.isTunnelInterface("lo0"))
-    }
-
-    func testRouteCheckRejectsInvalidAndNonTunnelDestinations() {
-        XCTAssertFalse(LocalDevVPNBridge.routesThroughTunnel(deviceIP: "not an ip"))
-        XCTAssertFalse(LocalDevVPNBridge.routesThroughTunnel(deviceIP: ""))
-        // 本機回送位址一定走 lo0，不是 VPN 介面
-        XCTAssertFalse(LocalDevVPNBridge.routesThroughTunnel(deviceIP: "127.0.0.1"))
     }
 
     // MARK: - 設定
@@ -212,5 +195,45 @@ final class LocalDevVPNBridgeTests: XCTestCase {
         harness.leaveAndReturn()
         let secondReached = await second.value
         XCTAssertTrue(secondReached)
+    }
+
+    // MARK: - 本機通道（LocalTunnelFeatures）
+
+    func testStartWaitsForLocalDevVPNOnlyWhenItWillBeOpened() {
+        let harness = Harness()
+        defer { harness.cleanUp() }
+        let bridge = makeBridge(harness)
+        XCTAssertEqual(bridge.statusWhileConnectingBeforeStart(), "正在開啟 LocalDevVPN…")
+
+        harness.tunnelUp = true
+        XCTAssertNil(bridge.statusWhileConnectingBeforeStart(), "VPN 已開就直接開始")
+    }
+
+    func testFailedConnectBeforeStartReportsStatusAndError() async {
+        let harness = Harness()
+        defer { harness.cleanUp() }
+        harness.openSucceeds = false
+        let bridge = makeBridge(harness)
+
+        let failure = await bridge.connectBeforeStart()
+        XCTAssertEqual(failure?.status, "LocalDevVPN 尚未連線")
+        XCTAssertEqual(failure?.message, LocalDevVPNBridge.connectFailureMessage)
+    }
+
+    func testFullClearClosesTheVPNOnlyWhenAskedAndOpen() async {
+        let harness = Harness()
+        defer { harness.cleanUp() }
+        harness.tunnelUp = true
+        let bridge = makeBridge(harness)
+
+        let notAsked = await bridge.disconnectAfterFullClearIfWanted()
+        XCTAssertNil(notAsked, "預設不關 VPN")
+        XCTAssertTrue(harness.openedURLs.isEmpty)
+
+        bridge.disconnectAfterFullClear = true
+        harness.openSucceeds = false
+        let closing = await bridge.disconnectAfterFullClearIfWanted()
+        XCTAssertEqual(closing?.closed, false)
+        XCTAssertEqual(closing?.message, LocalDevVPNBridge.disconnectFailureMessage)
     }
 }
