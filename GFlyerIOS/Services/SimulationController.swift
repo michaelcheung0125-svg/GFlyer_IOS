@@ -961,11 +961,6 @@ final class SimulationController: ObservableObject {
     func moveSavedRoute(_ id: UUID, folderID: UUID?) { dataStore.moveRoute(id, folderID: folderID); refreshStoredData() }
 
     @discardableResult
-    func previewBoardCoordinate(_ coordinate: GeoCoordinate, startImmediately: Bool) -> Bool {
-        previewExternalCoordinate(coordinate, startImmediately: startImmediately, sourceLabel: "留言板")
-    }
-
-    @discardableResult
     func previewExternalCoordinate(
         _ coordinate: GeoCoordinate,
         startImmediately: Bool,
@@ -986,37 +981,46 @@ final class SimulationController: ObservableObject {
         return true
     }
 
+    /// 把別處來的路線(親友版的留言板)載入編輯器。`sourceLabel` 用在模擬進行中的錯誤訊息,
+    /// 和 `previewExternalCoordinate` 相同。
     @discardableResult
-    func previewBoardRoute(_ route: SharedBoardRoute, startImmediately: Bool) -> Bool {
+    func previewExternalRoute(
+        points: [GeoCoordinate],
+        loop: Bool,
+        startImmediately: Bool,
+        sourceLabel: String
+    ) -> Bool {
         guard !status.isActive else {
-            lastError = "請先停止目前的定位模擬，再使用留言板路線。"
+            lastError = "請先停止目前的定位模擬，再使用\(sourceLabel)路線。"
             return false
         }
         mode = .multiRoute
-        routePoints = route.points
-        loopRoute = route.loop
-        selectedCoordinate = route.points.last ?? selectedCoordinate
+        routePoints = points
+        loopRoute = loop
+        selectedCoordinate = points.last ?? selectedCoordinate
         persistDraft()
         lastError = nil
-        // 直接開始是純模擬移動、不倒數(和 Android 的 startBoardRoute 相同);只預覽、之後自己按
-        // 「開始」時,照一般的多點路線套用播放選項
+        // 直接開始是純模擬移動、不倒數(`RouteStartKind.boardRoute`,和 Android 的 BOARD_ROUTE_START 相同);
+        // 只預覽、之後自己按「開始」時,照一般的多點路線套用播放選項
         if startImmediately { start(bypassCrossDateCheck: false, isBoardRouteStart: true) }
         return true
     }
 
-    func saveBoardCoordinate(_ coordinate: GeoCoordinate, name: String?) {
+    /// 收藏別處來的座標。沒有名稱(或只有空白)時用 `fallbackName`,名稱截到 80 個 code point。
+    func saveExternalCoordinate(_ coordinate: GeoCoordinate, name: String?, fallbackName: String) {
         let normalized = name?.trimmingCharacters(in: .whitespacesAndNewlines)
         let preferredName = normalized.flatMap { $0.isEmpty ? nil : $0 }
-        let title = (preferredName ?? "留言板位置 \(coordinate.display)").prefixCodePoints(80)
+        let title = (preferredName ?? fallbackName).prefixCodePoints(80)
         dataStore.addFavorite(name: title, coordinate: coordinate)
         refreshStoredData()
     }
 
-    func saveBoardRoute(_ route: SharedBoardRoute, authorName: String) {
-        let baseName = "\(route.name) (\(authorName))".prefixCodePoints(80)
+    /// 儲存別處來的路線。名稱截到 80 個 code point,和已有的路線同名時改名(`uniqueRouteName`)。
+    func saveExternalRoute(name: String, points: [GeoCoordinate], loop: Bool) {
+        let baseName = name.prefixCodePoints(80)
         let existingNames = Set(savedRoutes.map { $0.name.lowercased() })
-        let name = Self.uniqueRouteName(base: baseName, existingLowercased: existingNames)
-        dataStore.saveRoute(name: name, points: route.points, loop: route.loop)
+        let uniqueName = Self.uniqueRouteName(base: baseName, existingLowercased: existingNames)
+        dataStore.saveRoute(name: uniqueName, points: points, loop: loop)
         refreshStoredData()
     }
 

@@ -3,8 +3,7 @@ import SwiftUI
 @main
 struct GFlyerIOSApp: App {
     @StateObject private var controller = SimulationController()
-    @StateObject private var messageBoard = MessageBoardController()
-    /// 版本專屬功能（親友版的檢查新版、補錄步數等），見 `EditionModelFeatures`
+    /// 版本專屬功能（親友版的留言板、座標圖鑑、檢查新版、補錄步數等），見 `EditionModelFeatures`
     @StateObject private var edition = EditionModel()
     @StateObject private var airplaneAssist = AirplaneAssistController()
     /// 深淺色偏好。設在這一層而不是 MainView 上，sheet 才會跟著一起換——
@@ -15,7 +14,6 @@ struct GFlyerIOSApp: App {
         WindowGroup {
             MainView(
                 controller: controller,
-                messageBoard: messageBoard,
                 edition: edition,
                 airplaneAssist: airplaneAssist
             )

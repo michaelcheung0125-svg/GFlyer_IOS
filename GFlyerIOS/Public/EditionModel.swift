@@ -7,6 +7,8 @@ final class EditionModel: ObservableObject, EditionModelFeatures {
         EmptyModifier()
     }
 
+    var navigationBarButtons: EmptyView { EmptyView() }
+
     var isPresentingAlert: Bool { false }
 
     func mapToolItems(feedback: MainScreenFeedback) -> [MapToolItem] { [] }

@@ -11,6 +11,10 @@ final class EditionModelTests: XCTestCase {
         let suite = "gflyer.edition-tests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!
         let edition = EditionModel(
+            messageBoard: MessageBoardController(
+                api: MessageBoardAPIClient(baseURLString: ""),
+                sessionStore: MessageBoardSessionStore(defaults: defaults, service: suite)
+            ),
             coordinateLibrary: CoordinateLibraryController(markStore: CoordinateMarkStore(defaults: defaults)),
             stepRecorder: StepRecorderController(defaults: defaults)
         )
@@ -62,7 +66,7 @@ final class EditionModelTests: XCTestCase {
         let feedback = MainScreenFeedback(announce: { announced.append($0) }, reportError: { _ in })
 
         let items = edition.mapToolItems(feedback: feedback)
-        XCTAssertEqual(items.map(\.id), ["library", "step-record"], "和分版本之前的工具列同一個次序")
+        XCTAssertEqual(items.map(\.id), ["board-share", "library", "step-record"], "和分版本之前的工具列同一個次序")
         let item = try XCTUnwrap(items.last)
         XCTAssertEqual(item.label, "設定補錄步數")
 
@@ -77,12 +81,25 @@ final class EditionModelTests: XCTestCase {
         defer { defaults.removePersistentDomain(forName: suite) }
         let feedback = MainScreenFeedback(announce: { _ in }, reportError: { _ in })
 
-        let item = try XCTUnwrap(edition.mapToolItems(feedback: feedback).first)
+        let item = try XCTUnwrap(edition.mapToolItems(feedback: feedback).first { $0.id == "library" })
         XCTAssertEqual(item.label, "座標圖鑑")
         XCTAssertNil(item.badge)
 
         item.action()
         XCTAssertTrue(edition.showsCoordinateLibrary)
         XCTAssertFalse(edition.showsStepRecorderOnMap)
+    }
+
+    func testBoardShareButtonOpensTheShareSheetNotTheBoard() throws {
+        let (edition, defaults, suite) = makeEdition()
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let feedback = MainScreenFeedback(announce: { _ in }, reportError: { _ in })
+
+        let item = try XCTUnwrap(edition.mapToolItems(feedback: feedback).first { $0.id == "board-share" })
+        XCTAssertEqual(item.label, "分享到留言板")
+
+        item.action()
+        XCTAssertTrue(edition.showsBoardShare)
+        XCTAssertFalse(edition.showsMessageBoard, "留言板本身從導覽列打開")
     }
 }

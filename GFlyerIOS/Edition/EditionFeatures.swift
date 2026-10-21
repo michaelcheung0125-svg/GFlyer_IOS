@@ -26,6 +26,7 @@ protocol EditionFeatures {
 @MainActor
 protocol EditionModelFeatures: ObservableObject {
     associatedtype MainScreenPresentations: ViewModifier
+    associatedtype NavigationBarButtons: View
     associatedtype SettingsPresentations: ViewModifier
     associatedtype SettingsSections: View
 
@@ -35,10 +36,13 @@ protocol EditionModelFeatures: ObservableObject {
     /// 那些畫面用 `simulation` 傳送位置。
     func mainScreenPresentations(simulation: SimulationController, feedback: MainScreenFeedback) -> MainScreenPresentations
 
+    /// 主畫面導覽列右邊、「設定」前面的按鈕，例如親友版的留言板。
+    @ViewBuilder var navigationBarButtons: NavigationBarButtons { get }
+
     /// 版本專屬的提示正在顯示。主畫面升級後只出現一次的提示要等它關掉，免得互相擋掉。
     var isPresentingAlert: Bool { get }
 
-    /// 地圖工具列上版本專屬的按鈕，接在「分享到留言板」後面。
+    /// 地圖工具列上版本專屬的按鈕，接在「已儲存路線」後面。
     func mapToolItems(feedback: MainScreenFeedback) -> [MapToolItem]
 
     /// 設定頁上版本專屬的提示和畫面。

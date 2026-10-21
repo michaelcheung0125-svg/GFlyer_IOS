@@ -4,7 +4,6 @@ import SwiftUI
 struct MainView: View {
     @Environment(\.scenePhase) private var scenePhase
     @ObservedObject var controller: SimulationController
-    @ObservedObject var messageBoard: MessageBoardController
     @ObservedObject var edition: EditionModel
     @ObservedObject var airplaneAssist: AirplaneAssistController
     @State private var position: MapCameraPosition = .region(
@@ -17,8 +16,6 @@ struct MainView: View {
     @State private var showFavorites = false
     @State private var showRoutes = false
     @State private var showJoystick = false
-    @State private var showMessageBoard = false
-    @State private var showBoardShare = false
     @State private var showAirplaneAssist = false
     @State private var isPanelExpanded = true
     /// 右側工具列收起後只剩一個貼在畫面右邊的箭咀，關掉 App 也記住
@@ -114,12 +111,6 @@ struct MainView: View {
             }
             .sheet(isPresented: $showFavorites) { SavedPlacesView(controller: controller) }
             .sheet(isPresented: $showRoutes) { SavedRoutesView(controller: controller) }
-            .sheet(isPresented: $showMessageBoard) {
-                MessageBoardView(board: messageBoard, simulation: controller)
-            }
-            .sheet(isPresented: $showBoardShare) {
-                ShareToMessageBoardView(board: messageBoard, simulation: controller)
-            }
             .sheet(isPresented: $showAirplaneAssist) {
                 AirplaneAssistView(assist: airplaneAssist, simulation: controller)
             }
@@ -135,7 +126,6 @@ struct MainView: View {
             .toolbar { mainToolbar }
             .onChange(of: scenePhase) { _, phase in
                 guard phase == .active, !Self.isCapturingScreenshots else { return }
-                messageBoard.refreshInBackground()
                 edition.appDidBecomeActive()
             }
             .onChange(of: controller.selectedCoordinate) { _, coordinate in
@@ -256,7 +246,6 @@ struct MainView: View {
                         isPanelExpanded: $isPanelExpanded,
                         showFavorites: $showFavorites,
                         showRoutes: $showRoutes,
-                        showBoardShare: $showBoardShare,
                         showAirplaneAssist: $showAirplaneAssist,
                         position: $position,
                         cameraDistance: $cameraDistance,
@@ -308,28 +297,9 @@ struct MainView: View {
             }
         }
         ToolbarItemGroup(placement: .topBarTrailing) {
-            Button { showMessageBoard = true } label: {
-                Image(systemName: "bubble.left.and.bubble.right")
-                    .overlay(alignment: .topTrailing) { unreadBadge }
-            }
-            .accessibilityLabel("留言板，\(messageBoard.unreadCount) 個未讀項目")
+            edition.navigationBarButtons
             Button { showSetup = true } label: { Image(systemName: "gearshape") }
                 .accessibilityLabel("設定")
-        }
-    }
-
-    @ViewBuilder
-    private var unreadBadge: some View {
-        if messageBoard.unreadCount > 0 {
-            Text(messageBoard.unreadCount > 99 ? "99+" : "\(messageBoard.unreadCount)")
-                .font(.system(size: 8, weight: .bold))
-                .foregroundStyle(.white)
-                .padding(.horizontal, Spacing.xs)
-                .frame(minWidth: 14, minHeight: 14)
-                // 這個紅色是 iOS 未讀徽章的慣例，不是 statusDanger。綁上狀態色的話，
-                // 哪天調整「危險」的顏色，徽章會跟著變成一個不再像徽章的東西。
-                .background(.red, in: Capsule())
-                .offset(x: 8, y: -8)
         }
     }
 
@@ -575,12 +545,11 @@ private struct MapToolBar: View {
     @Binding var isPanelExpanded: Bool
     @Binding var showFavorites: Bool
     @Binding var showRoutes: Bool
-    @Binding var showBoardShare: Bool
     @Binding var showAirplaneAssist: Bool
     @Binding var position: MapCameraPosition
     @Binding var cameraDistance: CLLocationDistance
     let isLocating: Bool
-    /// 版本專屬的按鈕(`EditionModelFeatures.mapToolItems`),接在「分享到留言板」後面
+    /// 版本專屬的按鈕(`EditionModelFeatures.mapToolItems`),接在「已儲存路線」後面
     let editionItems: [MapToolItem]
     let onLocate: () -> Void
     /// ☆ 只負責觸發;命名 sheet 與它的狀態在 `MainView`,理由見 `MainView.favoriteNameRequest`。
@@ -663,7 +632,6 @@ private struct MapToolBar: View {
             MapToolItem(id: "routes", icon: "point.3.filled.connected.trianglepath.dotted", label: "已儲存路線") {
                 showRoutes = true
             },
-            MapToolItem(id: "board-share", icon: "square.and.arrow.up", label: "分享到留言板") { showBoardShare = true },
         ]
         let end: [MapToolItem] = [
             // 行動網絡下才需要飛航模式那串操作，所以只在偵測到行動網絡時強調它。
@@ -696,7 +664,8 @@ private struct MapToolBar: View {
             .contentShape(Rectangle())
             .overlay(alignment: .topTrailing) {
                 if let badge = item.badge {
-                    // 和留言板按鈕的未讀徽章同一個寫法:系統紅是 iOS 未讀徽章的慣例,不是 statusDanger
+                    // 和親友版留言板按鈕(`MessageBoardNavigationButton`)的未讀徽章同一個寫法:
+                    // 系統紅是 iOS 未讀徽章的慣例,不是 statusDanger
                     Text(badge)
                         .font(.system(size: 8, weight: .bold))
                         .foregroundStyle(.white)
