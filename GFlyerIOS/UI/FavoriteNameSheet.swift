@@ -21,7 +21,7 @@ struct FavoriteNameSheet: ViewModifier {
     }
 }
 
-/// 命名 sheet 的內容。外觀照座標圖鑑的回報 sheet:「取消」「收藏」在上方工具列,半高。
+/// 命名 sheet 的內容:「取消」「收藏」在上方工具列,半高。
 /// 名稱欄位與「正在查詢地名…」是這一次打開自己的狀態(`FavoriteNameField`):每按一次 ☆ 是新的 id,
 /// `.sheet(item:)` 建一個新的畫面,所以每次都重新預填,上一次取消掉的字不留。
 private struct FavoriteNameForm: View {

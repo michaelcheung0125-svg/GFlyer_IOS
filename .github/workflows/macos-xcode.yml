@@ -56,6 +56,22 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # 公開版會編譯的檔案（連註解）不可以有親友版的字（docs/APP_STORE_PLAN.md 第 10 項）。
+  # 只要 Python，放在 Linux 上，幾秒就有結果，不用等下面 macOS 的 job。
+  public-sources:
+    name: Public edition source scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Check that the scanner catches every rule
+        run: python3 scripts/check_public_sources.py --self-test
+
+      - name: Scan the public edition's sources
+        run: python3 scripts/check_public_sources.py
+
   # 親友版（GFlyerIOS）和公開版（GFlyerPublic）各跑一次同一份共用測試，兩個 job 同時跑
   # （docs/APP_STORE_PLAN.md 第 8 項）。截圖只截親友版。
   simulator-tests:
@@ -383,3 +399,10 @@ jobs:
           path: ${{ runner.temp }}/GFlyerPublic-Idevice-summary.txt
           if-no-files-found: error
           retention-days: 14
+
+      # 原始碼掃描之外再掃一次建好的 App，管建置時才加進來的字：建置設定、資源、連結進來的
+      # 程式庫（docs/APP_STORE_PLAN.md 第 10 項）。放在上傳摘要之後，失敗時摘要照樣拿得到。
+      - name: Scan the public app
+        run: |
+          python3 scripts/check_public_sources.py \
+            --app "$RUNNER_TEMP/GFlyerPublic-Idevice.xcarchive/Products/Applications/GFlyerPublic.app"

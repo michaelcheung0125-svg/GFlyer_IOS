@@ -506,7 +506,7 @@ enum SimulationError: LocalizedError {
         case let .backendUnavailable(message):
             return message
         case .invalidAddress:
-            return "LocalDevVPN 目標 IP 無效。"
+            return Edition.tunnelWording.invalidDeviceIP
         case let .connectionFailed(message):
             return message
         case let .developerDiskImage(message):

@@ -23,6 +23,7 @@
 - 親友版（現在的 App）照舊個人側載，經 SideStore 安裝。
 - 2026-10-19 使用者決定：iOS 照 Android 分成親友版和公開版，公開版以上架 App Store 為目標，在 iOS 27 以上做到全程不用電腦。計劃、次序和要使用者決定的事在 `docs/APP_STORE_PLAN.md`；跨平台的紀錄是 GFlyer-Suite DRIFT D35 與 PARITY「iOS 的兩個版本」。
 - 2026-10-21 起分成兩個 target（`docs/APP_STORE_PLAN.md` 第 8 項）。做新功能之前先決定它給不給公開版，拿不準就只放 `GFlyerIOS/Family/` 並問使用者。
+- 公開版會編譯的檔案（`GFlyerIOS/` 和 `GFlyerIOSTests/` 扣掉 `Vendor/` 和 `Family/`，連註解）要通過 `scripts/check_public_sources.py`：不可以有遊戲用語、親友版的功能名稱、SideStore／AltStore／LocalDevVPN、私人網址、個人帳戶和本機路徑。CI 的「Public edition source scan」跑它，建好的公開版 App 也再掃一次。共用的程式要說到這些，改由 `Edition` 給字，或搬進 `Family/`；改 `project.yml` 的 sources 時，同步改這個檔案的範圍。
 
 ## 開發規則
 

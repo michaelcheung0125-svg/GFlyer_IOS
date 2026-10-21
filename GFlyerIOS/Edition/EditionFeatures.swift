@@ -17,6 +17,33 @@ protocol EditionFeatures {
 
     /// 主畫面速度控制下面的提示，沒有時為 nil。照 Android 的 `speedHint`。
     static func speedHint(kilometresPerHour: Double) -> String?
+
+    /// 共用的錯誤說明和狀態裏說到本機通道的句子。`SimulationError` 和 idevice backend 不在主執行緒，
+    /// 所以放在這裏而不是 `LocalTunnel`。
+    static var tunnelWording: TunnelWording { get }
+
+    /// 設定頁「關於」的「使用教學」；nil 時不顯示。
+    static var userGuideURL: URL? { get }
+
+    /// 設定頁按「還原備份檔」時確認的說明。
+    static var restoreConfirmationMessage: String { get }
+
+    /// 設定頁備份和還原下面的說明。
+    static var backupFormatNote: String { get }
+}
+
+/// 見 `EditionFeatures.tunnelWording`。每一句都是完整的句子，畫面上的字由版本決定。
+struct TunnelWording {
+    /// 目標 IP 不是有效的 IPv4 位址。
+    let invalidDeviceIP: String
+    /// 建立通道失敗，idevice 沒有給錯誤訊息時。
+    let tunnelFailed: String
+    /// CoreDevice/RSD 交握失敗時的建議。
+    let handshakeHint: String
+    /// 通道中斷或連不上時的建議。
+    let reconnectHint: String
+    /// 設定頁測試通道成功後主畫面的狀態。
+    let verifiedStatus: String
 }
 
 /// 版本專屬功能在 App 執行期間的狀態，例如親友版的檢查新版和補錄步數。`GFlyerIOSApp` 建立一個，

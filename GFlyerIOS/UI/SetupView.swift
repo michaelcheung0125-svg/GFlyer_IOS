@@ -186,7 +186,7 @@ struct SetupView: View {
                 Button("還原", role: .destructive) { restoreBackup(data) }
                 Button("取消", role: .cancel) { pendingBackupData = nil }
             } message: { _ in
-                Text("還原會以備份內容取代現有的收藏、歷史、資料夾、路線與速度預設。留言板登入與 Pairing File 不受影響。")
+                Text(Edition.restoreConfirmationMessage)
             }
             .alert("移除 Pairing File？", isPresented: $confirmingPairingRemoval) {
                 Button("移除", role: .destructive) { removePairingFile() }
@@ -231,7 +231,7 @@ struct SetupView: View {
                 "原生程式庫",
                 value: controller.canControlDeviceLocation ? "已載入" : "尚未啟用"
             )
-            if let guideURL = URL(string: "https://michaelcheung0125-svg.github.io/GFlyer-updates/USER_GUIDE_ZH_HK.html") {
+            if let guideURL = Edition.userGuideURL {
                 Button {
                     openURL(guideURL)
                 } label: {
@@ -607,7 +607,7 @@ struct SetupView: View {
                 Label("還原備份檔", systemImage: "arrow.counterclockwise")
             }
             .disabled(controller.isMotionActive)
-            Text("備份檔為 GFlyer Backup v1 格式，包含收藏、歷史、資料夾、路線與速度預設，與 GFlyer Android 的備份/還原互通。留言板登入與 Pairing File 不會包含在備份內。")
+            Text(Edition.backupFormatNote)
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }

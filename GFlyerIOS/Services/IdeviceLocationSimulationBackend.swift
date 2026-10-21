@@ -130,7 +130,7 @@ actor IdeviceLocationSimulationBackend: LocationSimulationBackend {
             }
         }
         do {
-            try check(tunnelError, fallback: "無法建立 LocalDevVPN/CoreDevice 通道。")
+            try check(tunnelError, fallback: Edition.tunnelWording.tunnelFailed)
             try await connectRemoteServer()
             try check(
                 location_simulation_new(remoteServer, &locationSimulation),
@@ -265,7 +265,7 @@ actor IdeviceLocationSimulationBackend: LocationSimulationBackend {
             return "TLS 通道失敗：Pairing File 可能已失效，請重新配對後再試。"
         }
         if message.contains("rsd") || message.contains("remotexpc") || message.contains("handshake") {
-            return "CoreDevice/RSD 交握失敗：請重新連接 LocalDevVPN；若仍失敗，請保留完整錯誤文字。"
+            return Edition.tunnelWording.handshakeHint
         }
         if message.contains("brokenpipe")
             || message.contains("broken pipe")
@@ -286,7 +286,7 @@ actor IdeviceLocationSimulationBackend: LocationSimulationBackend {
     }
 
     private var reconnectionHint: String {
-        "通道已中斷或無法建立：使用行動網絡時，請先開啟飛行模式並重新建立通道，成功後再開回行動網絡；已連接 Wi-Fi 或個人熱點時無需開啟飛行模式，請重新連接 LocalDevVPN。同時確認 GFlyer 目標 IP 與 LocalDevVPN Device IP 相同。"
+        Edition.tunnelWording.reconnectHint
     }
 
     private func isRetryableTransportError(_ error: Error) -> Bool {

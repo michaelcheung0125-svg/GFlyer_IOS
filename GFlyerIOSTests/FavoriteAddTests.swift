@@ -420,7 +420,7 @@ private enum FavoriteSpot {
     static let seoul = GeoCoordinate(latitude: 37.5665, longitude: 126.978)
 }
 
-/// 可以讓傳送或清除失敗的假 backend。`canControlDeviceLocation` 是 false:不需要配對檔,也不會跳去 LocalDevVPN。
+/// 可以讓傳送或清除失敗的假 backend。`canControlDeviceLocation` 是 false:不需要配對檔,也不會先開本機通道。
 private actor FavoriteTestBackend: LocationSimulationBackend {
     nonisolated let name = "測試後端"
     nonisolated let canControlDeviceLocation = false

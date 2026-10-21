@@ -716,7 +716,7 @@ final class SimulationController: ObservableObject {
                     deviceIP: deviceIP
                 )
                 tunnelTestMessage = "連線成功"
-                status.message = "LocalDevVPN/CoreDevice 通道已驗證"
+                status.message = Edition.tunnelWording.verifiedStatus
             } catch {
                 tunnelTestMessage = "連線失敗"
                 lastError = error.localizedDescription
