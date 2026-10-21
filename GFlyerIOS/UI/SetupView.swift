@@ -418,6 +418,19 @@ struct SetupView: View {
             Text("目前位置按鈕和背景路線需要「使用 App 期間」定位權限。路線執行時 iOS 會顯示背景定位指示；停止路線後 GFlyer 會立即結束背景活動。")
                 .font(.caption)
                 .foregroundStyle(.secondary)
+            // 預覽模式不控制裝置的定位，和「恢復」一樣只在裝置版出現
+            if controller.canControlDeviceLocation {
+                NavigationLink {
+                    LocationCheckView(controller: controller)
+                } label: {
+                    VStack(alignment: .leading, spacing: Spacing.xs) {
+                        Text(LocationCheckText.title)
+                        Text(LocationCheckText.entrySubtitle)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
         }
     }
 

@@ -529,6 +529,28 @@ final class SimulationController: ObservableObject {
         Task { _ = await performClear(motionTasks: motionTasks, reason: reason, tearDownSession: false) }
     }
 
+    /// 定位檢查頁的「傳送到選取的位置」（GFlyer-Suite docs/features/location-check.md 3.7）。Android 不管模式
+    /// 直接傳送；iOS 的 `status.mode` 跟着地圖的模式，所以別的模式模擬中不從這裏傳送。沒有在模擬時先切到
+    /// 「定點傳送」，和 `previewExternalCoordinate` 一樣清掉路線。
+    func teleportToSelected() {
+        if mode != .teleport {
+            guard !status.isActive else {
+                lastError = LocationCheckText.teleportWhileMoving
+                return
+            }
+            setMode(.teleport)
+        }
+        start()
+    }
+
+    /// 推送的位置現在移動多快（公尺／秒），定位檢查頁算容差用（規格 3.3）。
+    var movingMetresPerSecond: Double {
+        guard status.isActive, !status.isPaused else { return 0 }
+        if joystickTask != nil { return joystickSpeedMetresPerSecond }
+        if status.isPlayingRoute || exploration != nil { return routeSpeedMetresPerSecond }
+        return 0
+    }
+
     /// 完整清除：清除座標、拆掉模擬 session，然後「驗證」——抓一筆新的定位，
     /// 如實回報現在是真實位置、仍是模擬座標，還是取不到定位。
     /// 實機觀察：即使拆掉 session，iOS 仍會沿用快取的模擬定位直到取得新的
