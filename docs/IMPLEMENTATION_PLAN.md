@@ -259,6 +259,11 @@ Exit criterion: a 30-minute foreground route completes without losing the tunnel
   `RegionLookupConsent` under `gflyer.region-lookup-consent.v1`, never in the
   backup, and a 「提示與地名」 settings section; `RegionLookupConsentTests` runs in
   both editions
+- 「開放原始碼授權」 page (2026-10-22, `0e2d8ca`, `docs/APP_STORE_PLAN.md` item 18;
+  both editions; device check pending). `OpenSourceLicenses` reads
+  `Resources/OpenSourceLicenses.json`, which `scripts/open_source_licenses.py`
+  generates from idevice's `Cargo.lock`; the 「Open source licences」 CI job
+  regenerates it from the pinned revision and fails when it differs
 - Route polyline editing and waypoint reorder
 
 Exit criterion: behavior matches the existing Android model tests where the platform does not impose a different constraint.

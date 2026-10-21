@@ -45,6 +45,12 @@ This is a separate SwiftUI prototype for personal sideloading. It does not modif
   real by `isSimulatedBySoftware`, distance from the pushed position) and a
   verdict, with 「傳送到選取的位置」 and 「停止模擬」. It reads the location only
   while the page is open and never stores or sends it
+- 「開放原始碼授權」 page (Settings › 關於), like GFlyer Android's: the Rust
+  crates that `libidevice_ffi.a` links (idevice and its dependencies) and the
+  Rust standard library, each with its version, license and the license files
+  it ships. `scripts/open_source_licenses.py` generates the list from idevice's
+  `Cargo.lock` with the package, target and features of
+  `scripts/build_idevice.sh`, and CI checks that it matches
 - Cross-date teleport reminder using the Android longitude-based offline
   UTC-offset estimate
 - Visible iOS 17 background location activity for route and exploration playback
