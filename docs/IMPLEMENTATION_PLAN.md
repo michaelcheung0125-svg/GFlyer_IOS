@@ -280,6 +280,13 @@ Exit criterion: a 30-minute foreground route completes without losing the tunnel
   because idevice only uses standard algorithms and the app will not be on
   the French store (U9); CI checks the key in the built public app. The
   reasons are in `docs/app-store-encryption.md`
+- Export of the public edition to its own repo (2026-10-22, `cea85e6`,
+  `docs/APP_STORE_PLAN.md` item 28): `tools/export-public/export.py` exports a
+  commit without the family edition, docs and dev tools, writes a public-only
+  `project.yml`, adds the public repo's own files from
+  `tools/export-public/overlay/` and scans everything. `export-public.yml`
+  runs the public repo's CI steps (`scripts/ci.sh`) in the exported folder on
+  macOS. The public repo is not created yet
 - Route polyline editing and waypoint reorder
 
 Exit criterion: behavior matches the existing Android model tests where the platform does not impose a different constraint.

@@ -225,6 +225,57 @@
 - 所以第 22 項建 App 時「價格與供應狀況」不選法國。之後要在法國上架，送審之前先申報、上載文件、拿到代碼，`Info.plist` 改成 `YES` 再加 `ITSEncryptionExportComplianceCode`，次序見那份文件第 4 節。
 - 做完的標準：第 23 項第一次上傳之後，TestFlight 的建置不顯示缺少出口合規資料，也不用回答加密的問題。
 
+### 第 28 項的進度
+
+2026-10-22 寫好匯出工具（`cea85e6`；CI run `39717230770` 五個 job 綠燈，親友版 363 個測試，公開版 295 個，和之前相同，編譯警告也相同；新加的 `export-public.yml` 的 run `39717230754` 綠燈）。公開 repo 還沒有建立：建 repo 和 push 等使用者明確要求（`AGENTS.md`「匯出公開版」）。
+
+- 工具是 `tools/export-public/export.py`，照 Android 的同名工具。它用 `git archive` 匯出一個 commit。頂層路徑、`GFlyerIOS/` 和 `GFlyerIOSTests/` 底下的資料夾、`scripts/` 底下的每一項都要分類，未分類就停。
+- 不匯出的：兩個 `Family/`、`docs/`、`HANDOFF.md`、`.claude/`、`tools/`，以及 `scripts/` 裏的三個：
+  - `check_public_sources.py`：清單本身就是禁用字。
+  - `ipa_summary.py`：開發用的比較工具。
+  - `make_brand_art.py`：要讀品牌中心；轉好的圖已經在 `Assets.xcassets`。
+- `project.yml` 由工具產生：拿走親友版的兩個 target（`GFlyerIOS`、`GFlyerIOSTests`）、兩個 scheme（`GFlyerIOS`、`GFlyerIOS-Idevice`）、`- Family` 和全部註解（註解寫到親友版），換上公開版的說明。以下情況會停：
+  - 多了沒有分類的 target 或 scheme。
+  - 少了公開版的。
+  - 剩下的引用指向親友版。
+- 掃描範圍是匯出的全部檔案，連 overlay、scripts 和產生的 `project.yml`。禁用字用 `scripts/check_public_sources.py` 的同一份，再加親友版的 Bundle ID 和親友版 `Info.plist` 裏的三個私人網址。也擋 `.p8`（App Store Connect 的 API 金鑰）等檔案，和與親友版一模一樣的檔案。
+- `--self-test` 確認每一道關卡都擋得住。故意拿走其中五道試過，self-test 都會失敗。
+- 公開 repo 自己的檔案在 `tools/export-public/overlay/`：
+  - README（中英文）：功能、要準備甚麼、建置、私隱、授權。
+  - `AGENTS.md`，和只有 `@AGENTS.md` 的 `CLAUDE.md`。
+  - `LICENSE`：Apache-2.0，和 Android 公開版同一份。
+  - `NOTICE`：品牌名稱、App 圖示和飛豬圖不在授權範圍內，列出三張圖。
+  - `.gitignore`。
+  - CI：`.github/workflows/ci.yml` 的三個 job（模擬器測試、未簽署的 archive、開放原始碼授權）逐步呼叫 `scripts/ci.sh`。
+- `ci.sh archive` 核對的和這個 repo 的「Check and summarize the public app」相同：`Assets.car`、App 圖示、Bundle ID、`ITSAppUsesNonExemptEncryption`、通道 extension 和私隱清單。不同的是它不檢查親友版的 `Info.plist` 鍵，因為鍵名本身就是禁用字。
+- CI 怎樣跑：
+  - 「Public edition source scan」每次 push 都跑 `--self-test`，再匯出和掃描一次。
+  - `export-public.yml` 在匯出工具、`project.yml`、`scripts/` 或 `THIRD_PARTY_NOTICES.md` 改了時跑。它在 macOS 上加 `--build` 匯出，在匯出的資料夾跑公開 repo 的 `scripts/ci.sh` 全部步驟，再用這個 repo 的掃描器掃從匯出建出來的 App。
+- `cea85e6` 的結果：
+  - 匯出 118 個檔案。
+  - 匯出的資料夾裏：Xcode 26.6；授權清單相符；公開版 295 個測試全過，和開發 repo 相同；archive 的檢查和私隱清單核對通過（`GFlyerPublic 0.6.17 (30)`）。
+  - 掃建好的 App：沒有問題，也沒有提醒。開發 repo 建的公開版 App 有 45 個提醒，都是執行檔裏 `/Users/runner/work/GFlyer_IOS/...` 的路徑；從匯出的資料夾建的，路徑裏沒有 `GFlyer_IOS`。
+- 這次用了 `macos-xcode.yml` 快取的 `libidevice_ffi.a`。快取沒有命中時，`ci.sh idevice` 會自己建置；這條路還沒有跑過，公開 repo 第一次跑 CI 時會跑到。
+- 提醒共 195 處，不擋匯出：
+  - 84 處 GFlyer-Suite：註解裏的出處。
+  - 106 處提到開發 repo 才有的文件，多數是 `docs/APP_STORE_PLAN.md` 和 `docs/features/`。
+  - 5 處連到 GitHub 上 JetPiggy 以外的帳戶：
+    - `scripts/build_idevice.sh` 和 `scripts/ci.sh`：idevice 的原始碼（`jkcoxson/idevice`）。
+    - App 下載 DDI 的來源：`doronz88/DeveloperDiskImage`。
+    - 授權全文裏的 `agl` 和 `rust-lang`。
+- Android 的公開版也留着註解裏的出處。公開 repo 的 `AGENTS.md` 寫明，它們是維護者的開發文件。
+- 做完的標準是「匯出的 repo 自己的 CI 綠燈」。現在由 `export-public.yml` 代替證明；公開 repo 建好、第一次 push 之後，再看它自己的 CI。
+- 等使用者決定：
+  1. 授權：建議照 Android 公開版用 Apache-2.0。
+  2. 名稱：repo 叫 `JetPiggy/GFlyer-iOS`，本機資料夾叫 `GFlyer-iOS-public`。
+  3. RULES 第 5 節不准連去個人帳戶下的 repo，但 idevice 的原始碼和 DDI 都在個人帳戶下，程式要從那裏下載。建議照留：README、NOTICE 和網站都不連去它們，只有程式和建置腳本用到。另外兩個做法：
+     - idevice fork 到 JetPiggy 名下，改用 fork。之後每次升 revision，都要先同步 fork。
+     - DDI 是 Apple 的檔案，不自己轉載。
+  4. 甚麼時候建 repo、第一次 push：建議送審之前（第 25 項前後），和私隱政策網頁一起。README 寫的是「暫時沒有在 App Store 提供」，上架之後要改。
+- repo 建好之後，在 JetPiggy-Brand 的 session 登記（品牌規則第 8 節）：
+  - `registry.md` 加 GFlyer iOS 的資料夾和 repo。
+  - 更新 `repo-map.html`。
+
 ## 第四階段：簽署、TestFlight、送審
 
 | # | 待辦 | 為甚麼和怎樣做 | 誰做 | 做完的標準 |
