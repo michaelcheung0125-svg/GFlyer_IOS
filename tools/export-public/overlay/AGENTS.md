@@ -18,6 +18,7 @@ GFlyer（飛豬人）是 iOS 的位置測試 App（SwiftUI）。這個 repo 是�
 ## 硬規則
 
 - 這個 repo 是公開的：不可以加入個人姓名、私人電郵、個人帳戶名、本機路徑或秘密（金鑰、密碼、token）。聯絡一律用 gflyer@jetpiggy.com。
+- 第三方程式庫和下載來源（idevice 的原始碼、DDI）的網址只放在程式和建置腳本裏；README、NOTICE 和其他說明不連去個人帳戶下的 repo。
 - 不要提交 Pairing File、Apple 的私密金鑰、App Store Connect 的 API 金鑰、provisioning profile、DDI 檔案或 `libidevice_ffi.a`。`GFlyerIOS/Vendor/idevice/`、`.build/`、`build/` 和產生的 `.xcodeproj` 都不進版控。簽署和上傳用的秘密只放在 GitHub 的加密 secrets。
 - 不要加入反偵測、不要修改其他 App，也不要繞過其他 App 的定位檢查。
 - 語言模式是 Swift 5，CI 釘在 Xcode 26.6，最低 iOS 17.4：Swift 6.2 起的 approachable concurrency（`@concurrent`、`nonisolated(nonsending)`）和 iOS 26 才有的 API 不可以直接用，iOS 26 的 API 要加 `if #available`。

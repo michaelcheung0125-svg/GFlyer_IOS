@@ -265,13 +265,13 @@
     - 授權全文裏的 `agl` 和 `rust-lang`。
 - Android 的公開版也留着註解裏的出處。公開 repo 的 `AGENTS.md` 寫明，它們是維護者的開發文件。
 - 做完的標準是「匯出的 repo 自己的 CI 綠燈」。現在由 `export-public.yml` 代替證明；公開 repo 建好、第一次 push 之後，再看它自己的 CI。
-- 等使用者決定：
-  1. 授權：建議照 Android 公開版用 Apache-2.0。
+- 使用者 2026-10-22 決定四項都照建議：
+  1. 授權：照 Android 公開版用 Apache-2.0（overlay 的 `LICENSE`）。
   2. 名稱：repo 叫 `JetPiggy/GFlyer-iOS`，本機資料夾叫 `GFlyer-iOS-public`。
-  3. RULES 第 5 節不准連去個人帳戶下的 repo，但 idevice 的原始碼和 DDI 都在個人帳戶下，程式要從那裏下載。建議照留：README、NOTICE 和網站都不連去它們，只有程式和建置腳本用到。另外兩個做法：
-     - idevice fork 到 JetPiggy 名下，改用 fork。之後每次升 revision，都要先同步 fork。
-     - DDI 是 Apple 的檔案，不自己轉載。
-  4. 甚麼時候建 repo、第一次 push：建議送審之前（第 25 項前後），和私隱政策網頁一起。README 寫的是「暫時沒有在 App Store 提供」，上架之後要改。
+  3. idevice 的原始碼和 DDI 都在個人帳戶下的 repo，程式要從那裏下載，照留。RULES 第 5 節不准連去個人帳戶下的 repo，所以只有程式和建置腳本用到它們，README、NOTICE 和網站都不連去。沒有採用的做法：
+     - 把 idevice fork 到 JetPiggy 名下，改用 fork：之後每次升 revision，都要先同步 fork。
+     - 自己轉載 DDI：DDI 是 Apple 的檔案。
+  4. 甚麼時候建 repo、第一次 push：送審之前（第 25 項前後），和私隱政策網頁一起。README 寫的是「暫時沒有在 App Store 提供」，上架之後要改。
 - repo 建好之後，在 JetPiggy-Brand 的 session 登記（品牌規則第 8 節）：
   - `registry.md` 加 GFlyer iOS 的資料夾和 repo。
   - 更新 `repo-map.html`。
@@ -280,7 +280,7 @@
 
 | # | 待辦 | 為甚麼和怎樣做 | 誰做 | 做完的標準 |
 |---|---|---|---|---|
-| 28 | 匯出公開版到 JetPiggy 的 repo | U8。照 Android 的 `tools/export-public/export.py`：按清單只匯出共用和 `Public/` 的檔案，掃描禁用字，檢查沒有和親友版一模一樣的檔案，在匯出的 repo 自己建置得到；加 `AGENTS.md`、`NOTICE`，並照品牌規則第 8 節登記。建 repo 和 push 等使用者明確要求 | Claude 寫工具，使用者建 repo | 匯出的 repo 自己的 CI 綠燈；裏面沒有親友版的檔案和禁用字 |
+| 28 | 匯出公開版到 JetPiggy 的 repo | U8。照 Android 的 `tools/export-public/export.py`：按清單只匯出共用和 `Public/` 的檔案，掃描禁用字，檢查沒有和親友版一模一樣的檔案，在匯出的 repo 自己建置得到；加 `AGENTS.md`、`NOTICE`，並照品牌規則第 8 節登記。建 repo 和 push 等使用者明確要求 | Claude 寫工具，使用者建 repo | 匯出的 repo 自己的 CI 綠燈；裏面沒有親友版的檔案和禁用字。工具 2026-10-22 做好；repo 送審之前（第 25 項前後）才建，見「第 28 項的進度」 |
 | 22 | 付費開發者帳戶、App ID 和權限 | U1。App 和通道的 extension 各要一個 App ID，開 Network Extension（第 12 項不用 App Groups），建發佈憑證和描述檔。建 App 時「價格與供應狀況」不選法國（U9、第 21 項） | 使用者 | 帳戶通過審核；App Store Connect 建好 App |
 | 23 | CI 簽署並上傳 | 沒有 Mac，所以由 GitHub Actions 建置、簽署，並用 App Store Connect API 金鑰上傳。憑證、描述檔和金鑰只放 GitHub 的加密 secrets，不 commit（`AGENTS.md`）。repo 是公開的，從 fork 開的 PR 拿不到 secrets；上傳的 job 只在使用者手動觸發時執行。上傳的建置要用 release 類的設定：現在 CI 的 `Idevice` 設定是 debug 類，不會 strip，執行檔帶着 debug map，裏面有 `/Users/runner/work/GFlyer_IOS/...` 的路徑；第 10 項的 `--app` 掃描會把它們列成提醒 | 使用者建 secrets；Claude 寫 workflow | TestFlight 出現建置 |
 | 24 | TestFlight 實機測試 | iOS 27、從沒配對過電腦的 iPhone 全程不用電腦：安裝、開發者模式、配對、通道、DDI、傳送、清除。另外測 iOS 26 以下匯入配對檔、Wi-Fi 和行動網路、重新開機後重建、路線在背景和鎖屏時繼續、清除後真實位置恢復（`docs/RELEASE_PROCESS.md` 不可回退的決定第 5 點） | 使用者 | 每一項有結果，記進 `HANDOFF.md` |
