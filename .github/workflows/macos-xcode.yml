@@ -72,6 +72,10 @@ jobs:
       - name: Scan the public edition's sources
         run: python3 scripts/check_public_sources.py
 
+      # 下面的 archive job 用它核對建好的公開版 App 的私隱清單（docs/APP_STORE_PLAN.md 第 20 項）
+      - name: Check that the privacy manifest checker catches every rule
+        run: python3 scripts/check_privacy_manifest.py --self-test
+
   # 「開放原始碼授權」頁的清單（GFlyerIOS/Resources/OpenSourceLicenses.json）要和 libidevice_ffi.a
   # 實際連結的相符（docs/APP_STORE_PLAN.md 第 18 項）。不建置，只用 cargo tree 和 cargo metadata 讀
   # build_idevice.sh 釘住的 revision 和 features，所以放在 Linux 上，也不碰下面 idevice 的建置快取。
@@ -452,3 +456,11 @@ jobs:
         run: |
           python3 scripts/check_public_sources.py \
             --app "$RUNNER_TEMP/GFlyerPublic-Idevice.xcarchive/Products/Applications/GFlyerPublic.app"
+
+      # App Store Connect 收到上傳時會掃執行檔用到的「指定原因 API」，私隱清單沒有寫就退回
+      # （docs/APP_STORE_PLAN.md 第 20 項）。這裏先照同一份清單掃 App 和通道 extension。
+      - name: Check the public app's privacy manifest
+        run: |
+          app_path="$RUNNER_TEMP/GFlyerPublic-Idevice.xcarchive/Products/Applications/GFlyerPublic.app"
+          plutil -lint "$app_path/PrivacyInfo.xcprivacy"
+          python3 scripts/check_privacy_manifest.py --app "$app_path"
