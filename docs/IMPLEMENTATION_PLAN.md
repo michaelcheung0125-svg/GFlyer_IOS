@@ -269,6 +269,12 @@ Exit criterion: a 30-minute foreground route completes without losing the tunnel
   `docs/privacy-policy.md`; `Edition.privacyPolicyURL` adds 「私隱政策」 to
   Settings › 關於 in the public edition only. The web page goes up before the
   App Store submission
+- Privacy manifest for the public edition (2026-10-22, `bbe77ee`,
+  `docs/APP_STORE_PLAN.md` item 20): `GFlyerIOS/Public/PrivacyInfo.xcprivacy`
+  declares UserDefaults, file timestamp and system boot time, and
+  `scripts/check_privacy_manifest.py` checks it against the symbols of the
+  built public app in CI. The App Store Connect answers are drafted in
+  `docs/app-store-privacy.md`
 - Route polyline editing and waypoint reorder
 
 Exit criterion: behavior matches the existing Android model tests where the platform does not impose a different constraint.

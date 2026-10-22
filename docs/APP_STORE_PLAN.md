@@ -101,7 +101,7 @@
 
 ## 第三階段：公開版才有的
 
-第 12 項的程式 2026-10-21 做完（`190bf0d`），還沒有在實機試，見表下面的「第 12 項的進度」。第 15 項的程式也做完（`8b46c61`），送審說明的 DDI 一段已起草，見「第 15 項的進度」。第 16 項的程式 2026-10-22 做完（`7c0a05c`），兩個版本都有，還沒有在實機試，見「第 16 項的進度」。第 17 項的程式也做完（`ec093a6`），公開版改用 Apple 的地點服務，不連 Nominatim，還沒有在實機試，見「第 17 項的進度」。第 18 項的程式也做完（`0e2d8ca`），兩個版本都有，見「第 18 項的進度」。第 19 項的正本和 App 內的入口也做完（`6b510f5`），網頁送審之前才放上去，見「第 19 項的進度」。
+第 12 項的程式 2026-10-21 做完（`190bf0d`），還沒有在實機試，見表下面的「第 12 項的進度」。第 15 項的程式也做完（`8b46c61`），送審說明的 DDI 一段已起草，見「第 15 項的進度」。第 16 項的程式 2026-10-22 做完（`7c0a05c`），兩個版本都有，還沒有在實機試，見「第 16 項的進度」。第 17 項的程式也做完（`ec093a6`），公開版改用 Apple 的地點服務，不連 Nominatim，還沒有在實機試，見「第 17 項的進度」。第 18 項的程式也做完（`0e2d8ca`），兩個版本都有，見「第 18 項的進度」。第 19 項的正本和 App 內的入口也做完（`6b510f5`），網頁送審之前才放上去，見「第 19 項的進度」。第 20 項的私隱清單也做完（`bbe77ee`），App Store Connect 的問卷已起草，等使用者確認，有帳戶才填得到，見「第 20 項的進度」。
 
 | # | 待辦 | 為甚麼和怎樣做 | 做完的標準 |
 |---|---|---|---|
@@ -191,6 +191,23 @@
 - 寫正本時發現：Pairing File 存在 Application Support，沒有排除在 iPhone 的 iCloud 備份和電腦備份之外（只有 DDI 排除了）。`PairingFileStore` 兩個版本共用，親友版已經上機驗證過，所以正本照實寫，程式沒有改；要不要排除，等使用者決定。
 - 放上網站的步驟（送審之前）：一、把正本兩種語言的「生效日期」改成那一天，commit；二、在 `JetPiggy` repo 開新 session，交接附上正本「中文」和「English」兩節的全文（網站 session 不讀這個 repo），照 Android 那兩頁的外觀做成 `/ios/privacy.html` 和 `/en/ios/privacy.html`；三、照 RULES 第 5 節把要公開的內容列給使用者確認，部署等使用者明確要求；四、實機按「私隱政策」確認打得開；五、App Store Connect 的私隱政策網址（第 25 項），中文填中文頁，英文填英文頁。
 - 第 20 項的 App 私隱標籤和 `PrivacyInfo.xcprivacy` 要和這份一致。
+
+### 第 20 項的進度
+
+私隱清單和 CI 的核對 2026-10-22 做完（`bbe77ee`；CI run `39707669808` 五個 job 綠燈，親友版 363 個測試，公開版 295 個，和之前相同（這次沒有加 Swift 測試），編譯警告也相同；新的「Check the public app's privacy manifest」通過），**問卷還沒有填**：要有第 22 項的帳戶，草稿等使用者確認。
+
+- 私隱清單 `GFlyerIOS/Public/PrivacyInfo.xcprivacy` 只有公開版有：沒有追蹤，不收集資料。寫了三類指定原因 API：`UserDefaults`（`CA92.1`）、檔案時間（`C617.1`，idevice 連結的 Rust 標準程式庫用 `stat`、`fstat`、`lstat`、`fstatat`）、開機時間（`35F9.1`，「探索」的地圖縮放用 `systemUptime`）。每一項的理由寫在 `docs/app-store-privacy.md`。
+- `scripts/check_privacy_manifest.py` 做 App Store Connect 收到上傳時的同一種檢查：從 App 和通道 extension 執行檔的未定義符號和 Objective-C selector 找出用到的類別，和私隱清單比對，少寫就失敗。它不用 Mac：Windows 上用親友版的執行檔試過，掃到同樣三類。CI 的 archive job 對建好的公開版 App 跑它，另外跑 `plutil -lint`；Linux 的 job 跑 `--self-test`。通道 extension 沒有用到這些 API，所以沒有自己的清單。
+- App Store Connect 的「App 私隱」問卷起草在 `docs/app-store-privacy.md`：答「不收集資料」，商店上顯示「Data Not Collected」。理由：
+  - 地圖、搜尋和地名經 Apple 自己的 framework，Apple 寫明它收集的不用開發者申報。
+  - 掛載 DDI 時送去 `gs.apple.com` 的 ECID，收到的也是 Apple。
+  - 從 GitHub 下載只帶 IP 地址。
+  - 「聯絡我們」的電郵由使用者的電郵 App 寄出，和 Android 相同。
+- 和 Android 的標籤不同：Android 的資料安全性申報了位置、搜尋記錄和 Maps SDK 的四項，因為 Google Play 的定義不同，而且 Android 版加了 Google 的 Maps SDK。兩邊的做法相同。
+- 等使用者確認的兩件事：
+  - 整份答「不收集」，特別是 ECID。保守的做法是申報 Device ID，但商店會因此顯示 App 收集裝置 ID，和 JetPiggy 實際收不到任何資料不符。
+  - 「聯絡我們」的電郵不申報。
+- 做完的標準：第 23 項第一次上傳時沒有收到 ITMS-91053 之類的電郵；有第 22 項的帳戶之後，在 App Store Connect 填好問卷。
 
 ## 第四階段：簽署、TestFlight、送審
 
