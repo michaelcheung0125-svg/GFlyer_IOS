@@ -1,0 +1,73 @@
+name: Public export build
+
+# 匯出的公開版要自己建置得到（docs/APP_STORE_PLAN.md 第 28 項）。這裏用 tools/export-public/export.py
+# 匯出到暫存資料夾，再加 --build 在那裏跑公開 repo 自己的 CI 步驟：overlay 的 scripts/ci.sh，
+# 和公開 repo 的 .github/workflows/ci.yml 逐步呼叫的是同一份。公開 repo 建好之前，這是它的 CI
+# 會不會綠燈的證明。
+#
+# 分類和禁用字的檢查很快，在 macos-xcode.yml 的「Public edition source scan」每次 push 都跑。
+# 這裏要建置兩次（模擬器測試和 archive），所以只在匯出工具、建置設定或 scripts 改了才跑，
+# 也可以在 Actions 頁手動跑。Swift 的改動由 macos-xcode.yml 的 GFlyerPublic 測試和 archive 把關。
+on:
+  push:
+    paths:
+      - 'tools/export-public/**'
+      - 'project.yml'
+      - 'scripts/**'
+      - 'THIRD_PARTY_NOTICES.md'
+      - '.github/workflows/export-public.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# 和 macos-xcode.yml、overlay 的 .github/workflows/ci.yml 相同；換版本時三個一起換
+env:
+  DEVELOPER_DIR: /Applications/Xcode_26.6.app/Contents/Developer
+
+concurrency:
+  group: export-public-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Exported repo CI
+    runs-on: macos-26
+    timeout-minutes: 75
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      # 和 macos-xcode.yml 同一個 key，重用它存的 libidevice_ffi.a；這裏只讀不存
+      - name: Read the iOS SDK version for the cache key
+        id: toolchain
+        run: echo "sdk=$(xcrun --sdk iphoneos --show-sdk-version)" >> "$GITHUB_OUTPUT"
+
+      - name: Restore the prebuilt idevice library
+        id: idevice-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: GFlyerIOS/Vendor/idevice
+          key: idevice-ios${{ steps.toolchain.outputs.sdk }}-${{ hashFiles('scripts/build_idevice.sh') }}
+
+      - name: Install Rust
+        if: steps.idevice-cache.outputs.cache-hit != 'true'
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-ios
+
+      # --build 照公開 repo 的 CI 次序跑 scripts/ci.sh 的 xcode、licences、idevice、test、archive。
+      # 快取沒有命中時不傳 --idevice，idevice 那一步在匯出的資料夾裏自己建置，和公開 repo 第一次跑的情況相同。
+      - name: Export the public edition and run its CI steps
+        run: >-
+          python3 -I tools/export-public/export.py --dest "$RUNNER_TEMP/GFlyer-iOS-public" --build
+          ${{ steps.idevice-cache.outputs.cache-hit == 'true' && '--idevice GFlyerIOS/Vendor/idevice' || '' }}
+
+      # 公開 repo 沒有禁用字的掃描器（清單本身就是禁用字），所以用這個 repo 的再掃一次匯出建出來的 App
+      - name: Scan the app built from the export
+        run: >-
+          python3 scripts/check_public_sources.py
+          --app "$RUNNER_TEMP/GFlyerPublic-Idevice.xcarchive/Products/Applications/GFlyerPublic.app"

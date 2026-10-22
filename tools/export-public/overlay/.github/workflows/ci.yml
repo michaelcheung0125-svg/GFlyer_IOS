@@ -1,0 +1,104 @@
+name: CI
+
+# 每一步的內容在 scripts/ci.sh，在 Mac 上可以照樣自己跑。
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Xcode 的版本釘死，不跟 runner image 的預設值漂移：它決定能用哪些 Swift 語言特性，
+# 也決定下面 idevice 快取的 iOS SDK 版本。App Store Connect 只收 Xcode 26（iOS 26 SDK）以上建置的版本。
+env:
+  DEVELOPER_DIR: /Applications/Xcode_26.6.app/Contents/Developer
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  tests:
+    name: Simulator tests
+    runs-on: macos-26
+    timeout-minutes: 30
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Verify the pinned Xcode
+        run: bash scripts/ci.sh xcode
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Build and run unit tests
+        run: bash scripts/ci.sh test
+
+  archive:
+    name: Unsigned device archive
+    runs-on: macos-26
+    timeout-minutes: 60
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Verify the pinned Xcode
+        run: bash scripts/ci.sh xcode
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      # build_idevice.sh 用 iOS SDK 產生綁定，所以 libidevice_ffi.a 綁在 SDK 版本上；
+      # idevice 的 revision 釘在 build_idevice.sh 裏。兩者都沒變就重用上一次建好的。
+      - name: Read the iOS SDK version for the cache key
+        id: toolchain
+        run: echo "sdk=$(xcrun --sdk iphoneos --show-sdk-version)" >> "$GITHUB_OUTPUT"
+
+      - name: Restore the prebuilt idevice library
+        id: idevice-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: GFlyerIOS/Vendor/idevice
+          key: idevice-ios${{ steps.toolchain.outputs.sdk }}-${{ hashFiles('scripts/build_idevice.sh') }}
+
+      - name: Install Rust
+        if: steps.idevice-cache.outputs.cache-hit != 'true'
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-ios
+
+      - name: Build and check the idevice library
+        run: bash scripts/ci.sh idevice
+
+      # 檢查之後才存，不完整的程式庫不會進快取；不等整個 job 完成，後面失敗也留給下一次用
+      - name: Save the idevice library for the next run
+        if: steps.idevice-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: GFlyerIOS/Vendor/idevice
+          key: ${{ steps.idevice-cache.outputs.cache-primary-key }}
+
+      - name: Create and check an unsigned archive
+        run: bash scripts/ci.sh archive
+
+  licences:
+    name: Open source licences
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Check the licence list against what libidevice_ffi.a links
+        run: bash scripts/ci.sh licences
+
+      - name: Upload the generated list
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: open-source-licenses
+          path: ${{ runner.temp }}/OpenSourceLicenses.json
+          if-no-files-found: ignore
+          retention-days: 14

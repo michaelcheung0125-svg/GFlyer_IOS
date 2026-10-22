@@ -1,0 +1,45 @@
+GFlyer（飛豬人）iOS
+Copyright 2026 JetPiggy
+
+除以下各項外，本專案以 Apache License 2.0 授權（見 LICENSE）。
+Except as noted below, this project is licensed under the Apache License 2.0
+(see LICENSE).
+
+1. 品牌圖像 / Brand assets
+
+   GFlyer、飛豬人和 JetPiggy 的名稱、App 圖示和 JetPiggy 飛豬的圖像保留所有權利，
+   不在 Apache License 2.0 的範圍內，包括：
+   The GFlyer, 飛豬人 and JetPiggy names, the app icon and the JetPiggy flying
+   pig artwork are all rights reserved and not covered by the Apache License
+   2.0. This includes:
+
+   - GFlyerIOS/Resources/Assets.xcassets/AppIcon.appiconset/gflyer_app_icon.png
+     （App 圖示 / app icon）
+   - GFlyerIOS/Resources/Assets.xcassets/GFlyerIcon.imageset/gflyer_icon_art.png
+     （App 裏的飛豬圖 / flying pig artwork in the app）
+   - GFlyerIOS/Resources/Assets.xcassets/GFlyerMarker.imageset/gflyer_current_location.png
+     （地圖上的目前位置 / current location marker）
+
+   發佈修改版時，請改用自己的名稱和圖示。
+   If you distribute a modified version, use your own name and icon.
+
+2. 程式庫 / Libraries
+
+   App 連結的 libidevice_ffi.a 由 scripts/build_idevice.sh 在建置時從 idevice（MIT）的原始碼建置，
+   連同 idevice 用到的 Rust 套件和 Rust 標準程式庫，都不在這個 repo 裏，各自保留原本的授權。
+   清單和授權全文在 GFlyerIOS/Resources/OpenSourceLicenses.json，App 內「裝置設定」的
+   「關於」>「開放原始碼授權」可以看到。idevice 的授權見 THIRD_PARTY_NOTICES.md。
+   The app links libidevice_ffi.a, which scripts/build_idevice.sh builds from
+   the source of idevice (MIT) at build time. idevice, the Rust crates it uses
+   and the Rust standard library are not part of this repository and keep
+   their own licenses. Their list and full license texts are in
+   GFlyerIOS/Resources/OpenSourceLicenses.json and shown in the app under
+   裝置設定 > 關於 > 開放原始碼授權. See THIRD_PARTY_NOTICES.md for idevice.
+
+3. Developer Disk Image
+
+   App 在使用者按下載時才下載 Apple 的 Developer Disk Image。這些檔案屬於 Apple，
+   不在這個 repo 裏，也不在 Apache License 2.0 的範圍內。
+   The app downloads Apple's Developer Disk Image only when the user taps the
+   download button. Those files belong to Apple. They are not part of this
+   repository and not covered by the Apache License 2.0.

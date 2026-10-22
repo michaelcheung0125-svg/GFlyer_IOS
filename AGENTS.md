@@ -48,6 +48,20 @@
 - `docs/RELEASE_PROCESS.md` 末段列出「不可回退的決定」；修改相關程式碼前
   先讀那一節。
 
+## 匯出公開版
+
+- 公開版的原始碼由匯出工具匯出到 JetPiggy 名下的公開 repo（`docs/APP_STORE_PLAN.md` 第 28 項、U8）。這個 repo 不屬於 JetPiggy 品牌，平日開發不用讀品牌規則；只有匯出時，匯出的內容要符合 JetPiggy-Brand `RULES.md` 的第 5 節（公開之前檢查）和第 6 節（品牌素材）。
+- 公開 repo 暫定是 `JetPiggy/GFlyer-iOS`（未建立），本機資料夾是 `../GFlyer-iOS-public`，只用來同步和 push，不在那裏開發。公開 repo 的歷史是全新的：不 fork，也不帶這個 repo 的歷史；每次同步都用 `git archive` 匯出一個 commit。
+- 步驟：
+  1. 在這個 repo commit 要同步的改動。
+  2. 執行 `python -I tools/export-public/export.py`，預設把 HEAD 匯出到 `../GFlyer-iOS-public`。它按清單排除不公開的路徑，從 `project.yml` 產生只有公開版的 `project.yml`，蓋上 `tools/export-public/overlay/`，掃描禁用字和親友版的檔案，再同步過去；任何一步失敗就停。在 Mac 上加 `--build`，在那裏跑公開 repo 的 CI 步驟（`scripts/ci.sh`）。Windows 只能匯出和掃描；CI 的 `export-public.yml` 在 macOS 上跑 `--build`。
+  3. 按 RULES 第 5、6 節檢查，把要公開的改動逐項列給使用者，連匯出工具列出的「提醒」。使用者確認之後，才在公開 repo 的資料夾 commit 和 push。
+  4. 公開 repo 的 commit 身分是 `JetPiggy <gflyer@jetpiggy.com>`。commit 訊息只寫這次公開的改動，不寫這個 repo 的 hash 或內部資料。
+- 以下永遠不匯出：`GFlyerIOS/Family/`、`GFlyerIOSTests/Family/`、`docs/`、`HANDOFF.md`、`.claude/`、`tools/`，以及 `scripts/` 的 `check_public_sources.py`、`ipa_summary.py`、`make_brand_art.py`。要公開其中某一樣，先問使用者，再改 `tools/export-public/export.py` 的清單。
+- 新增頂層的檔案、`GFlyerIOS/` 或 `GFlyerIOSTests/` 底下的資料夾、`scripts/` 底下的檔案，或者 `project.yml` 的 target 和 scheme，匯出工具會因為「未分類」而停下，CI 的「Public edition source scan」也會失敗。這時在 `export.py` 決定它公開與否，拿不準就排除並問使用者。
+- 公開 repo 的 README、AGENTS.md、LICENSE、NOTICE、`.gitignore` 和 CI（`.github/workflows/ci.yml`、`scripts/ci.sh`）在 `tools/export-public/overlay/`。要改公開 repo 的說明或 CI，改那裏；README 只寫公開版真正有的功能。`scripts/ci.sh archive` 核對建好的 App 的那幾項和這個 repo 的「Check and summarize the public app」相同，改其中一邊時兩邊一起改。
+- 建立公開 repo、push，以及在 JetPiggy-Brand 登記（`registry.md`、`repo-map.html`），都要等使用者明確要求。
+
 ## 建置限制
 
 - 本專案必須在 macOS/Xcode 上完成真正的 iOS 編譯與實機驗證。

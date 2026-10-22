@@ -33,7 +33,8 @@ permissions:
 # 釘死，不吃預設值。
 #
 # 要換版本：改下面的路徑，然後同步更新 SKILL.md 的 toolchain 表格和
-# AGENTS.md 那一行。不可以釘回 Xcode 16.x：App Store Connect 從 2026-04-28
+# AGENTS.md 那一行；export-public.yml 和公開 repo 的 overlay
+# （tools/export-public/overlay/ 的 .github/workflows/ci.yml、AGENTS.md、README.md）也一起改。不可以釘回 Xcode 16.x：App Store Connect 從 2026-04-28
 # 起只收 Xcode 26（iOS 26 SDK）建置的版本（docs/APP_STORE_PLAN.md 第 1 項）。
 # 用 macos-26 而不是 macos-15，是因為 macos-15 的 image 最新只到 Xcode 26.3，
 # 之後 App Store 要求的新版 Xcode 也會先出現在 macos-26。
@@ -75,6 +76,14 @@ jobs:
       # 下面的 archive job 用它核對建好的公開版 App 的私隱清單（docs/APP_STORE_PLAN.md 第 20 項）
       - name: Check that the privacy manifest checker catches every rule
         run: python3 scripts/check_privacy_manifest.py --self-test
+
+      # 匯出到 JetPiggy 公開 repo 的內容（docs/APP_STORE_PLAN.md 第 28 項）：分類、產生的 project.yml、
+      # 禁用字和親友版的檔案，連 overlay 和 scripts。在匯出的資料夾建置和測試在 export-public.yml。
+      - name: Check that the export tool catches every rule
+        run: python3 -I tools/export-public/export.py --self-test
+
+      - name: Export the public edition and scan it
+        run: python3 -I tools/export-public/export.py --dest "$RUNNER_TEMP/GFlyer-iOS-public"
 
   # 「開放原始碼授權」頁的清單（GFlyerIOS/Resources/OpenSourceLicenses.json）要和 libidevice_ffi.a
   # 實際連結的相符（docs/APP_STORE_PLAN.md 第 18 項）。不建置，只用 cargo tree 和 cargo metadata 讀
