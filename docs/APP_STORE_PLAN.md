@@ -48,7 +48,7 @@
 
 **已決定（2026-10-21）**：U2、U3、U6、U8 照建議。U2：公開版的 bundle id 是 `com.jetpiggy.gflyer`，名稱「GFlyer - 飛豬人」（和 Android 公開版的 App 名稱相同），圖示是 JetPiggy 的飛豬；App Store 上的名稱在第 22 項建 App 時查過才定。U3：最低 iOS 17.4。U6：和 Android 公開版拿走的相同，再加檢查新版和 SideStore 的連結、LocalDevVPN 的交接（第 9 項）。U8：在 GFlyer_IOS 開發，送審之前匯出到 JetPiggy 名下的新 repo（第 28 項）。
 
-**已決定（2026-10-22）**：U7 照建議：公開版把收藏的座標送去反查之前先問，文字照 Android 公開版（第 17 項已經這樣做）。
+**已決定（2026-10-22）**：U7 照建議：公開版把收藏的座標送去反查之前先問，文字照 Android 公開版（第 17 項已經這樣做）。U9 也照建議：首版不在法國的 App Store 上架，加密申報照舊寫 `NO`（第 21 項）。
 
 ## 第一階段：Xcode 26 與在手機上配對
 
@@ -102,7 +102,7 @@
 
 ## 第三階段：公開版才有的
 
-第 12 項的程式 2026-10-21 做完（`190bf0d`），還沒有在實機試，見表下面的「第 12 項的進度」。第 15 項的程式也做完（`8b46c61`），送審說明的 DDI 一段已起草，見「第 15 項的進度」。第 16 項的程式 2026-10-22 做完（`7c0a05c`），兩個版本都有，還沒有在實機試，見「第 16 項的進度」。第 17 項的程式也做完（`ec093a6`），公開版改用 Apple 的地點服務，不連 Nominatim，還沒有在實機試，見「第 17 項的進度」。第 18 項的程式也做完（`0e2d8ca`），兩個版本都有，見「第 18 項的進度」。第 19 項的正本和 App 內的入口也做完（`6b510f5`），網頁送審之前才放上去，見「第 19 項的進度」。第 20 項的私隱清單也做完（`bbe77ee`），App Store Connect 問卷的答案使用者已確認，有帳戶才填得到，見「第 20 項的進度」。第 21 項的加密申報也核對完（`6268304`），`Info.plist` 照舊寫「不用申報」，前提是不在法國上架（U9，等使用者確認），見「第 21 項的進度」。
+第 12 項的程式 2026-10-21 做完（`190bf0d`），還沒有在實機試，見表下面的「第 12 項的進度」。第 15 項的程式也做完（`8b46c61`），送審說明的 DDI 一段已起草，見「第 15 項的進度」。第 16 項的程式 2026-10-22 做完（`7c0a05c`），兩個版本都有，還沒有在實機試，見「第 16 項的進度」。第 17 項的程式也做完（`ec093a6`），公開版改用 Apple 的地點服務，不連 Nominatim，還沒有在實機試，見「第 17 項的進度」。第 18 項的程式也做完（`0e2d8ca`），兩個版本都有，見「第 18 項的進度」。第 19 項的正本和 App 內的入口也做完（`6b510f5`），網頁送審之前才放上去，見「第 19 項的進度」。第 20 項的私隱清單也做完（`bbe77ee`），App Store Connect 問卷的答案使用者已確認，有帳戶才填得到，見「第 20 項的進度」。第 21 項的加密申報也核對完（`6268304`），`Info.plist` 照舊寫「不用申報」，前提是不在法國上架（U9，使用者 2026-10-22 決定首版不上），見「第 21 項的進度」。
 
 | # | 待辦 | 為甚麼和怎樣做 | 做完的標準 |
 |---|---|---|---|
@@ -189,7 +189,7 @@
 - RULES 第 5 節不准網站連去個人帳戶下的 repo，所以正本只寫「GitHub 上一個公開的 repo」，不寫 DDI repo 的名稱。
 - App 內：公開版設定頁「關於」在「聯絡我們」下面多了「私隱政策」，用 Safari 打開中文頁（`Edition.privacyPolicyURL`）。Android 的「私隱政策」鈕在「隱私與使用範圍」的說明裏；iOS 沒有那個說明，所以放在「關於」。親友版沒有這一列（Android 親友版也沒有）。網頁放上去之前按了會打不開；公開版要付費帳戶才裝得到，所以沒有人會按到。
 - 拆開比對：兩個 IPA 都只有執行檔不同，字串各多了「私隱政策」一條；親友版的網址是 nil，畫面上沒有這一列。建好的公開版 App 掃描照舊 45 個提醒。
-- 寫正本時發現：Pairing File 存在 Application Support，沒有排除在 iPhone 的 iCloud 備份和電腦備份之外（只有 DDI 排除了）。`PairingFileStore` 兩個版本共用，親友版已經上機驗證過，所以正本照實寫，程式沒有改；要不要排除，等使用者決定。
+- 寫正本時發現：Pairing File 存在 Application Support，沒有排除在 iPhone 的 iCloud 備份和電腦備份之外（只有 DDI 排除了）。`PairingFileStore` 兩個版本共用，親友版已經上機驗證過，所以正本照實寫，程式沒有改。使用者 2026-10-22 決定不排除，照舊跟着 iPhone 的備份（正本已經這樣寫）。
 - 放上網站的步驟（送審之前）：一、把正本兩種語言的「生效日期」改成那一天，commit；二、在 `JetPiggy` repo 開新 session，交接附上正本「中文」和「English」兩節的全文（網站 session 不讀這個 repo），照 Android 那兩頁的外觀做成 `/ios/privacy.html` 和 `/en/ios/privacy.html`；三、照 RULES 第 5 節把要公開的內容列給使用者確認，部署等使用者明確要求；四、實機按「私隱政策」確認打得開；五、App Store Connect 的私隱政策網址（第 25 項），中文填中文頁，英文填英文頁。
 - 第 20 項的 App 私隱標籤和 `PrivacyInfo.xcprivacy` 要和這份一致。
 
@@ -212,7 +212,7 @@
 
 ### 第 21 項的進度
 
-2026-10-22 核對完（`6268304`；CI run `39711079005` 五個 job 綠燈，親友版 363 個測試，公開版 295 個，和之前相同，編譯警告也相同；archive job 新加的檢查通過），**U9 等使用者確認**。理由和來源寫在 `docs/app-store-encryption.md`，是整理 Apple 和美國法規的公開資料，不是法律意見。
+2026-10-22 核對完（`6268304`；CI run `39711079005` 五個 job 綠燈，親友版 363 個測試，公開版 295 個，和之前相同，編譯警告也相同；archive job 新加的檢查通過）。U9 使用者 2026-10-22 決定照建議：首版不在法國上架。理由和來源寫在 `docs/app-store-encryption.md`，是整理 Apple 和美國法規的公開資料，不是法律意見。
 
 - 公開版 `Info.plist` 的 `ITSAppUsesNonExemptEncryption` 照舊是 `NO`。這個鍵從原型就有，第 8 項分版本時兩個版本各帶一份，之前沒有核對過理由。CI 的「Check and summarize the public app」檢查建好的公開版 App 這個鍵是 `NO`，少了或改了就失敗。親友版不上 App Store，不改。
 - App 用到的加密都在 idevice 裏，用來連接同一部 iPhone 的開發者服務：
@@ -222,7 +222,7 @@
   - 另外連結了 rustls 和 ring。
   - 全部是 IETF 等的公開標準，沒有自創的。Swift 只用 Apple 系統的 HTTPS 和 SHA-256。
 - 照 App Store Connect 說明的對照表，用了不是 Apple 系統提供的標準加密，只有在法國上架才要交文件（法國 ANSSI 的加密申報）；不在法國上架就算免交文件，可以寫 `NO`。美國方面，GFlyer 是大眾市場的完整 App（5D992.c），照現行的 15 CFR 740.17(e)(3)，不用交每年的自我分類報告，也不用 CCATS。
-- U9（首版不在法國上架）等使用者確認。確認的話，第 22 項建 App 時「價格與供應狀況」不選法國。要在法國上架，送審之前先申報、上載文件、拿到代碼，`Info.plist` 改成 `YES` 再加 `ITSEncryptionExportComplianceCode`，次序見那份文件第 4 節。
+- 所以第 22 項建 App 時「價格與供應狀況」不選法國。之後要在法國上架，送審之前先申報、上載文件、拿到代碼，`Info.plist` 改成 `YES` 再加 `ITSEncryptionExportComplianceCode`，次序見那份文件第 4 節。
 - 做完的標準：第 23 項第一次上傳之後，TestFlight 的建置不顯示缺少出口合規資料，也不用回答加密的問題。
 
 ## 第四階段：簽署、TestFlight、送審
@@ -230,7 +230,7 @@
 | # | 待辦 | 為甚麼和怎樣做 | 誰做 | 做完的標準 |
 |---|---|---|---|---|
 | 28 | 匯出公開版到 JetPiggy 的 repo | U8。照 Android 的 `tools/export-public/export.py`：按清單只匯出共用和 `Public/` 的檔案，掃描禁用字，檢查沒有和親友版一模一樣的檔案，在匯出的 repo 自己建置得到；加 `AGENTS.md`、`NOTICE`，並照品牌規則第 8 節登記。建 repo 和 push 等使用者明確要求 | Claude 寫工具，使用者建 repo | 匯出的 repo 自己的 CI 綠燈；裏面沒有親友版的檔案和禁用字 |
-| 22 | 付費開發者帳戶、App ID 和權限 | U1。App 和通道的 extension 各要一個 App ID，開 Network Extension（第 12 項不用 App Groups），建發佈憑證和描述檔 | 使用者 | 帳戶通過審核；App Store Connect 建好 App |
+| 22 | 付費開發者帳戶、App ID 和權限 | U1。App 和通道的 extension 各要一個 App ID，開 Network Extension（第 12 項不用 App Groups），建發佈憑證和描述檔。建 App 時「價格與供應狀況」不選法國（U9、第 21 項） | 使用者 | 帳戶通過審核；App Store Connect 建好 App |
 | 23 | CI 簽署並上傳 | 沒有 Mac，所以由 GitHub Actions 建置、簽署，並用 App Store Connect API 金鑰上傳。憑證、描述檔和金鑰只放 GitHub 的加密 secrets，不 commit（`AGENTS.md`）。repo 是公開的，從 fork 開的 PR 拿不到 secrets；上傳的 job 只在使用者手動觸發時執行。上傳的建置要用 release 類的設定：現在 CI 的 `Idevice` 設定是 debug 類，不會 strip，執行檔帶着 debug map，裏面有 `/Users/runner/work/GFlyer_IOS/...` 的路徑；第 10 項的 `--app` 掃描會把它們列成提醒 | 使用者建 secrets；Claude 寫 workflow | TestFlight 出現建置 |
 | 24 | TestFlight 實機測試 | iOS 27、從沒配對過電腦的 iPhone 全程不用電腦：安裝、開發者模式、配對、通道、DDI、傳送、清除。另外測 iOS 26 以下匯入配對檔、Wi-Fi 和行動網路、重新開機後重建、路線在背景和鎖屏時繼續、清除後真實位置恢復（`docs/RELEASE_PROCESS.md` 不可回退的決定第 5 點） | 使用者 | 每一項有結果，記進 `HANDOFF.md` |
 | 25 | 商店資訊 | 名稱、副標題、說明、關鍵字、截圖、支援網址、私隱網址。不提遊戲和「作弊」，截圖和說明只展示公開版真正有的功能；照 JetPiggy 的規則檢查 | Claude 起草，使用者確認 | 全部填好 |
