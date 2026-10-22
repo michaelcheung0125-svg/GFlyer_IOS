@@ -264,6 +264,11 @@ Exit criterion: a 30-minute foreground route completes without losing the tunnel
   `Resources/OpenSourceLicenses.json`, which `scripts/open_source_licenses.py`
   generates from idevice's `Cargo.lock`; the 「Open source licences」 CI job
   regenerates it from the pinned revision and fails when it differs
+- Privacy policy for the public edition (2026-10-22, `6b510f5`,
+  `docs/APP_STORE_PLAN.md` item 19). The master text is
+  `docs/privacy-policy.md`; `Edition.privacyPolicyURL` adds 「私隱政策」 to
+  Settings › 關於 in the public edition only. The web page goes up before the
+  App Store submission
 - Route polyline editing and waypoint reorder
 
 Exit criterion: behavior matches the existing Android model tests where the platform does not impose a different constraint.

@@ -47,6 +47,8 @@
 
 **已決定（2026-10-21）**：U2、U3、U6、U8 照建議。U2：公開版的 bundle id 是 `com.jetpiggy.gflyer`，名稱「GFlyer - 飛豬人」（和 Android 公開版的 App 名稱相同），圖示是 JetPiggy 的飛豬；App Store 上的名稱在第 22 項建 App 時查過才定。U3：最低 iOS 17.4。U6：和 Android 公開版拿走的相同，再加檢查新版和 SideStore 的連結、LocalDevVPN 的交接（第 9 項）。U8：在 GFlyer_IOS 開發，送審之前匯出到 JetPiggy 名下的新 repo（第 28 項）。
 
+**已決定（2026-10-22）**：U7 照建議：公開版把收藏的座標送去反查之前先問，文字照 Android 公開版（第 17 項已經這樣做）。
+
 ## 第一階段：Xcode 26 與在手機上配對
 
 兩個版本都用得到。先在親友版做完，用 SideStore 裝到 iOS 27 的 iPhone 驗證；現在的使用者升級之後也不用再開 idevice_pair。
@@ -99,7 +101,7 @@
 
 ## 第三階段：公開版才有的
 
-第 12 項的程式 2026-10-21 做完（`190bf0d`），還沒有在實機試，見表下面的「第 12 項的進度」。第 15 項的程式也做完（`8b46c61`），送審說明的 DDI 一段已起草，見「第 15 項的進度」。第 16 項的程式 2026-10-22 做完（`7c0a05c`），兩個版本都有，還沒有在實機試，見「第 16 項的進度」。第 17 項的程式也做完（`ec093a6`），公開版改用 Apple 的地點服務，不連 Nominatim，還沒有在實機試，見「第 17 項的進度」。第 18 項的程式也做完（`0e2d8ca`），兩個版本都有，見「第 18 項的進度」。
+第 12 項的程式 2026-10-21 做完（`190bf0d`），還沒有在實機試，見表下面的「第 12 項的進度」。第 15 項的程式也做完（`8b46c61`），送審說明的 DDI 一段已起草，見「第 15 項的進度」。第 16 項的程式 2026-10-22 做完（`7c0a05c`），兩個版本都有，還沒有在實機試，見「第 16 項的進度」。第 17 項的程式也做完（`ec093a6`），公開版改用 Apple 的地點服務，不連 Nominatim，還沒有在實機試，見「第 17 項的進度」。第 18 項的程式也做完（`0e2d8ca`），兩個版本都有，見「第 18 項的進度」。第 19 項的正本和 App 內的入口也做完（`6b510f5`），網頁送審之前才放上去，見「第 19 項的進度」。
 
 | # | 待辦 | 為甚麼和怎樣做 | 做完的標準 |
 |---|---|---|---|
@@ -154,7 +156,7 @@
 
 ### 第 17 項的進度
 
-程式 2026-10-22 做完（`ec093a6`；CI run `39672264473` 四個 job 綠燈，親友版 357 個測試，公開版 289 個：兩邊都多了 13 個 `RegionLookupConsentTests`；Nominatim 的 3 個 fixture 測試從共用的 `RegionLabelTests` 搬到只有親友版跑的 `NominatimRegionLabelTests`，親友版另外多了 2 個；公開版多了 2 個 `AppleGeocoderRegionLabelTests`；編譯警告和之前相同），**還沒有在實機試**：公開版要付費開發者帳戶才裝得到（第 22 項）。照 GFlyer-Suite `docs/features/region-labels.md` 3.5a 和 3.10。U7 照建議做（先問，文字照 Android 公開版），使用者還沒有正式決定。
+程式 2026-10-22 做完（`ec093a6`；CI run `39672264473` 四個 job 綠燈，親友版 357 個測試，公開版 289 個：兩邊都多了 13 個 `RegionLookupConsentTests`；Nominatim 的 3 個 fixture 測試從共用的 `RegionLabelTests` 搬到只有親友版跑的 `NominatimRegionLabelTests`，親友版另外多了 2 個；公開版多了 2 個 `AppleGeocoderRegionLabelTests`；編譯警告和之前相同），**還沒有在實機試**：公開版要付費開發者帳戶才裝得到（第 22 項）。照 GFlyer-Suite `docs/features/region-labels.md` 3.5a 和 3.10。U7 照建議做（先問，文字照 Android 公開版），使用者 2026-10-22 決定照建議。
 
 - 佇列、快取和顯示照舊是共用的 `RegionLookup`：一次一筆、每筆之後隔 1.1 秒、快取在 `gflyer.region-labels.v1`、查失敗到下次開 App 才再查。查哪個服務由 `Edition.makeRegionLabelSource()` 決定。Nominatim 的請求和解析搬到 `GFlyerIOS/Family/Services/NominatimRegionLabels.swift`，只編進親友版；親友版的行為不變，也不問。
 - 公開版用 `CLGeocoder` 的 `reverseGeocodeLocation`，語言固定 `zh_TW`（`GFlyerIOS/Public/Services/AppleGeocoderRegionLabels.swift`）。標籤照 3.5a：國家加城市，城市用 `locality`、`subAdministrativeArea`、`administrativeArea` 裏第一個不是空白的；城市和國家相同就只寫國家。`AppleGeocoderRegionLabelTests` 照抄 Suite 的 `contracts/fixtures/region/platform-geocoder-labels.json`（13 個例子，Android 公開版的 `PlatformGeocoderTextTest` 讀同一份）。
@@ -176,6 +178,19 @@
 - CI 新的「Open source licences」job（Linux，不建置）下載釘住的 idevice，重新產生清單和提交的比對，不同就失敗並上傳產生的清單。改 `build_idevice.sh` 的 revision 或 features 時，同一次改動用 `--write` 重新產生（`AGENTS.md`）。
 - 授權全文裏有第三方版權人的名字和電郵（例如 Michael Wright、兩個 gmail.com 的地址），會撞到公開版掃描的「個人姓名」「私人電郵」。`scripts/check_public_sources.py` 只在這個檔、只放行這幾段字（`NOTICES_ALLOWED`），原始碼和建好的 App 都一樣；清單換了內容又撞到時，確認是第三方的版權人才加。
 - 實機要看的：設定頁「關於」的入口；清單捲得順、140 個都在；打開 `ring` 這種有三份全文的，段落和框線照原樣；深色模式看得清楚。
+
+### 第 19 項的進度
+
+正本和 App 內的入口 2026-10-22 做完（`6b510f5`；CI run `39685853297` 五個 job 綠燈，親友版 363 個測試，公開版 295 個，親友版多了 1 個 `FamilyEditionTests`，公開版多了新的 `PublicEditionTests`；編譯警告和之前相同。第一次跑時親友版的 `CoordinateLibraryTests.testLastCheckedAtRecordsOnlySuccessfulDownloads` 失敗：它最多等 2 秒讓下載完成，runner 慢的時候等不到，和這次的改動無關，重跑通過），**網頁還沒有放上去**，所以做完的標準裏的「頁面公開」還沒有達到。
+
+- 使用者 2026-10-22 決定：U7 照建議（先問）；網址是 `https://gflyer.jetpiggy.com/ios/privacy.html`，英文 `/en/ios/privacy.html`；正本現在寫，送審之前（第 25 項）才放上網站，因為 JetPiggy RULES 第 5 節只准寫已推出或已公開的功能，而且這一節不可以放寬。
+- 正本 `docs/privacy-policy.md`，中英文，結構和用字照 Android 公開版的正本（GFlyer `docs/privacy-policy.md`），iOS 做法不同的地方逐項改寫，每一句的根據寫在正本開頭。和 Android 不同的主要是：存在 iPhone 上的多了最後一次的真實位置、Pairing File 和 DDI；iPhone 的 iCloud 備份和電腦備份會包括這些資料，只有 DDI 排除在外（Android 寫的是不經雲端備份）；多了「Pairing File、本機通道和 DDI」一節，寫配對時在本機網絡公告甚麼、通道只導入目標 IP、DDI 從 GitHub 下載，以及掛載時向 `gs.apple.com` 送出 ECID 等（經 HTTP，沒有加密）；連線到的服務只有 Apple（地圖、搜尋、國家與城市、簽署伺服器）和 GitHub；iOS 不讀剪貼簿。
+- RULES 第 5 節不准網站連去個人帳戶下的 repo，所以正本只寫「GitHub 上一個公開的 repo」，不寫 DDI repo 的名稱。
+- App 內：公開版設定頁「關於」在「聯絡我們」下面多了「私隱政策」，用 Safari 打開中文頁（`Edition.privacyPolicyURL`）。Android 的「私隱政策」鈕在「隱私與使用範圍」的說明裏；iOS 沒有那個說明，所以放在「關於」。親友版沒有這一列（Android 親友版也沒有）。網頁放上去之前按了會打不開；公開版要付費帳戶才裝得到，所以沒有人會按到。
+- 拆開比對：兩個 IPA 都只有執行檔不同，字串各多了「私隱政策」一條；親友版的網址是 nil，畫面上沒有這一列。建好的公開版 App 掃描照舊 45 個提醒。
+- 寫正本時發現：Pairing File 存在 Application Support，沒有排除在 iPhone 的 iCloud 備份和電腦備份之外（只有 DDI 排除了）。`PairingFileStore` 兩個版本共用，親友版已經上機驗證過，所以正本照實寫，程式沒有改；要不要排除，等使用者決定。
+- 放上網站的步驟（送審之前）：一、把正本兩種語言的「生效日期」改成那一天，commit；二、在 `JetPiggy` repo 開新 session，交接附上正本「中文」和「English」兩節的全文（網站 session 不讀這個 repo），照 Android 那兩頁的外觀做成 `/ios/privacy.html` 和 `/en/ios/privacy.html`；三、照 RULES 第 5 節把要公開的內容列給使用者確認，部署等使用者明確要求；四、實機按「私隱政策」確認打得開；五、App Store Connect 的私隱政策網址（第 25 項），中文填中文頁，英文填英文頁。
+- 第 20 項的 App 私隱標籤和 `PrivacyInfo.xcprivacy` 要和這份一致。
 
 ## 第四階段：簽署、TestFlight、送審
 
