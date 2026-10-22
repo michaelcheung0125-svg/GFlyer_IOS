@@ -33,6 +33,7 @@
 - App 內「開放原始碼授權」頁的清單 `GFlyerIOS/Resources/OpenSourceLicenses.json` 由 `scripts/open_source_licenses.py` 產生，不要手改。改了 `scripts/build_idevice.sh` 的 revision 或 features，同一次改動用 `--write` 重新產生；CI 的「Open source licences」核對它和 `libidevice_ffi.a` 實際連結的相符。
 - 公開版的私隱政策正本是 `docs/privacy-policy.md`（`docs/APP_STORE_PLAN.md` 第 19 項）。改了公開版處理資料的做法（連線、權限、存甚麼、備份檔或 iPhone 備份裏有甚麼），同一次改動改正本和它的「生效日期」，網頁已經放上去的話再交 `JetPiggy` 的網站 session 更新；App Store 的私隱申報 `docs/app-store-privacy.md` 也一起看（第 20 項）。
 - 公開版的私隱清單 `GFlyerIOS/Public/PrivacyInfo.xcprivacy` 要寫出 App 和通道 extension 用到的每一類「指定原因 API」（例如 `UserDefaults`、`stat`、`systemUptime`）。CI 用 `scripts/check_privacy_manifest.py` 掃建好的公開版 App，少寫就失敗；加了用到新類別的程式或 Rust 依賴，同一次改動補上類別和原因，並更新 `docs/app-store-privacy.md`。
+- 公開版 `Info.plist` 的 `ITSAppUsesNonExemptEncryption` 是 NO（`docs/APP_STORE_PLAN.md` 第 21 項），前提是 App 只用國際標準的加密，而且不在法國的 App Store 上架。改了 `scripts/build_idevice.sh` 的 features、加了用到加密的程式庫或自己寫加密，或者要在法國上架，先照 `docs/app-store-encryption.md` 重新判斷；CI 檢查建好的公開版 App 這個鍵是 NO。
 - 不要提交 Pairing File、Apple 私密金鑰、provisioning profile、DDI 二進位檔或 `libidevice_ffi.a`。
 - `GFlyerIOS/Vendor/idevice/`、`.build/`、產生的 `.xcodeproj` 都應保持未追蹤。
 - 不要加入反偵測、修改第三方遊戲客戶端或規避第三方定位檢查功能。

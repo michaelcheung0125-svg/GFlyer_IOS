@@ -421,6 +421,9 @@ jobs:
           test -f "$app_path/AppIcon60x60@2x.png"
           plist="$app_path/Info.plist"
           test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$plist")" = com.jetpiggy.gflyer
+          # 加密的出口申報（docs/APP_STORE_PLAN.md 第 21 項）：只用標準加密、不在法國上架，所以是 NO。
+          # 少了這個鍵，每次上傳都要在 App Store Connect 回答；要改先看 docs/app-store-encryption.md
+          test "$(/usr/libexec/PlistBuddy -c 'Print :ITSAppUsesNonExemptEncryption' "$plist")" = false
           # App 內建的本機通道（docs/APP_STORE_PLAN.md 第 12 項）
           tunnel_plist="$app_path/PlugIns/GFlyerPublicTunnel.appex/Info.plist"
           test -f "$app_path/PlugIns/GFlyerPublicTunnel.appex/GFlyerPublicTunnel"
