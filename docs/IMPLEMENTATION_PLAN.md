@@ -273,8 +273,13 @@ Exit criterion: a 30-minute foreground route completes without losing the tunnel
   `docs/APP_STORE_PLAN.md` item 20): `GFlyerIOS/Public/PrivacyInfo.xcprivacy`
   declares UserDefaults, file timestamp and system boot time, and
   `scripts/check_privacy_manifest.py` checks it against the symbols of the
-  built public app in CI. The App Store Connect answers are drafted in
-  `docs/app-store-privacy.md`
+  built public app in CI. The App Store Connect answers are in
+  `docs/app-store-privacy.md` (confirmed by the user on 2026-10-22)
+- Encryption export declaration for the public edition (2026-10-22, `6268304`,
+  `docs/APP_STORE_PLAN.md` item 21): `ITSAppUsesNonExemptEncryption` stays NO
+  because idevice only uses standard algorithms and the app will not be on
+  the French store (U9); CI checks the key in the built public app. The
+  reasons are in `docs/app-store-encryption.md`
 - Route polyline editing and waypoint reorder
 
 Exit criterion: behavior matches the existing Android model tests where the platform does not impose a different constraint.

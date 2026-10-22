@@ -3,7 +3,7 @@
 `docs/APP_STORE_PLAN.md` 第 20 項，分兩部分：
 
 - App 裏的私隱清單 `GFlyerIOS/Public/PrivacyInfo.xcprivacy`：已經做好，CI 會核對。
-- App Store Connect 的「App 私隱」問卷：已經起草，等使用者確認；要有第 22 項的帳戶才填得到。
+- App Store Connect 的「App 私隱」問卷：答案使用者 2026-10-22 確認照草稿（第 4 節）；要有第 22 項的帳戶才填得到。
 
 對應 Android 的是 GFlyer repo `docs/play-app-content.md` 的第 6 節「資料安全性」。改了公開版處理資料的做法，這份、私隱清單和私隱政策（`docs/privacy-policy.md`）一起改。親友版不上 App Store，沒有這些。
 
@@ -56,7 +56,7 @@
 | 資料 | 為甚麼不用申報 |
 |---|---|
 | 地圖顯示的範圍、地點搜尋的文字、收藏的座標（查國家與城市） | 經 MapKit 和 `CLGeocoder` 送去 Apple。Apple 收集的資料不用開發者申報，JetPiggy 收不到 |
-| 掛載 DDI 時這部 iPhone 的 ECID、晶片和主機板的型號代碼、nonce | idevice 送去 Apple 的簽署伺服器 `gs.apple.com`，取得掛載用的票據，和 Xcode 一樣。收到的是 Apple，JetPiggy 和 idevice 的作者都收不到，所以照「Apple 收集的不用申報」處理。這一項要使用者確認，見第 4 節 |
+| 掛載 DDI 時這部 iPhone 的 ECID、晶片和主機板的型號代碼、nonce | idevice 送去 Apple 的簽署伺服器 `gs.apple.com`，取得掛載用的票據，和 Xcode 一樣。收到的是 Apple，JetPiggy 和 idevice 的作者都收不到，所以照「Apple 收集的不用申報」處理。使用者 2026-10-22 確認不申報，見第 4 節 |
 | 下載 DDI | 從 GitHub 下載固定版本的檔案，請求只帶 IP 地址和要下載的檔案，沒有使用者資料；GitHub 不是加進 App 的程式碼 |
 | 「聯絡我們」的電郵 | 和 Android 相同：App 只打開使用者的電郵 App，預填版本、iOS 版本和型號代碼，使用者看得到，也改得到；寄出電郵的是電郵 App，App 本身不傳送任何東西。就算當成 App 收集，它也和主要功能無關、偶爾才有，而且使用者每次自己選擇寄出 |
 | iPhone 的真實位置、模擬位置 | 只在 iPhone 上用；模擬位置交給這部 iPhone 自己的開發者服務 |
@@ -78,8 +78,11 @@ Android 的資料安全性申報了這些項目：位置、應用程式內搜尋
 - 第 23 項第一次上傳之後，App Store Connect 沒有寄來 ITMS-91053（缺少指定原因 API 的申報）之類的電郵。
 - 問卷填好之後，在 App Store Connect 預覽產品頁的私隱標籤，確認和私隱政策沒有矛盾。
 
-## 4. 送出前要確認
+## 4. 使用者的決定
 
-1. **整份答「不收集」**，特別是掛載 DDI 時送去 Apple 的 ECID：草稿照「Apple 收集的不用申報」處理。想保守的話，可以申報「Identifiers → Device ID」（用途「App Functionality」、沒有連結身分、沒有追蹤）。但那樣商店會顯示 App 收集裝置 ID，和 JetPiggy 實際收不到任何資料不符，所以建議不申報。
+使用者 2026-10-22 照建議決定：
+
+1. **整份答「不收集」**，包括掛載 DDI 時送去 Apple 的 ECID，照「Apple 收集的不用申報」處理。保守的做法是申報「Identifiers → Device ID」（用途「App Functionality」、沒有連結身分、沒有追蹤），但那樣商店會顯示 App 收集裝置 ID，和 JetPiggy 實際收不到任何資料不符，所以不申報。
 2. **「聯絡我們」的電郵不申報**，和 Android 相同。
-3. 填問卷要有第 22 項的帳戶。
+
+填問卷要有第 22 項的帳戶。
