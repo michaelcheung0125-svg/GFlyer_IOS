@@ -7,7 +7,8 @@
 #   bash scripts/ci.sh idevice    沒有 GFlyerIOS/Vendor/idevice 就用 scripts/build_idevice.sh 建置（要 Rust），
 #                                 再檢查程式庫齊全、有 App 用到的函式
 #   bash scripts/ci.sh test       產生 Xcode 專案，在 iPhone 模擬器跑 GFlyerPublic 的單元測試
-#   bash scripts/ci.sh archive    建未簽署的 GFlyerPublic-Idevice archive，檢查建好的 App
+#   bash scripts/ci.sh archive    建未簽署的 GFlyerPublic-Idevice archive（AppStore 設定，和上傳 App Store Connect
+#                                 的是同一種建置），檢查建好的 App
 #
 # 建置產物放在 $RUNNER_TEMP（CI）或 build/（本機，git 不追蹤）。
 set -euo pipefail
@@ -156,6 +157,17 @@ archive() {
   # App Store Connect 收到上傳時會掃執行檔用到的「指定原因 API」，私隱清單沒有寫就退回
   plutil -lint "$app/PrivacyInfo.xcprivacy"
   python3 -I scripts/check_privacy_manifest.py --app "$app"
+  # 上傳用的是 release 類的建置：有 dSYM，執行檔經過 strip，不帶這個 repo 在建置機器上的路徑
+  test -d "$archive/dSYMs/GFlyerPublic.app.dSYM"
+  test -d "$archive/dSYMs/GFlyerPublicTunnel.appex.dSYM"
+  local binary
+  for binary in "$app/GFlyerPublic" "$tunnel/GFlyerPublicTunnel"; do
+    if grep -a -q -F "$PWD/" "$binary"; then
+      echo "$binary has paths under $PWD:" >&2
+      strings -a "$binary" | grep -F "$PWD/" | sort -u | head -20 >&2
+      exit 1
+    fi
+  done
   echo "GFlyerPublic $(plist_value "$plist" CFBundleShortVersionString) ($(plist_value "$plist" CFBundleVersion)) checked."
 }
 

@@ -410,7 +410,8 @@ jobs:
           retention-days: 14
 
       # 公開版只檢查建得出來、內容對，不發佈，所以 artifact 只放摘要，不放 IPA。
-      # 放在親友版上傳之後：公開版失敗時，親友版的 IPA 照樣拿得到。
+      # 放在親友版上傳之後：公開版失敗時，親友版的 IPA 照樣拿得到。scheme 的 archive 用
+      # project.yml 的 AppStore 設定（release 類），和上傳 App Store Connect 的是同一種建置。
       - name: Create unsigned public archive
         run: |
           xcodebuild archive \
@@ -476,3 +477,20 @@ jobs:
           app_path="$RUNNER_TEMP/GFlyerPublic-Idevice.xcarchive/Products/Applications/GFlyerPublic.app"
           plutil -lint "$app_path/PrivacyInfo.xcprivacy"
           python3 scripts/check_privacy_manifest.py --app "$app_path"
+
+      # 上傳用的是 release 類的建置（docs/APP_STORE_PLAN.md 第 23 項）：有 dSYM，執行檔經過 strip，
+      # 不帶這個 repo 在建置機器上的路徑（debug 類的建置帶着 debug map，路徑裏有私人 repo 的名稱）。
+      # 公開 repo 的 scripts/ci.sh archive 做同樣的檢查。
+      - name: Check the public app is an upload build
+        run: |
+          archive="$RUNNER_TEMP/GFlyerPublic-Idevice.xcarchive"
+          app_path="$archive/Products/Applications/GFlyerPublic.app"
+          test -d "$archive/dSYMs/GFlyerPublic.app.dSYM"
+          test -d "$archive/dSYMs/GFlyerPublicTunnel.appex.dSYM"
+          for binary in "$app_path/GFlyerPublic" "$app_path/PlugIns/GFlyerPublicTunnel.appex/GFlyerPublicTunnel"; do
+            if grep -a -q -F "$GITHUB_WORKSPACE/" "$binary"; then
+              echo "$binary has paths under $GITHUB_WORKSPACE:" >&2
+              strings -a "$binary" | grep -F "$GITHUB_WORKSPACE/" | sort -u | head -20 >&2
+              exit 1
+            fi
+          done

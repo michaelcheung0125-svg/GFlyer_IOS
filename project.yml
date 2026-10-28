@@ -86,6 +86,12 @@ targets:
           HEADER_SEARCH_PATHS: "$(inherited) $(PROJECT_DIR)/GFlyerIOS/Vendor/idevice/include"
           LIBRARY_SEARCH_PATHS: "$(inherited) $(PROJECT_DIR)/GFlyerIOS/Vendor/idevice/lib"
           OTHER_LDFLAGS: "$(inherited) -lidevice_ffi"
+        # 和 Idevice 相同，改其中一個時兩個一起改
+        AppStore:
+          SWIFT_ACTIVE_COMPILATION_CONDITIONS: "$(inherited) GFLYER_IDEVICE"
+          HEADER_SEARCH_PATHS: "$(inherited) $(PROJECT_DIR)/GFlyerIOS/Vendor/idevice/include"
+          LIBRARY_SEARCH_PATHS: "$(inherited) $(PROJECT_DIR)/GFlyerIOS/Vendor/idevice/lib"
+          OTHER_LDFLAGS: "$(inherited) -lidevice_ffi"
   # 公開版的本機通道：Packet Tunnel extension，只把目標 IP 的封包對調位址後送回 iPhone 自己。
   # 免費 Apple ID 簽不了 Network Extension，所以只有公開版有；親友版照舊用 LocalDevVPN。
   # PacketReflector.swift 同時編進公開版的 App，App 和測試都用得到它。
@@ -136,10 +142,14 @@ targets:
         GENERATE_INFOPLIST_FILE: YES
         TEST_HOST: "$(BUILT_PRODUCTS_DIR)/GFlyerPublic.app/GFlyerPublic"
         BUNDLE_LOADER: "$(TEST_HOST)"
+# Idevice 連結 libidevice_ffi.a、可以控制 iPhone，是 debug 類：親友版經 SideStore 發佈的就是它。
+# AppStore 是公開版上傳 App Store Connect 用的，和 Idevice 一樣連結 libidevice_ffi.a，但是 release 類：
+# 有最佳化和 dSYM，執行檔經過 strip，不帶 debug map 裏建置機器上的路徑（docs/APP_STORE_PLAN.md 第 23 項）。
 configs:
   Debug: debug
   Release: release
   Idevice: debug
+  AppStore: release
 schemes:
   GFlyerIOS:
     build:
@@ -184,4 +194,4 @@ schemes:
     run:
       config: Idevice
     archive:
-      config: Idevice
+      config: AppStore
