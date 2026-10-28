@@ -287,6 +287,11 @@ Exit criterion: a 30-minute foreground route completes without losing the tunnel
   `tools/export-public/overlay/` and scans everything. `export-public.yml`
   runs the public repo's CI steps (`scripts/ci.sh`) in the exported folder on
   macOS. The public repo is not created yet
+- First-setup guide for the public edition (2026-10-29, `465bfc0`,
+  `docs/APP_STORE_PLAN.md` item 14): one screen per step (Developer Mode,
+  restart, pairing or Pairing File import, local tunnel, DDI, teleport and
+  check, clear). It opens on first launch and again after the restart, and
+  from Settings › 首次設定 afterwards. Not tried on a device yet
 - Route polyline editing and waypoint reorder
 
 Exit criterion: behavior matches the existing Android model tests where the platform does not impose a different constraint.
