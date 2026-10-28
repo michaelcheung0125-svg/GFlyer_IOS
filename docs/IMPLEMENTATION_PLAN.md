@@ -292,6 +292,12 @@ Exit criterion: a 30-minute foreground route completes without losing the tunnel
   restart, pairing or Pairing File import, local tunnel, DDI, teleport and
   check, clear). It opens on first launch and again after the restart, and
   from Settings › 首次設定 afterwards. Not tried on a device yet
+- Release-type upload build for the public edition (2026-10-29, `71d5ed7`,
+  `docs/APP_STORE_PLAN.md` item 23): the `GFlyerPublic-Idevice` scheme
+  archives with a new `AppStore` config (release), so the app has dSYMs,
+  stripped executables and no build-machine paths; CI and the public repo's
+  `scripts/ci.sh archive` check this. The family edition is unchanged.
+  Signing and upload wait for the paid account (item 22)
 - Route polyline editing and waypoint reorder
 
 Exit criterion: behavior matches the existing Android model tests where the platform does not impose a different constraint.

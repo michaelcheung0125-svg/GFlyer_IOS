@@ -255,6 +255,23 @@
 - 所以第 22 項建 App 時「價格與供應狀況」不選法國。之後要在法國上架，送審之前先申報、上載文件、拿到代碼，`Info.plist` 改成 `YES` 再加 `ITSEncryptionExportComplianceCode`，次序見那份文件第 4 節。
 - 做完的標準：第 23 項第一次上傳之後，TestFlight 的建置不顯示缺少出口合規資料，也不用回答加密的問題。
 
+### 第 23 項的進度
+
+2026-10-29 先做不用帳戶的部分：上傳用的 release 建置（`71d5ed7`、`4088e38`；CI run `40769781971` 綠燈，親友版 364 個測試，公開版 304 個，和之前相同，編譯警告也相同；`export-public.yml` 的 run `40776387662` 綠燈，匯出的資料夾裏 `scripts/ci.sh archive` 的同一個檢查也通過）。第一次跑時，親友版測試的 job 到了 30 分鐘上限被取消，但步驟全部成功；上次同一個 job 用 11 分鐘，所以是 runner 慢。重跑那個 job 用了 10 分鐘，綠燈。簽署和上傳的 workflow 要等第 22 項的帳戶。
+
+- `project.yml` 新加 release 類的 `AppStore` 設定。公開版的 target 在這個設定下連結 idevice 的四項設定，和 `Idevice` 相同，改其中一個時兩個一起改。`GFlyerPublic-Idevice` 的 archive 改用 `AppStore`；在 iPhone 上執行照舊用 `Idevice`（debug 類）。
+- 親友版不受影響：它的 scheme 和設定沒有改，IPA 的摘要和上次的 run `40765114958` 完全相同，連執行檔。
+- CI 的 archive job 新加「Check the public app is an upload build」，檢查兩樣：archive 裏有 App 和通道兩份 dSYM；兩個執行檔都沒有 `$GITHUB_WORKSPACE/` 底下的路徑。公開 repo 的 `scripts/ci.sh archive` 做同樣的檢查（用 `$PWD/`）。匯出的 `project.yml` 沒有註解，所以兩個設定的分別寫進匯出工具加的檔頭（`4088e38`）。
+- 結果：
+  - 建好的公開版 App 掃描由 45 個提醒變 0 個。
+  - 公開版的執行檔由 23.7 MB 變 4.3 MB，通道由 139 KB 變 93 KB。
+  - 私隱清單核對照舊 0 個提醒。
+  - 第 10 項說的 debug map 路徑已經沒有。
+- 要知道的：release 建置把 15 個位元組以下的 Swift 字串常數直接寫在指令裏（例如「上一步」「下載 DDI」），`strings` 和公開版的摘要都列不出來。這次的摘要少了 224 句這樣的短字。插值的長片段反而在編譯時併成整句，例如「1. 打開「設定」>「私隱與保安」>「開發者模式」，打開最上面的開關。」。所以：
+  - 以後拆開比對公開版，要和 run `40769781971` 或之後的摘要比，不要和之前 debug 類的比。
+  - `--app` 掃描看不到 Swift 原始碼裏的短字。這些字原始碼掃描已經掃過（第 10 項）；`--app` 要管的是建置時才加進來的東西（資源、`Info.plist`、連結進來的程式庫），這部分不受影響。
+- 還沒做的：簽署和上傳的 workflow，只在使用者手動觸發時執行，憑證、描述檔和 API 金鑰放 GitHub 的加密 secrets。要第 22 項的帳戶才能真的跑；做完的標準照表：TestFlight 出現建置。
+
 ### 第 28 項的進度
 
 2026-10-22 寫好匯出工具（`cea85e6`；CI run `39717230770` 五個 job 綠燈，親友版 363 個測試，公開版 295 個，和之前相同，編譯警告也相同；新加的 `export-public.yml` 的 run `39717230754` 綠燈）。公開 repo 還沒有建立：建 repo 和 push 等使用者明確要求（`AGENTS.md`「匯出公開版」）。
@@ -312,7 +329,7 @@
 |---|---|---|---|---|
 | 28 | 匯出公開版到 JetPiggy 的 repo | U8。照 Android 的 `tools/export-public/export.py`：按清單只匯出共用和 `Public/` 的檔案，掃描禁用字，檢查沒有和親友版一模一樣的檔案，在匯出的 repo 自己建置得到；加 `AGENTS.md`、`NOTICE`，並照品牌規則第 8 節登記。建 repo 和 push 等使用者明確要求 | Claude 寫工具，使用者建 repo | 匯出的 repo 自己的 CI 綠燈；裏面沒有親友版的檔案和禁用字。工具 2026-10-22 做好；repo 送審之前（第 25 項前後）才建，見「第 28 項的進度」 |
 | 22 | 付費開發者帳戶、App ID 和權限 | U1。App 和通道的 extension 各要一個 App ID，開 Network Extension（第 12 項不用 App Groups），建發佈憑證和描述檔。建 App 時「價格與供應狀況」不選法國（U9、第 21 項） | 使用者 | 帳戶通過審核；App Store Connect 建好 App |
-| 23 | CI 簽署並上傳 | 沒有 Mac，所以由 GitHub Actions 建置、簽署，並用 App Store Connect API 金鑰上傳。憑證、描述檔和金鑰只放 GitHub 的加密 secrets，不 commit（`AGENTS.md`）。repo 是公開的，從 fork 開的 PR 拿不到 secrets；上傳的 job 只在使用者手動觸發時執行。上傳的建置要用 release 類的設定：現在 CI 的 `Idevice` 設定是 debug 類，不會 strip，執行檔帶着 debug map，裏面有 `/Users/runner/work/GFlyer_IOS/...` 的路徑；第 10 項的 `--app` 掃描會把它們列成提醒 | 使用者建 secrets；Claude 寫 workflow | TestFlight 出現建置 |
+| 23 | CI 簽署並上傳 | 沒有 Mac，所以由 GitHub Actions 建置、簽署，並用 App Store Connect API 金鑰上傳。憑證、描述檔和金鑰只放 GitHub 的加密 secrets，不 commit（`AGENTS.md`）。repo 是公開的，從 fork 開的 PR 拿不到 secrets；上傳的 job 只在使用者手動觸發時執行。上傳的建置用 release 類的 `AppStore` 設定（2026-10-29 做好，見「第 23 項的進度」） | 使用者建 secrets；Claude 寫 workflow | TestFlight 出現建置 |
 | 24 | TestFlight 實機測試 | iOS 27、從沒配對過電腦的 iPhone 全程不用電腦：安裝、開發者模式、配對、通道、DDI、傳送、清除。另外測 iOS 26 以下匯入配對檔、Wi-Fi 和行動網路、重新開機後重建、路線在背景和鎖屏時繼續、清除後真實位置恢復（`docs/RELEASE_PROCESS.md` 不可回退的決定第 5 點） | 使用者 | 每一項有結果，記進 `HANDOFF.md` |
 | 25 | 商店資訊 | 名稱、副標題、說明、關鍵字、截圖、支援網址、私隱網址。不提遊戲和「作弊」，截圖和說明只展示公開版真正有的功能；照 JetPiggy 的規則檢查 | Claude 起草，使用者確認 | 全部填好 |
 | 26 | 送審說明 | 審查指南 2.3.1 要求說明寫清楚每個功能。附示範影片：開發者模式、配對、通道、傳送、定位檢查、清除。逐項說明為甚麼要開發者模式、本機網路、通道和背景執行 | Claude 起草，使用者錄影片 | 已送審 |
