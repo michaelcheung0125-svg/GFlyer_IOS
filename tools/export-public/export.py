@@ -93,7 +93,9 @@ PROJECT_HEADER = """\
 #   GFlyerPublicTunnel  App 內建的本機通道（Packet Tunnel extension），放進 App 的 PlugIns/
 #   GFlyerPublicTests   單元測試，在 GFlyerPublic 裏跑
 # scheme：GFlyerPublic 用預覽的定位後端，在模擬器跑；GFlyerPublic-Idevice 連結 libidevice_ffi.a，
-# 在 iPhone 上用（先跑 scripts/build_idevice.sh，見 README.md）。
+# 在 iPhone 上用（先跑 scripts/build_idevice.sh，見 README.md）。GFlyerPublic-Idevice 執行時用 Idevice
+# 設定（debug 類），archive 用 AppStore 設定（release 類：有 dSYM，執行檔經過 strip），上傳
+# App Store Connect 的就是它。兩個設定的內容相同，改其中一個時兩個一起改。
 # Assets.xcassets 經 sources 加進 App：XcodeGen 沒有 target 層級的 resources 欄位。
 """
 
