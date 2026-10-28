@@ -145,7 +145,18 @@
   3. 第一次開啟本機通道時，iOS 詢問可否加入 VPN 設定（第 12 項）。
   4. 定位檢查頁按「允許定位權限」之後 iOS 的定位權限詢問。
   5. 第 ⑥ 步說「也可以打開 iPhone 的「地圖」App，看藍點是不是在選取的位置」：iPhone 主畫面上這個 App 的名稱和藍點都要對過。
-- iOS 26 以下的路只寫了要用電腦，沒有說用哪個電腦工具、怎樣在電腦上叫出開發者模式和產生 Pairing File：要使用者決定推薦哪個工具（它在個人帳戶下的話，品牌規則第 5 節不准連過去），再照它的畫面寫。
+- iOS 26 以下用的電腦工具：使用者 2026-10-29 決定用 idevice_pair，不放網址。
+  - 理由：它經 USB 產生的是 GFlyer 讀的 remote pairing（RPPairing）配對檔（`rp_pairing_file_read`），要 iOS 17.4 以上，和公開版的最低版本相同；作者也寫 idevice。Mac 和 Windows 都有現成的安裝檔（v1.1.0，2026-08-17：`idevice_pair--windows-x86_64.exe` 約 40 MB、`idevice_pair--macos-universal.dmg` 約 58 MB）。免費，README 寫 MIT 授權（repo 裏沒有授權檔），不用登入 Apple ID，也不在 iPhone 上安裝東西。LocationLab 的支援頁也把它列為產生配對檔的備用工具。
+  - 不放網址：App 的字會出現在公開 repo，idevice_pair 在 GitHub 的個人帳戶下，品牌規則第 5 節不准連過去。說明只寫工具名和要下載哪個檔（Windows 的檔名有 `windows-x86_64`，Mac 的是 `.dmg`），使用者自己搜尋。在 idevice_pair 裏要揀 remote pairing，不是 lockdown，寫步驟時照它的畫面。
+  - 沒有採用的：
+    - iloader：要登入 Apple ID、會安裝 SideStore，等於叫 App Store 的使用者走親友版的安裝途徑（見「定位」）。
+    - Xcode：只有 Mac，下載很大，也產生不到 GFlyer 能匯入的配對檔；只當 Mac 叫出開發者模式的後備。
+    - pymobiledevice3、idevice 的命令列工具：對一般使用者太技術。
+    - 像 LocationLab 一樣自己做電腦工具：等於多做一個產品；iOS 27 才是主要的路。
+  - 還沒確認：idevice_pair 只讀開發者模式有沒有開，沒有叫出開關的功能（v1.1.0 的 `src/backend/link.rs`）。Apple 的文件（Enabling Developer Mode on a device）寫，開始配對或之前和 Mac 配對過，「設定」才顯示開發者模式；idevice_pair 經 USB 做的是同一種配對，推測配對之後開關會出現。要用一支從沒開過開發者模式的 iOS 26 iPhone 試：
+    - 會出現：Mac 和 Windows 都只用 idevice_pair。
+    - 不會出現：Mac 改用 Xcode 叫出開關；Windows 沒有乾淨的做法，App 裏主要叫人升級到 iOS 27。
+  - App 裏 iOS 26 以下的第 ①、③ 步現在只寫「用電腦」。要等有了 idevice_pair（Windows 和 Mac）和那支 iPhone 的截圖，才照畫面寫出工具名和步驟。
 - 拆開比對（和第 28 項的 run `39717230770` 比）：親友版的 IPA 只有執行檔不同，字串相同。公開版的字串少了舊的「操作順序」四句（「1. 用電腦產生這部 iPhone 的 pairing file。」等，現在只有親友版有），多了引導的字。建好的公開版 App 掃描照舊 45 個提醒。匯出 122 個檔案（多了新加的 4 個），提醒 202 處（多的 7 處都是註解提到 `docs/APP_STORE_PLAN.md`）。
 
 ### 第 15 項的進度
