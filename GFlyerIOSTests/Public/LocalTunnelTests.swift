@@ -175,8 +175,4 @@ final class LocalTunnelTests: XCTestCase {
         harness.center.post(name: UIApplication.didBecomeActiveNotification, object: nil)
         XCTAssertTrue(tunnel.isTunnelUp)
     }
-
-    func testUsageStepsFollowThePairingFileSteps() {
-        XCTAssertEqual(LocalTunnel.usageSteps.map { $0.prefix(2) }, ["3.", "4."])
-    }
 }

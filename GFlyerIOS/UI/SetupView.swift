@@ -125,7 +125,7 @@ struct SetupView: View {
                 } message: {
                     Text(controller.lastError ?? "未知錯誤")
                 }
-                .modifier(edition.settingsPresentations)
+                .modifier(edition.settingsPresentations(simulation: controller))
                 .alert("完成", isPresented: binding(for: $transferSummary)) {
                     Button("確定", role: .cancel) { transferSummary = nil }
                 } message: {
@@ -298,8 +298,11 @@ struct SetupView: View {
 
     private var pairingSection: some View {
         Section("首次設定") {
+            edition.firstSetupRows
             LabeledContent("Pairing File", value: pairingStore.isImported ? "已匯入" : "未匯入")
-            if onDevicePairing.isAvailable { onDevicePairingRows }
+            if onDevicePairing.isAvailable {
+                OnDevicePairingRows(controller: controller, pairing: onDevicePairing)
+            }
             Button {
                 pendingImport = .pairingFile
                 showImporter = true
@@ -327,86 +330,6 @@ struct SetupView: View {
                     confirmingPairingRemoval = true
                 }
             }
-        }
-    }
-
-    /// iOS 27 起才有（docs/APP_STORE_PLAN.md 第 4、6 項）。步驟照 2026-10-20 iOS 27 實機（香港繁體中文）
-    /// 的畫面一字不差地寫：「Pair with GFlyer」在實機上就是英文。配對進行中也顯示，切回來時還看得到下一步。
-    @ViewBuilder
-    private var onDevicePairingRows: some View {
-        if onDevicePairing.phase.isActive {
-            activePairingRows
-        } else {
-            Button {
-                onDevicePairing.start()
-            } label: {
-                Label(OnDevicePairingController.continuedTaskTitle, systemImage: "iphone.radiowaves.left.and.right")
-            }
-            .disabled(controller.isMotionActive)
-            pairingResultText
-        }
-        Text(controller.isMotionActive && !onDevicePairing.phase.isActive
-             ? "模擬進行中不能配對，請先按停止。"
-             : "iOS 27 起不用電腦。按「\(OnDevicePairingController.continuedTaskTitle)」之後：\n1. 打開 iPhone 的「設定」>「私隱與保安」>「開發者模式」。\n2. 在「其他裝置」按「Pair with GFlyer」，再按「配對」。\n3. 在「輸入密碼」輸入 GFlyer 顯示的 6 位數字，通知也會顯示這組數字。\n配對成功後會取代現有的 Pairing File。")
-            .font(.caption)
-            .foregroundStyle(.secondary)
-    }
-
-    @ViewBuilder
-    private var activePairingRows: some View {
-        HStack(spacing: Spacing.md) {
-            ProgressView()
-            Text(pairingStatusText)
-        }
-        if case let .enterPIN(pin) = onDevicePairing.phase {
-            LabeledContent("PIN") {
-                Text(pin)
-                    .font(.title2.monospacedDigit().weight(.semibold))
-                    .textSelection(.enabled)
-            }
-        }
-        if onDevicePairing.needsLocalNetworkPermission {
-            Text("GFlyer 還沒有本機網路權限，「設定」找不到它。系統詢問時請按「允許」。")
-                .font(.caption)
-                .foregroundStyle(Color.statusAttention)
-        }
-        if let message = onDevicePairing.lastAttemptMessage {
-            Text("上一次沒有成功，可以在「設定」再按一次「Pair with GFlyer」。\n\(message)")
-                .font(.caption)
-                .foregroundStyle(Color.statusAttention)
-        }
-        LabeledContent("剩下時間") {
-            Text(String(format: "%d:%02d", onDevicePairing.secondsRemaining / 60, onDevicePairing.secondsRemaining % 60))
-                .font(.numericLabel)
-        }
-        Button("取消配對", role: .destructive) {
-            onDevicePairing.cancel()
-        }
-    }
-
-    private var pairingStatusText: String {
-        switch onDevicePairing.phase {
-        case .starting: return "正在準備"
-        case .waitingForDevice: return "等待「設定」連線"
-        case .deviceConnected: return "「設定」已連線"
-        case .enterPIN: return "在「設定」的「輸入密碼」輸入這組數字"
-        case .idle, .succeeded, .failed: return ""
-        }
-    }
-
-    @ViewBuilder
-    private var pairingResultText: some View {
-        switch onDevicePairing.phase {
-        case .succeeded:
-            Label("配對完成，Pairing File 已更新。", systemImage: "checkmark.circle")
-                .font(.caption)
-                .foregroundStyle(Color.statusOK)
-        case let .failed(message):
-            Text(message)
-                .font(.caption)
-                .foregroundStyle(Color.statusDanger)
-        case .idle, .starting, .waitingForDevice, .deviceConnected, .enterPIN:
-            EmptyView()
         }
     }
 
@@ -686,9 +609,7 @@ struct SetupView: View {
 
     private var instructionsSection: some View {
         Section("操作順序") {
-            Text("1. 用電腦產生這部 iPhone 的 pairing file。")
-            Text("2. 將檔案傳到 iPhone 並在此匯入。")
-            ForEach(LocalTunnel.usageSteps, id: \.self) { Text($0) }
+            ForEach(Edition.usageSteps, id: \.self) { Text($0) }
         }
     }
 

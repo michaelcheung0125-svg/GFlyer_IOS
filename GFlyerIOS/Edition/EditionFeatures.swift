@@ -35,6 +35,9 @@ protocol EditionFeatures {
     /// 設定頁備份和還原下面的說明。
     static var backupFormatNote: String { get }
 
+    /// 設定頁「操作順序」的步驟，連編號。
+    static var usageSteps: [String] { get }
+
     /// 要掛載 DDI、本機又沒有時：nil 就直接下載（親友版）；有值就不自己下載，丟出這句錯誤，
     /// 使用者要先在設定頁按下載（公開版：審查指南 4.2.3 要求第一次使用要下載的資源先說明大小
     /// 並詢問）。idevice backend 不在主執行緒，所以放在這裏。
@@ -68,7 +71,8 @@ struct TunnelWording {
 }
 
 /// 版本專屬功能在 App 執行期間的狀態，例如親友版的檢查新版和補錄步數。`GFlyerIOSApp` 建立一個，
-/// 交給主畫面和設定頁。公開版的實作全部是空的，照 Android 公開版的 `NoScreenFeatures`。
+/// 交給主畫面和設定頁。公開版只有首次設定的引導（docs/APP_STORE_PLAN.md 第 14 項），其他照 Android 公開版的
+/// `NoScreenFeatures` 是空的。
 ///
 /// 每一項都放在原本寫在共用畫面的同一個位置，所以親友版的畫面和提示的先後都和分版本之前相同。
 @MainActor
@@ -76,6 +80,7 @@ protocol EditionModelFeatures: ObservableObject {
     associatedtype MainScreenPresentations: ViewModifier
     associatedtype NavigationBarButtons: View
     associatedtype SettingsPresentations: ViewModifier
+    associatedtype FirstSetupRows: View
     associatedtype SettingsSections: View
 
     init()
@@ -93,8 +98,11 @@ protocol EditionModelFeatures: ObservableObject {
     /// 地圖工具列上版本專屬的按鈕，接在「已儲存路線」後面。
     func mapToolItems(feedback: MainScreenFeedback) -> [MapToolItem]
 
-    /// 設定頁上版本專屬的提示和畫面。
-    var settingsPresentations: SettingsPresentations { get }
+    /// 設定頁上版本專屬的提示和畫面。那些畫面用 `simulation` 傳送位置。
+    func settingsPresentations(simulation: SimulationController) -> SettingsPresentations
+
+    /// 設定頁「首次設定」最上面版本專屬的列，例如公開版打開首次設定引導的按鈕。
+    @ViewBuilder var firstSetupRows: FirstSetupRows { get }
 
     /// 設定頁裏版本專屬的 section，放在「繞圈設定」之後。
     @ViewBuilder var settingsSections: SettingsSections { get }
@@ -172,8 +180,6 @@ protocol LocalTunnelFeatures: ObservableObject {
     /// 設定頁「恢復」裏「完整清除模擬定位」下面的列。
     @ViewBuilder func recoveryRows(isClearing: Bool) -> RecoveryRows
 
-    /// 設定頁「操作順序」匯入 Pairing File 之後的步驟，連編號。
-    static var usageSteps: [String] { get }
 }
 
 /// 開不了通道時主畫面的狀態和「操作失敗」的錯誤。

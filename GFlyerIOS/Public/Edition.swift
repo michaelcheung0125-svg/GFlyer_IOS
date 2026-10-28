@@ -14,7 +14,7 @@ enum Edition: EditionFeatures {
         verifiedStatus: "CoreDevice 通道已驗證"
     )
 
-    /// 公開版的使用教學還沒有寫（docs/APP_STORE_PLAN.md 第 14 項的引導）。
+    /// 公開版沒有網上的使用教學：第一次設定由 App 裏的首次設定引導帶着做（docs/APP_STORE_PLAN.md 第 14 項）。
     static let userGuideURL: URL? = nil
 
     /// docs/APP_STORE_PLAN.md 第 19 項。內容的正本是 `docs/privacy-policy.md`；網站送審之前才放上去，
@@ -25,6 +25,12 @@ enum Edition: EditionFeatures {
 
     static let backupFormatNote =
         "備份檔為 GFlyer Backup v1 格式，包含收藏、歷史、資料夾、路線與速度預設，與 GFlyer Android 的備份/還原互通。Pairing File 不會包含在備份內。"
+
+    /// 開發者模式、配對、通道和 DDI 都在首次設定引導裏一步一步做。
+    static let usageSteps = [
+        "1. 第一次使用時，按「首次設定」的「\(FirstSetupText.entryTitle)」，照着做完。",
+        "2. 之後回到地圖選點並按開始；本機通道未開時 GFlyer 會自動開啟。",
+    ]
 
     /// 設定頁下載 DDI 的按鈕，連大小。
     static let developerDiskImageDownloadTitle = "下載 DDI（約 \(DeveloperDiskImageStore.downloadSizeText)）"

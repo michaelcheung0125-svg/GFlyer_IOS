@@ -131,9 +131,4 @@ final class LocalTunnel: ObservableObject, LocalTunnelFeatures {
     func recoveryRows(isClearing: Bool) -> some View {
         LocalTunnelRecoveryRows(tunnel: self, isClearing: isClearing)
     }
-
-    static let usageSteps = [
-        "3. 按「開啟本機通道」。第一次開啟時，iOS 會詢問可否加入 VPN 設定，要允許才能使用。",
-        "4. 回到地圖選點並按開始；本機通道未開時 GFlyer 會自動開啟。",
-    ]
 }

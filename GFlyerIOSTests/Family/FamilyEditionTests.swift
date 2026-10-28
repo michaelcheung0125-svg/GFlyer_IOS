@@ -12,4 +12,14 @@ final class FamilyEditionTests: XCTestCase {
     func testHasNoPrivacyPolicy() {
         XCTAssertNil(Edition.privacyPolicyURL)
     }
+
+    /// 設定頁「操作順序」改由 `Edition` 給（公開版第 14 項），親友版的四步一字不改。
+    func testUsageStepsAreUnchanged() {
+        XCTAssertEqual(Edition.usageSteps, [
+            "1. 用電腦產生這部 iPhone 的 pairing file。",
+            "2. 將檔案傳到 iPhone 並在此匯入。",
+            "3. 確認已安裝 LocalDevVPN。",
+            "4. 回到地圖選點並按開始；VPN 未開時 GFlyer 會自動切換到 LocalDevVPN 開啟，再自動回來。",
+        ])
+    }
 }

@@ -26,6 +26,13 @@ enum Edition: EditionFeatures {
     static let backupFormatNote =
         "備份檔為 GFlyer Backup v1 格式，包含收藏、歷史、資料夾、路線與速度預設，與 GFlyer Android 的備份/還原互通。留言板登入與 Pairing File 不會包含在備份內。"
 
+    static let usageSteps = [
+        "1. 用電腦產生這部 iPhone 的 pairing file。",
+        "2. 將檔案傳到 iPhone 並在此匯入。",
+        "3. 確認已安裝 LocalDevVPN。",
+        "4. 回到地圖選點並按開始；VPN 未開時 GFlyer 會自動切換到 LocalDevVPN 開啟，再自動回來。",
+    ]
+
     static let developerDiskImageMissingMessage: String? = nil
 
     @MainActor

@@ -43,9 +43,9 @@ final class OnDevicePairingController: ObservableObject {
         }
     }
 
-    /// 等「設定」完成配對的時間，到了就停止並說明。
-    static let timeoutSeconds = 300
-    static let continuedTaskTitle = "在這支 iPhone 上配對"
+    /// 等「設定」完成配對的時間，到了就停止並說明。說明文字也用到，所以不限主執行緒。
+    nonisolated static let timeoutSeconds = 300
+    nonisolated static let continuedTaskTitle = "在這支 iPhone 上配對"
     private static let pinNotificationIdentifier = "gflyer.on-device-pairing.pin"
     private static let finishedNotificationIdentifier = "gflyer.on-device-pairing.finished"
 

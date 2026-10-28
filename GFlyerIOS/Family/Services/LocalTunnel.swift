@@ -37,9 +37,4 @@ extension LocalDevVPNBridge: LocalTunnelFeatures {
     func recoveryRows(isClearing: Bool) -> some View {
         LocalDevVPNRecoveryRows(vpn: self, isClearing: isClearing)
     }
-
-    static let usageSteps = [
-        "3. 確認已安裝 LocalDevVPN。",
-        "4. 回到地圖選點並按開始；VPN 未開時 GFlyer 會自動切換到 LocalDevVPN 開啟，再自動回來。",
-    ]
 }

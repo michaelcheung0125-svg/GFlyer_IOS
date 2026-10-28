@@ -77,10 +77,12 @@ final class EditionModel: ObservableObject, EditionModelFeatures {
         ]
     }
 
-    var settingsPresentations: some ViewModifier {
+    func settingsPresentations(simulation _: SimulationController) -> some ViewModifier {
         UpdateErrorAlert(updateChecker: updateChecker)
             .concat(StepRecorderSettingsSheet(edition: self))
     }
+
+    var firstSetupRows: EmptyView { EmptyView() }
 
     @ViewBuilder var settingsSections: some View {
         SoftwareUpdateSection(updateChecker: updateChecker)
