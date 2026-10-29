@@ -52,7 +52,8 @@ jobs:
           GFLYER_OPENSSL="$prefix/bin/openssl" python3 -I tools/app-store/signing.py self-test
 
   sign:
-    name: Sign the public app${{ inputs.upload && ' and upload it' || '' }}
+    # 名稱不用 ${{ inputs.upload }}：push 時這個 job 跳過，Actions 頁會照原樣顯示那段式子
+    name: Sign the public app
     if: github.event_name == 'workflow_dispatch'
     needs: self-test
     runs-on: macos-26
