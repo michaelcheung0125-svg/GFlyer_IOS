@@ -298,6 +298,13 @@ Exit criterion: a 30-minute foreground route completes without losing the tunnel
   stripped executables and no build-machine paths; CI and the public repo's
   `scripts/ci.sh archive` check this. The family edition is unchanged.
   Signing and upload wait for the paid account (item 22)
+- App Store signing and upload workflow (2026-10-29, `00857a8`,
+  `docs/app-store-signing.md`): `.github/workflows/app-store.yml` signs the
+  public app with an Apple Distribution certificate and two App Store Connect
+  profiles, checks the archive and the IPA, and uploads with `xcodebuild`, only
+  when run by hand from main. `tools/app-store/signing.py` prepares the signing
+  files without a Mac and puts them in the `app-store` environment. Its
+  self-test passes; a real signing run waits for the paid account (item 22)
 - Route polyline editing and waypoint reorder
 
 Exit criterion: behavior matches the existing Android model tests where the platform does not impose a different constraint.
