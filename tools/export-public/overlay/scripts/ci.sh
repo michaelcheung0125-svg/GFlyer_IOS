@@ -146,6 +146,9 @@ archive() {
   test -f "$app/Assets.car"
   test -f "$app/AppIcon60x60@2x.png"
   expect "$plist" CFBundleIdentifier com.jetpiggy.gflyer
+  # 版本號只在 project.yml 改
+  expect "$plist" CFBundleShortVersionString "$(sed -n 's/^ *MARKETING_VERSION: "\(.*\)"$/\1/p' project.yml)"
+  expect "$plist" CFBundleVersion "$(sed -n 's/^ *CURRENT_PROJECT_VERSION: "\(.*\)"$/\1/p' project.yml)"
   # 加密的出口申報：App 只用國際標準的加密，又不在法國的 App Store 提供，所以是 NO，
   # 上傳 App Store Connect 時不用再回答。改了加密，或者要在法國提供，要重新判斷。
   expect "$plist" ITSAppUsesNonExemptEncryption false
@@ -154,6 +157,7 @@ archive() {
   expect "$tunnel/Info.plist" CFBundleIdentifier com.jetpiggy.gflyer.tunnel
   expect "$tunnel/Info.plist" NSExtension:NSExtensionPointIdentifier com.apple.networkextension.packet-tunnel
   expect "$tunnel/Info.plist" CFBundleShortVersionString "$(plist_value "$plist" CFBundleShortVersionString)"
+  expect "$tunnel/Info.plist" CFBundleVersion "$(plist_value "$plist" CFBundleVersion)"
   # App Store Connect 收到上傳時會掃執行檔用到的「指定原因 API」，私隱清單沒有寫就退回
   plutil -lint "$app/PrivacyInfo.xcprivacy"
   python3 -I scripts/check_privacy_manifest.py --app "$app"

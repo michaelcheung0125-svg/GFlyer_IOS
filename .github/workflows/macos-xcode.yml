@@ -33,7 +33,7 @@ permissions:
 # 釘死，不吃預設值。
 #
 # 要換版本：改下面的路徑，然後同步更新 SKILL.md 的 toolchain 表格和
-# AGENTS.md 那一行；export-public.yml 和公開 repo 的 overlay
+# AGENTS.md 那一行；export-public.yml、app-store.yml 和公開 repo 的 overlay
 # （tools/export-public/overlay/ 的 .github/workflows/ci.yml、AGENTS.md、README.md）也一起改。不可以釘回 Xcode 16.x：App Store Connect 從 2026-04-28
 # 起只收 Xcode 26（iOS 26 SDK）建置的版本（docs/APP_STORE_PLAN.md 第 1 項）。
 # 用 macos-26 而不是 macos-15，是因為 macos-15 的 image 最新只到 Xcode 26.3，
@@ -423,31 +423,11 @@ jobs:
             CODE_SIGNING_REQUIRED=NO \
             COMPILER_INDEX_STORE_ENABLE=NO
 
-      - name: Check and summarize the public app
+      # 摘要先上傳：下面的檢查失敗時，摘要照樣拿得到
+      - name: Summarize the public app
         run: |
           app_path="$RUNNER_TEMP/GFlyerPublic-Idevice.xcarchive/Products/Applications/GFlyerPublic.app"
           test -d "$app_path"
-          test -f "$app_path/Assets.car"
-          test -f "$app_path/AppIcon60x60@2x.png"
-          plist="$app_path/Info.plist"
-          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$plist")" = com.jetpiggy.gflyer
-          # 加密的出口申報（docs/APP_STORE_PLAN.md 第 21 項）：只用標準加密、不在法國上架，所以是 NO。
-          # 少了這個鍵，每次上傳都要在 App Store Connect 回答；要改先看 docs/app-store-encryption.md
-          test "$(/usr/libexec/PlistBuddy -c 'Print :ITSAppUsesNonExemptEncryption' "$plist")" = false
-          # App 內建的本機通道（docs/APP_STORE_PLAN.md 第 12 項）
-          tunnel_plist="$app_path/PlugIns/GFlyerPublicTunnel.appex/Info.plist"
-          test -f "$app_path/PlugIns/GFlyerPublicTunnel.appex/GFlyerPublicTunnel"
-          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$tunnel_plist")" = com.jetpiggy.gflyer.tunnel
-          test "$(/usr/libexec/PlistBuddy -c 'Print :NSExtension:NSExtensionPointIdentifier' "$tunnel_plist")" = com.apple.networkextension.packet-tunnel
-          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$tunnel_plist")" = \
-            "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$plist")"
-          # 親友版的私人網址只放在親友版的 Info.plist（docs/APP_STORE_PLAN.md 第二階段的做法）
-          for key in GFlyerMessageBoardAPIURL GFlyerCoordinateLibraryURL GFlyerUpdateSourceURL; do
-            if /usr/libexec/PlistBuddy -c "Print :$key" "$plist" >/dev/null 2>&1; then
-              echo "The public app's Info.plist has $key." >&2
-              exit 1
-            fi
-          done
           mkdir -p "$RUNNER_TEMP/public-ipa/Payload"
           ditto "$app_path" "$RUNNER_TEMP/public-ipa/Payload/GFlyerPublic.app"
           (cd "$RUNNER_TEMP/public-ipa" && zip -qry "$RUNNER_TEMP/GFlyerPublic-Idevice-unsigned.ipa" Payload)
@@ -463,34 +443,7 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
-      # 原始碼掃描之外再掃一次建好的 App，管建置時才加進來的字：建置設定、資源、連結進來的
-      # 程式庫（docs/APP_STORE_PLAN.md 第 10 項）。放在上傳摘要之後，失敗時摘要照樣拿得到。
-      - name: Scan the public app
-        run: |
-          python3 scripts/check_public_sources.py \
-            --app "$RUNNER_TEMP/GFlyerPublic-Idevice.xcarchive/Products/Applications/GFlyerPublic.app"
-
-      # App Store Connect 收到上傳時會掃執行檔用到的「指定原因 API」，私隱清單沒有寫就退回
-      # （docs/APP_STORE_PLAN.md 第 20 項）。這裏先照同一份清單掃 App 和通道 extension。
-      - name: Check the public app's privacy manifest
-        run: |
-          app_path="$RUNNER_TEMP/GFlyerPublic-Idevice.xcarchive/Products/Applications/GFlyerPublic.app"
-          plutil -lint "$app_path/PrivacyInfo.xcprivacy"
-          python3 scripts/check_privacy_manifest.py --app "$app_path"
-
-      # 上傳用的是 release 類的建置（docs/APP_STORE_PLAN.md 第 23 項）：有 dSYM，執行檔經過 strip，
-      # 不帶這個 repo 在建置機器上的路徑（debug 類的建置帶着 debug map，路徑裏有私人 repo 的名稱）。
-      # 公開 repo 的 scripts/ci.sh archive 做同樣的檢查。
-      - name: Check the public app is an upload build
-        run: |
-          archive="$RUNNER_TEMP/GFlyerPublic-Idevice.xcarchive"
-          app_path="$archive/Products/Applications/GFlyerPublic.app"
-          test -d "$archive/dSYMs/GFlyerPublic.app.dSYM"
-          test -d "$archive/dSYMs/GFlyerPublicTunnel.appex.dSYM"
-          for binary in "$app_path/GFlyerPublic" "$app_path/PlugIns/GFlyerPublicTunnel.appex/GFlyerPublicTunnel"; do
-            if grep -a -q -F "$GITHUB_WORKSPACE/" "$binary"; then
-              echo "$binary has paths under $GITHUB_WORKSPACE:" >&2
-              strings -a "$binary" | grep -F "$GITHUB_WORKSPACE/" | sort -u | head -20 >&2
-              exit 1
-            fi
-          done
+      # 圖示、Bundle ID、版本號、加密申報、本機通道、建好的 App 的掃描、私隱清單、dSYM 和路徑。
+      # app-store.yml 上傳 App Store Connect 之前，用同一份檢查簽好的 archive（docs/app-store-signing.md）
+      - name: Check the public app
+        run: bash tools/app-store/check_public_app.sh "$RUNNER_TEMP/GFlyerPublic-Idevice.xcarchive"

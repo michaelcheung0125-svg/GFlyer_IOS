@@ -47,6 +47,12 @@
   與正確版本號。
 - `docs/RELEASE_PROCESS.md` 末段列出「不可回退的決定」；修改相關程式碼前
   先讀那一節。
+- 上面的流程是親友版的。公開版上傳 App Store Connect 用
+  `.github/workflows/app-store.yml`，只在使用者明確要求時手動觸發，步驟見
+  `docs/app-store-signing.md`。簽署用的憑證、描述檔和 API 金鑰只放在 GitHub
+  的 `app-store` environment（只准 `main` 用）；`tools/app-store/signing.py`
+  不准把它們放在這個 repo 的資料夾裏。改了 `signing.py` 的 secrets 名稱，同一次
+  改動改 workflow 和 `docs/app-store-signing.md` 的表。
 
 ## 匯出公開版
 
@@ -59,7 +65,7 @@
   4. 公開 repo 的 commit 身分是 `JetPiggy <gflyer@jetpiggy.com>`。commit 訊息只寫這次公開的改動，不寫這個 repo 的 hash 或內部資料。
 - 以下永遠不匯出：`GFlyerIOS/Family/`、`GFlyerIOSTests/Family/`、`docs/`、`HANDOFF.md`、`.claude/`、`tools/`，以及 `scripts/` 的 `check_public_sources.py`、`ipa_summary.py`、`make_brand_art.py`。要公開其中某一樣，先問使用者，再改 `tools/export-public/export.py` 的清單。
 - 新增頂層的檔案、`GFlyerIOS/` 或 `GFlyerIOSTests/` 底下的資料夾、`scripts/` 底下的檔案，或者 `project.yml` 的 target 和 scheme，匯出工具會因為「未分類」而停下，CI 的「Public edition source scan」也會失敗。這時在 `export.py` 決定它公開與否，拿不準就排除並問使用者。
-- 公開 repo 的 README、AGENTS.md、LICENSE、NOTICE、`.gitignore` 和 CI（`.github/workflows/ci.yml`、`scripts/ci.sh`）在 `tools/export-public/overlay/`。要改公開 repo 的說明或 CI，改那裏；README 只寫公開版真正有的功能。`scripts/ci.sh archive` 核對建好的 App 的那幾項和這個 repo 的「Check and summarize the public app」相同，改其中一邊時兩邊一起改。
+- 公開 repo 的 README、AGENTS.md、LICENSE、NOTICE、`.gitignore` 和 CI（`.github/workflows/ci.yml`、`scripts/ci.sh`）在 `tools/export-public/overlay/`。要改公開 repo 的說明或 CI，改那裏；README 只寫公開版真正有的功能。`scripts/ci.sh archive` 核對建好的 App 的那幾項和這個 repo 的 `tools/app-store/check_public_app.sh` 相同（每次 push 的未簽署 archive 和上傳前簽好的 archive 都用它查），改其中一邊時兩邊一起改。
 - 建立公開 repo、push，以及在 JetPiggy-Brand 登記（`registry.md`、`repo-map.html`），都要等使用者明確要求。
 - idevice 的原始碼（`scripts/build_idevice.sh`）和 DDI 的下載來源（`DeveloperDiskImageStore.swift`）在 GitHub 的個人帳戶下，匯出工具每次都列成提醒。使用者 2026-10-22 決定照留：只在程式和建置腳本裏用，README、NOTICE 和網站不連去它們（RULES 第 5 節）。加新的第三方來源時，同樣只放在程式裏，並告訴使用者。
 

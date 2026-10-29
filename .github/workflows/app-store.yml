@@ -1,0 +1,175 @@
+name: App Store upload
+
+# 公開版（GFlyerPublic）簽署並上傳 App Store Connect（docs/APP_STORE_PLAN.md 第 23 項）。要放的 secrets
+# 和每次上傳的步驟見 docs/app-store-signing.md。
+#
+# 只在使用者在 Actions 頁手動按「Run workflow」時簽署和上傳，而且只用 main。push 改到簽署工具時，只跑
+# 不用秘密的 self-test。秘密放在 app-store environment，只准 main 用；repo 是公開的，從 fork 開的 PR
+# 拿不到 secrets，這個 workflow 也不在 pull_request 時跑。
+on:
+  workflow_dispatch:
+    inputs:
+      upload:
+        description: 上傳到 App Store Connect（不勾就只簽署和核對，不上傳）
+        type: boolean
+        default: false
+  push:
+    branches: [main]
+    paths:
+      - 'tools/app-store/**'
+      - '.github/workflows/app-store.yml'
+
+permissions:
+  contents: read
+
+# 和 macos-xcode.yml 釘同一個 Xcode，改其中一個時兩個一起改。App Store Connect 只收用 Xcode 26 建置的版本。
+env:
+  DEVELOPER_DIR: /Applications/Xcode_26.6.app/Contents/Developer
+
+# 不取消進行中的：上傳到一半被取消，App Store Connect 那邊可能只收到一半
+concurrency:
+  group: app-store-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  self-test:
+    name: Signing tool self-test
+    runs-on: macos-26
+    timeout-minutes: 10
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      # 假的憑證和描述檔用 OpenSSL 3 產生，和使用者在 Windows 的 Git Bash 用的同一類，
+      # 所以這一步也證明 macOS 的 security import 讀得到 signing.py certificate 產生的 .p12
+      - name: Test the signing tool with a throwaway certificate and profiles
+        run: |
+          if ! prefix="$(brew --prefix openssl@3 2>/dev/null)" || [ ! -x "$prefix/bin/openssl" ]; then
+            brew install openssl@3
+            prefix="$(brew --prefix openssl@3)"
+          fi
+          "$prefix/bin/openssl" version
+          GFLYER_OPENSSL="$prefix/bin/openssl" python3 -I tools/app-store/signing.py self-test
+
+  sign:
+    name: Sign the public app${{ inputs.upload && ' and upload it' || '' }}
+    if: github.event_name == 'workflow_dispatch'
+    needs: self-test
+    runs-on: macos-26
+    timeout-minutes: 60
+    environment: app-store
+    steps:
+      - name: Only from main
+        run: |
+          if [ "$GITHUB_REF" != refs/heads/main ]; then
+            echo "Run this workflow from main (this run is on $GITHUB_REF)." >&2
+            exit 1
+          fi
+
+      - name: Verify the pinned Xcode
+        run: |
+          if [ ! -d "$DEVELOPER_DIR" ]; then
+            echo "$DEVELOPER_DIR is no longer on this runner image. Repin it here and in macos-xcode.yml." >&2
+            exit 1
+          fi
+          xcodebuild -version
+          swift --version
+
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Install build tools
+        run: |
+          brew install xcodegen
+          cargo --version
+
+      # 上傳的建置不用 macos-xcode.yml 快取的 libidevice_ffi.a，每次從釘住的原始碼重新建置
+      - name: Build pinned idevice library
+        run: bash scripts/build_idevice.sh
+
+      - name: Generate Xcode project
+        run: xcodegen generate
+
+      # 這一步之後才碰秘密：上面的步驟拿不到它們
+      - name: Install the signing certificate, profiles and API key
+        env:
+          DISTRIBUTION_CERTIFICATE_P12: ${{ secrets.DISTRIBUTION_CERTIFICATE_P12 }}
+          DISTRIBUTION_CERTIFICATE_PASSWORD: ${{ secrets.DISTRIBUTION_CERTIFICATE_PASSWORD }}
+          APP_STORE_PROFILE_APP: ${{ secrets.APP_STORE_PROFILE_APP }}
+          APP_STORE_PROFILE_TUNNEL: ${{ secrets.APP_STORE_PROFILE_TUNNEL }}
+          APP_STORE_CONNECT_KEY: ${{ secrets.APP_STORE_CONNECT_KEY }}
+          APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+        run: python3 -I tools/app-store/signing.py install
+
+      # 和 macos-xcode.yml 的公開版 archive 是同一個 scheme 和設定（AppStore，release 類），只是改用手動簽署：
+      # project.yml 的 AppStore 設定從 GFLYER_APP_PROFILE 和 GFLYER_TUNNEL_PROFILE 讀描述檔的名稱
+      - name: Create signed public archive
+        run: |
+          xcodebuild archive \
+            -project GFlyerIOS.xcodeproj \
+            -scheme GFlyerPublic-Idevice \
+            -destination "generic/platform=iOS" \
+            -archivePath "$RUNNER_TEMP/GFlyerPublic.xcarchive" \
+            CODE_SIGN_STYLE=Manual \
+            DEVELOPMENT_TEAM="$GFLYER_TEAM_ID" \
+            CODE_SIGN_IDENTITY="Apple Distribution" \
+            OTHER_CODE_SIGN_FLAGS="--keychain $GFLYER_SIGNING_KEYCHAIN" \
+            GFLYER_APP_PROFILE="$GFLYER_APP_PROFILE" \
+            GFLYER_TUNNEL_PROFILE="$GFLYER_TUNNEL_PROFILE" \
+            COMPILER_INDEX_STORE_ENABLE=NO
+
+      # 和每次 push 查未簽署 archive 的是同一份檢查：圖示、Bundle ID、版本號、加密申報、通道、
+      # 掃描、私隱清單、dSYM 和路徑
+      - name: Check the signed archive
+        run: bash tools/app-store/check_public_app.sh "$RUNNER_TEMP/GFlyerPublic.xcarchive"
+
+      - name: Export the IPA
+        run: |
+          python3 -I tools/app-store/signing.py export-options --destination export > "$RUNNER_TEMP/ExportOptions.plist"
+          xcodebuild -exportArchive \
+            -archivePath "$RUNNER_TEMP/GFlyerPublic.xcarchive" \
+            -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist" \
+            -exportPath "$RUNNER_TEMP/export"
+          ls -l "$RUNNER_TEMP/export"
+          ipas=("$RUNNER_TEMP"/export/*.ipa)
+          test "${#ipas[@]}" -eq 1 && test -f "${ipas[0]}"
+          echo "GFLYER_IPA=${ipas[0]}" >> "$GITHUB_ENV"
+
+      - name: Check the IPA's signature
+        run: python3 -I tools/app-store/signing.py check-ipa "$GFLYER_IPA"
+
+      # 拿這份和 macos-xcode.yml 的 GFlyerPublic-Idevice-summary 比，就知道簽署之外有沒有不同
+      - name: Summarize the IPA
+        run: |
+          python3 scripts/ipa_summary.py "$GFLYER_IPA" \
+            > "$RUNNER_TEMP/GFlyerPublic-AppStore-summary.txt"
+          grep -c . "$RUNNER_TEMP/GFlyerPublic-AppStore-summary.txt"
+
+      - name: Upload the IPA summary
+        uses: actions/upload-artifact@v4
+        with:
+          name: GFlyerPublic-AppStore-summary
+          path: |
+            ${{ runner.temp }}/GFlyerPublic-AppStore-summary.txt
+            ${{ runner.temp }}/export/DistributionSummary.plist
+          if-no-files-found: error
+          retention-days: 30
+
+      # 從同一個 archive、用同一組選項再匯出一次，這次由 Xcode 直接上傳。不用 altool：Xcode 26 的
+      # altool 上傳失敗時不一定回傳失敗的結束碼。App Store Connect 不收已經上傳過的版本號
+      - name: Upload to App Store Connect
+        if: inputs.upload
+        run: |
+          python3 -I tools/app-store/signing.py export-options --destination upload > "$RUNNER_TEMP/UploadOptions.plist"
+          xcodebuild -exportArchive \
+            -archivePath "$RUNNER_TEMP/GFlyerPublic.xcarchive" \
+            -exportOptionsPlist "$RUNNER_TEMP/UploadOptions.plist" \
+            -exportPath "$RUNNER_TEMP/upload" \
+            -authenticationKeyPath "$GFLYER_ASC_KEY_PATH" \
+            -authenticationKeyID "$GFLYER_ASC_KEY_ID" \
+            -authenticationKeyIssuerID "$GFLYER_ASC_ISSUER_ID"
+
+      - name: Remove the signing files
+        if: always()
+        run: python3 -I tools/app-store/signing.py cleanup

@@ -86,12 +86,15 @@ targets:
           HEADER_SEARCH_PATHS: "$(inherited) $(PROJECT_DIR)/GFlyerIOS/Vendor/idevice/include"
           LIBRARY_SEARCH_PATHS: "$(inherited) $(PROJECT_DIR)/GFlyerIOS/Vendor/idevice/lib"
           OTHER_LDFLAGS: "$(inherited) -lidevice_ffi"
-        # 和 Idevice 相同，改其中一個時兩個一起改
+        # 連結 idevice 的四項和 Idevice 相同，改其中一個時兩個一起改
         AppStore:
           SWIFT_ACTIVE_COMPILATION_CONDITIONS: "$(inherited) GFLYER_IDEVICE"
           HEADER_SEARCH_PATHS: "$(inherited) $(PROJECT_DIR)/GFlyerIOS/Vendor/idevice/include"
           LIBRARY_SEARCH_PATHS: "$(inherited) $(PROJECT_DIR)/GFlyerIOS/Vendor/idevice/lib"
           OTHER_LDFLAGS: "$(inherited) -lidevice_ffi"
+          # 上傳時 .github/workflows/app-store.yml 在指令列給描述檔的名稱，用手動簽署
+          # （docs/app-store-signing.md）。平日是空的，和沒有寫一樣。
+          PROVISIONING_PROFILE_SPECIFIER: "$(GFLYER_APP_PROFILE)"
   # 公開版的本機通道：Packet Tunnel extension，只把目標 IP 的封包對調位址後送回 iPhone 自己。
   # 免費 Apple ID 簽不了 Network Extension，所以只有公開版有；親友版照舊用 LocalDevVPN。
   # PacketReflector.swift 同時編進公開版的 App，App 和測試都用得到它。
@@ -110,6 +113,10 @@ targets:
         CODE_SIGN_ENTITLEMENTS: GFlyerPublicTunnel/GFlyerPublicTunnel.entitlements
         APPLICATION_EXTENSION_API_ONLY: YES
         SKIP_INSTALL: YES
+      configs:
+        # 和 GFlyerPublic 的 GFLYER_APP_PROFILE 一樣，上傳時才有值
+        AppStore:
+          PROVISIONING_PROFILE_SPECIFIER: "$(GFLYER_TUNNEL_PROFILE)"
   # GFlyerIOSTests/Public/ 測的是公開版才有的功能，只在公開版跑。
   GFlyerIOSTests:
     type: bundle.unit-test

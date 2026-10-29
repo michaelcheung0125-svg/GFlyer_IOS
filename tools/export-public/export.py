@@ -95,7 +95,9 @@ PROJECT_HEADER = """\
 # scheme：GFlyerPublic 用預覽的定位後端，在模擬器跑；GFlyerPublic-Idevice 連結 libidevice_ffi.a，
 # 在 iPhone 上用（先跑 scripts/build_idevice.sh，見 README.md）。GFlyerPublic-Idevice 執行時用 Idevice
 # 設定（debug 類），archive 用 AppStore 設定（release 類：有 dSYM，執行檔經過 strip），上傳
-# App Store Connect 的就是它。兩個設定的內容相同，改其中一個時兩個一起改。
+# App Store Connect 的就是它。兩個設定連結 idevice 的設定相同，改其中一個時兩個一起改。AppStore 設定的
+# PROVISIONING_PROFILE_SPECIFIER 讀 GFLYER_APP_PROFILE 和 GFLYER_TUNNEL_PROFILE：要用手動簽署時，在
+# xcodebuild 的指令列給 App 和本機通道的描述檔名稱；平日是空的，照舊自動簽署。
 # Assets.xcassets 經 sources 加進 App：XcodeGen 沒有 target 層級的 resources 欄位。
 """
 
